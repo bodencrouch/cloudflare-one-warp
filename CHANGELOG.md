@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8](https://github.com/bodencrouch/thirdflare-one/compare/v0.2.7...v0.2.8) (2026-09-28)
+
+
+### Features
+
+* **desktop:** ship shared readiness, tray state icons, and diagnostics ([#3](https://github.com/bodencrouch/thirdflare-one/issues/3)) ([6685566](https://github.com/bodencrouch/thirdflare-one/commit/6685566b5621f1c87bfb6f2f09f5d8576f28254e))
+* log dock, KDE routing UX, NM integration, and app routing shortcuts ([c89d498](https://github.com/bodencrouch/thirdflare-one/commit/c89d498ad55dada7bf77fd24b55bebc0a9da31e5))
+* native tray, polkit killswitch, and bodencrouch org rename ([a6b6033](https://github.com/bodencrouch/thirdflare-one/commit/a6b6033c27d84ea803d0aa10a74cb1994817dd52))
+* **tray:** own the Cloudflare One Client shell, keep ThirdFlare's GUI opt-in ([b77347a](https://github.com/bodencrouch/thirdflare-one/commit/b77347a044eb11f3e98a52c030843d7c92d6e654))
+* **tray:** swap Cloudflare One Client and ThirdFlare desktop shells ([3d0aad1](https://github.com/bodencrouch/thirdflare-one/commit/3d0aad191ccbec052b54aa27b2663eafd09b5767))
+* **webui:** always-on Web UI modes and native KDE settings ([de812cc](https://github.com/bodencrouch/thirdflare-one/commit/de812cc0d8a4ce9aae6d6e62a4dc7f5a15c129a4))
+
+
+### Bug Fixes
+
+* **api:** guard cross-site writes, unblock the event loop, repair tray autostart ([06e58ae](https://github.com/bodencrouch/thirdflare-one/commit/06e58aeb14d74c47a185e561563e50257ed94dd3))
+* **ci:** cross-platform tray tests and skip npm install hook on CI ([96edfdd](https://github.com/bodencrouch/thirdflare-one/commit/96edfdd68a3459f28ae8a375906cb6ef96ee5ff6))
+* **ci:** gate Linux-only proxy-launcher tests and drop a host-dependent assert ([c6f400a](https://github.com/bodencrouch/thirdflare-one/commit/c6f400abcbaecab7cd17c7cc5699c6ef0bcd3517))
+* **ci:** the tray autostart entry is Linux-only, so assert it only there ([cb25f71](https://github.com/bodencrouch/thirdflare-one/commit/cb25f7100ff45c9d68c0169b944b3d6413cf5492))
+* **config:** migrate bodencrouch update source to bodencrouch ([38159de](https://github.com/bodencrouch/thirdflare-one/commit/38159de22bf5baa0bc743414b62f4694b48d6fe1))
+* **launcher:** single KDE entry, native tray default, and stale daemon restart ([d269530](https://github.com/bodencrouch/thirdflare-one/commit/d2695308efe8f419603022108ada1f47b21315cc))
+* **packaging:** ship the modules the daemon imports, and guard against the next omission ([676fedd](https://github.com/bodencrouch/thirdflare-one/commit/676fedd6e3e09f530781704bdc634cd262b34b89))
+* **test:** skip tray autostart sync assertions on non-Linux CI ([f5b4feb](https://github.com/bodencrouch/thirdflare-one/commit/f5b4febc47b8a9cdb2d9551ce1c617a3ba62ba89))
+* **tray:** stop tests mutating real config, thread env, restore WARP service ([98e68fa](https://github.com/bodencrouch/thirdflare-one/commit/98e68fa8713c87a3262e1d5777dede773194acf4))
+
 ## [Unreleased]
 
 ### Security
