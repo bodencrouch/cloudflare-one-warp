@@ -2,7 +2,10 @@
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/session` | Session credential for local clients |
 | GET | `/api/health` | Liveness (`ok`, `app`, `version`) |
+| GET | `/api/readiness` | Shared readiness truth (hard blockers vs soft warnings) |
+| GET | `/api/diagnostics` | Clipboard-ready diagnostics text (no account secrets) |
 | GET | `/api/version` | Installed version + update source |
 | GET | `/api/account` | Structured registration / devices |
 | GET | `/api/snapshot` | Aggregated warp-cli reads (see keys below) |
@@ -28,6 +31,29 @@
 | POST | `/api/apps/proxy-launcher` | Create `.desktop` proxy shortcut |
 | POST | `/api/action` | Whitelisted warp-cli mutation |
 
+## Requests that change something
+
+Every `POST` (and any other write method) must:
+
+1. come from this computer,
+2. be addressed to `127.0.0.1`, `localhost`, or `[::1]` on the daemon's port,
+3. send `content-type: application/json`, and
+4. carry the local session credential in `x-thirdflare-session`.
+
+Read the credential from `GET /api/session` or from `~/.config/thirdflare/session-<port>.token` (mode `0600`, replaced each time the daemon starts).
+
+```bash
+SESSION=$(cat ~/.config/thirdflare/session-4173.token)
+curl -s -X POST http://127.0.0.1:4173/api/action \
+  -H 'content-type: application/json' \
+  -H "x-thirdflare-session: $SESSION" \
+  -d '{"action":"connect"}'
+```
+
+Refused requests return `403` (or `415` when the body is not JSON) with a `reason` field: `host_not_allowed`, `remote_peer_denied`, `cross_site_denied`, `cross_origin_denied`, `json_required`, or `session_required`. Each one is recorded in the Console log with source `security`.
+
+Read-only endpoints need no credential, so `webui.allowRemote` still allows LAN diagnostics — but never changes.
+
 ## Snapshot command keys
 
 The `commands` object in `/api/snapshot` includes keys from `COMMANDS` in `server.js`, for example:
@@ -40,4 +66,4 @@ Each value is `{ ok, command, code, stdout, stderr, durationMs }` with redacted 
 
 When `webui.enabled` is true, non-API paths serve `public/` (SPA fallback to `index.html`).
 
-When disabled, non-API routes return **503** with a plain-text explanation.
+When disabled, non-API routes return **404** and only the API answers.

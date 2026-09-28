@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="ThirdFlare One needs attention">
+  <path fill="#f48120" d="M35 77h53c9 0 16-7 16-16s-7-16-16-16h-2c-4-13-16-22-30-22-17 0-31 14-31 31v1c-9 2-16 10-16 20 0 1 1 2 2 2h24Z"/>
+  <path fill="#d9650f" d="M82 77h20c10 0 18-8 18-18s-8-18-18-18c-6 0-12 3-15 8 6 3 10 9 10 16 0 5-2 9-5 12H82Z"/>
+  <circle cx="100" cy="100" r="18" fill="#d9480f"/>
+  <rect x="96" y="88" width="8" height="14" rx="2" fill="#fff"/>
+  <circle cx="100" cy="108" r="3" fill="#fff"/>
+</svg>

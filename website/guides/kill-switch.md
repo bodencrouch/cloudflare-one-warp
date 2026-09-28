@@ -8,6 +8,7 @@ Native **nftables** kill switch blocks non-WARP traffic when enabled and WARP is
 curl -s http://127.0.0.1:4173/api/killswitch | jq
 curl -X POST http://127.0.0.1:4173/api/killswitch \
   -H 'Content-Type: application/json' \
+  -H "x-thirdflare-session: $(cat ~/.config/thirdflare/session-4173.token)" \
   -d '{"enabled": true}'
 ```
 

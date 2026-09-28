@@ -150,6 +150,22 @@ systemctl --user restart thirdflare
 
 For shared machines, install unit files under `/etc/systemd/system/` and point `WorkingDirectory=/usr/lib/thirdflare`. Prefer `/etc/thirdflare/config.json` for policy so unprivileged users cannot override fleet settings without sudo.
 
+## Local session credential
+
+Reading state is open to anything on this computer, but **changing** state requires a credential so a web page you visit cannot drive WARP behind your back. Each daemon mints one at startup and writes it to a private file:
+
+```
+~/.config/thirdflare/session-<port>.token   # mode 0600, removed on shutdown
+```
+
+The Web UI, tray, and settings dialog handle this for you. For scripts, send it as `x-thirdflare-session` on every `POST`:
+
+```bash
+SESSION=$(cat ~/.config/thirdflare/session-4173.token)
+```
+
+Requests that change something must also come from this computer, be addressed to `127.0.0.1` / `localhost`, and send `content-type: application/json`. Anything else is refused with `403` (or `415` for a non-JSON body) and logged in the Console tab. Setting `webui.allowRemote` or a `0.0.0.0` bind still only exposes read-only endpoints to the LAN.
+
 ## In-app session overrides
 
 Inspect effective config:
@@ -168,6 +184,7 @@ Session may set `ui.locale` / `ui.theme` / `ui.openBrowser` / `ui.notifications`
 ```bash
 curl -s -X POST http://127.0.0.1:4173/api/config/session \
   -H 'content-type: application/json' \
+  -H "x-thirdflare-session: $SESSION" \
   -d '{"config":{"updates":{"channel":"beta"}}}'
 ```
 
@@ -176,6 +193,7 @@ Clear session overrides:
 ```bash
 curl -s -X POST http://127.0.0.1:4173/api/config/session \
   -H 'content-type: application/json' \
+  -H "x-thirdflare-session: $SESSION" \
   -d '{"clear":true}'
 ```
 
@@ -185,19 +203,19 @@ Persist Web UI, server, UI notifications, desktop app, and tray autostart:
 
 ```bash
 curl -s -X POST http://127.0.0.1:4173/api/config/webui \
-  -H 'content-type: application/json' -d '{"enabled":true}'
+  -H 'content-type: application/json' -H "x-thirdflare-session: $SESSION" -d '{"enabled":true}'
 
 curl -s -X POST http://127.0.0.1:4173/api/config/server \
-  -H 'content-type: application/json' -d '{"port":4173}'
+  -H 'content-type: application/json' -H "x-thirdflare-session: $SESSION" -d '{"port":4173}'
 
 curl -s -X POST http://127.0.0.1:4173/api/config/ui \
-  -H 'content-type: application/json' -d '{"notifications":true}'
+  -H 'content-type: application/json' -H "x-thirdflare-session: $SESSION" -d '{"notifications":true}'
 
 curl -s -X POST http://127.0.0.1:4173/api/config/tray-shell \
   -H 'content-type: application/json' -d '{"shell":"cloudflare"}'
 
 curl -s -X POST http://127.0.0.1:4173/api/config/tray-autostart \
-  -H 'content-type: application/json' -d '{"autostart":true}'
+  -H 'content-type: application/json' -H "x-thirdflare-session: $SESSION" -d '{"autostart":true}'
 ```
 
 ## Platform notes

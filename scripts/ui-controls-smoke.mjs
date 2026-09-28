@@ -6,9 +6,10 @@ import { chromium } from "@playwright/test";
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
-import { request } from "node:http";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createHttpJson } from "./ci-http-client.mjs";
+import { waitForPredicate } from "./ui-wait.mjs";
 
 const root = process.cwd();
 const port = Number(process.env.CI_UI_PORT || 14741);
@@ -31,38 +32,7 @@ Icon=web-browser
   "utf8"
 );
 
-function httpJson(method, path, body) {
-  return new Promise((resolve, reject) => {
-    const payload = body ? JSON.stringify(body) : null;
-    const req = request(
-      {
-        host: "127.0.0.1",
-        port,
-        path,
-        method,
-        headers: body
-          ? { "content-type": "application/json", "content-length": Buffer.byteLength(payload) }
-          : {}
-      },
-      (res) => {
-        let text = "";
-        res.on("data", (c) => {
-          text += c;
-        });
-        res.on("end", () => {
-          try {
-            resolve({ status: res.statusCode, json: text ? JSON.parse(text) : null });
-          } catch {
-            resolve({ status: res.statusCode, json: null });
-          }
-        });
-      }
-    );
-    req.on("error", reject);
-    if (payload) req.write(payload);
-    req.end();
-  });
-}
+const httpJson = createHttpJson(`http://127.0.0.1:${port}`);
 
 const child = spawn(process.execPath, ["server.js"], {
   cwd: root,
@@ -117,6 +87,8 @@ const NAV_EXPECTATIONS = [
   ["advanced", ".form-panel"]
 ];
 
+let browser;
+
 try {
   await waitHealth();
   await httpJson("POST", "/api/action", { action: "disconnect" });
@@ -130,7 +102,7 @@ try {
   if (systemChrome && process.env.PLAYWRIGHT_USE_BUNDLED !== "1") {
     launchOpts.executablePath = systemChrome;
   }
-  const browser = await chromium.launch(launchOpts);
+  browser = await chromium.launch(launchOpts);
   const page = await bootExpertPage(browser);
 
   for (const [navId, selector] of NAV_EXPECTATIONS) {
@@ -145,12 +117,13 @@ try {
   const toggle = page.locator("[data-testid='connection-toggle'], [data-testid='header-connection-toggle']").first();
   await toggle.waitFor({ timeout: 15000 });
   await toggle.click();
-  await page.waitForFunction(
+  await waitForPredicate(
+    page,
     () => {
       const el = document.querySelector("[data-testid='connection-toggle'], [data-testid='header-connection-toggle']");
-      return el && (el.getAttribute("aria-pressed") === "true" || /disconnect/i.test(el.textContent || ""));
+      return Boolean(el && (el.getAttribute("aria-pressed") === "true" || /disconnect/i.test(el.textContent || "")));
     },
-    { timeout: 15000 }
+    { timeout: 15000, message: "connection toggle did not reach the connected state" }
   );
 
   await page.locator("[data-nav='split']").click();
@@ -162,9 +135,15 @@ try {
 
   await page.locator("[data-nav='tunnel']").click();
   await page.locator("[data-testid='segmented-setMode'] button[data-value='proxy']").click();
-  await page.waitForFunction(
-    () => document.querySelector("[data-testid='segmented-setMode'] button[data-value='proxy']")?.classList.contains("selected"),
-    { timeout: 15000 }
+  await waitForPredicate(
+    page,
+    () =>
+      Boolean(
+        document
+          .querySelector("[data-testid='segmented-setMode'] button[data-value='proxy']")
+          ?.classList.contains("selected")
+      ),
+    { timeout: 15000, message: "tunnel mode segmented control did not select proxy" }
   );
 
   await page.locator("[data-nav='split']").click();
@@ -174,16 +153,22 @@ try {
   }
   const appSelect = page.locator("[data-testid='app-routing-select']");
   await appSelect.waitFor({ timeout: 15000 });
-  await page.waitForFunction(
+  await waitForPredicate(
+    page,
     () => {
       const select = document.querySelector("[data-testid='app-routing-select']");
-      return select && select.options.length > 0 && !/No apps found/i.test(select.options[0]?.text || "");
+      return Boolean(select && select.options.length > 0 && !/No apps found/i.test(select.options[0]?.text || ""));
     },
-    { timeout: 15000 }
+    { timeout: 15000, message: "app routing picker never listed an app" }
   );
   await page.locator("[data-testid='app-routing-shortcut']").click();
-  await page.waitForFunction(
-    () => document.querySelector(".toast.info")?.textContent?.includes("Shortcut") || document.querySelector(".toast")?.textContent?.includes("Shortcut"),
+  await waitForPredicate(
+    page,
+    () =>
+      Boolean(
+        document.querySelector(".toast.info")?.textContent?.includes("Shortcut") ||
+          document.querySelector(".toast")?.textContent?.includes("Shortcut")
+      ),
     { timeout: 10000 }
   ).catch(() => {
     /* toast may dismiss quickly; API success is enough */
@@ -199,37 +184,46 @@ try {
   const ksToggle = page.locator("[data-testid='killswitch-toggle']");
   await ksToggle.waitFor({ timeout: 10000 });
   await ksToggle.click();
-  await page.waitForFunction(
+  await waitForPredicate(
+    page,
     () => {
       const el = document.querySelector("[data-testid='killswitch-toggle']");
-      return el && el.getAttribute("aria-disabled") !== "true" && !el.disabled;
+      return Boolean(el && el.getAttribute("aria-disabled") !== "true" && !el.disabled);
     },
-    { timeout: 15000 }
+    { timeout: 15000, message: "kill switch toggle stayed busy" }
   );
 
   await page.locator("[data-nav='gateway']").click();
   await page.locator("[data-testid='segmented-setFamilies'] button[data-value='malware']").click();
-  await page.waitForFunction(
-    () => document.querySelector("[data-testid='segmented-setFamilies'] button[data-value='malware']")?.classList.contains("selected"),
-    { timeout: 15000 }
+  await waitForPredicate(
+    page,
+    () =>
+      Boolean(
+        document
+          .querySelector("[data-testid='segmented-setFamilies'] button[data-value='malware']")
+          ?.classList.contains("selected")
+      ),
+    { timeout: 15000, message: "gateway families segmented control did not select malware" }
   );
 
   await page.locator("[data-log-tab='status']").click();
   await page.locator("[data-log-tab='console']").click();
   await page.locator("[data-log-tab='diagnostics']").click();
-  await page.waitForFunction(
-    () => document.querySelector("[data-log-tab='diagnostics']")?.classList.contains("active"),
-    { timeout: 5000 }
+  await waitForPredicate(
+    page,
+    () => Boolean(document.querySelector("[data-log-tab='diagnostics']")?.classList.contains("active")),
+    { timeout: 5000, message: "diagnostics log tab did not activate" }
   );
 
   await page.locator("[data-nav='account']").click();
   await page.locator("[data-testid='account-register']").click();
-  await page.waitForFunction(
+  await waitForPredicate(
+    page,
     () => {
       const strip = document.querySelector(".account-status-strip");
-      return strip && /Registered/i.test(strip.textContent || "");
+      return Boolean(strip && /Registered/i.test(strip.textContent || ""));
     },
-    { timeout: 15000 }
+    { timeout: 15000, message: "account status strip did not report Registered" }
   );
 
   const snap = await httpJson("GET", "/api/snapshot");
@@ -237,13 +231,15 @@ try {
     throw new Error(`Expected proxy mode in snapshot, got ${snap.json?.settings?.Mode}`);
   }
 
-  await browser.close();
   console.log("UI controls smoke OK (nav, toggles, segmented, app routing picker, forms, log tabs)");
   process.exitCode = 0;
 } catch (err) {
   console.error("UI controls smoke FAIL", err);
   process.exitCode = 1;
 } finally {
+  // Without this the browser keeps the event loop alive and a failing run hangs
+  // instead of reporting.
+  await browser?.close().catch(() => {});
   child.kill("SIGTERM");
   setTimeout(() => {
     try {

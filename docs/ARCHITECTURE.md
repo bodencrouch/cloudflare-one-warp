@@ -51,7 +51,11 @@ When `ui.notifications` is true (default), `server.js` starts `lib/notify/status
 
 | Route | Method | Purpose |
 |-------|--------|---------|
+| `/api/session` | GET | Local session credential for this daemon (same-origin loopback callers only) |
 | `/api/health` | GET | Liveness; returns `app: "thirdflare"` |
+| `/api/readiness` | GET | Shared readiness truth (hard blockers vs soft warnings) for tray, Web UI, and launcher |
+| `/api/diagnostics` | GET | Clipboard-ready diagnostics summary (no account secrets) |
+| `/api/version` | GET | Installed version + update channel/source |
 | `/api/version` | GET | Installed semver, channel, update source |
 | `/api/config` | GET | Effective config + source flags |
 | `/api/config/session` | POST | Provisional in-app overrides |
@@ -75,6 +79,25 @@ When `ui.notifications` is true (default), `server.js` starts `lib/notify/status
 | `/api/update/apply` | POST | Apply prepared AppImage update |
 
 Contract file: [`openapi/thirdflare-api.json`](../openapi/thirdflare-api.json). Secrets in command output are redacted before JSON serialization.
+
+## Request gate
+
+The daemon listens on loopback, so any web page a user visits can reach it. [`lib/http/request-gate.mjs`](../lib/http/request-gate.mjs) runs before routing — in both API-only and Full UI mode — and refuses anything that is not a local ThirdFlare client:
+
+| Check | Applies to | Failure |
+|-------|-----------|---------|
+| `Host` must be this daemon's loopback address and port | all requests | `403 host_not_allowed` (DNS rebinding) |
+| Peer must be loopback | mutations, `/api/session` | `403 remote_peer_denied` |
+| `Sec-Fetch-Site` must be `same-origin`/`none` | mutations, `/api/session` | `403 cross_site_denied` |
+| `Origin` (or `Referer` when absent) must match this daemon | mutations, `/api/session` | `403 cross_origin_denied` |
+| `Content-Type: application/json` | mutations | `415 json_required` |
+| `X-Thirdflare-Session` must match the current credential | mutations | `403 session_required` |
+
+Mutations are `POST`/`PUT`/`PATCH`/`DELETE` under `/api/`. Read-only requests stay open so `allowRemote` diagnostics keep working, but they can never change WARP or config state. Blocked requests are appended to the command log with source `security` — reason only, never the body or credential.
+
+The credential is 32 random bytes minted at daemon start and written to `~/.config/thirdflare/session-<port>.token` with mode `0600` (removed on shutdown). The Web UI fetches it from `GET /api/session` via [`public/api-client.js`](../public/api-client.js); the tray and native settings dialog read the file (falling back to the endpoint) via `scripts/tray_api.py`. It authenticates *the local user's clients*, not a person — it replaces nothing about `warp-cli` permissions.
+
+API responses send `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and `Content-Security-Policy: default-src 'none'`; Web UI assets get a `'self'`-scoped policy that also allows the `qrc:` WebChannel bridge used by the tray shell.
 
 ## Always On (Linux)
 
@@ -108,7 +131,10 @@ Windows Cloudflare One exposes **Always On** in the client. Linux `warp-cli` has
 - Binds to loopback unless explicitly configured for remote Web UI.
 - No shell when invoking `warp-cli`; argument allow-lists for `/api/action`.
 - Destructive operations require GUI confirmation.
-- **Cross-site guard:** every non-GET request passes `crossSiteRejection()` — `Sec-Fetch-Site`, `Origin`, and a required `application/json` content type. There is still no CSRF token and no authentication, so this remains localhost-only; do not expose remotely without adding auth.
+- Every mutation passes the [request gate](#request-gate): local Host, loopback peer, same-origin, JSON body, and the per-daemon session credential. A page the user visits cannot drive WARP, and a remote peer cannot mutate anything even when `webui.allowRemote` or a `0.0.0.0` bind is configured.
+- **Cross-site guard:** inside the API handler, every non-GET request also passes `crossSiteRejection()` — `Sec-Fetch-Site`, `Origin`, and a required `application/json` content type — as a second check behind the request gate.
+- AppImage self-updates require a valid Ed25519 signature from a pinned key and refuse downgrades (see [UPDATES.md](UPDATES.md)).
+- **Gap:** the kill-switch helper still elevates through `pkexec`, so the systemd units cannot set `NoNewPrivileges=true` yet (see [PACKAGING.md](PACKAGING.md)).
 
 ## Packaging layout (FHS)
 

@@ -75,11 +75,22 @@
     "killSwitchOff": "Off",
     "killSwitchUnknown": "Unknown",
     "killSwitchPaused": "Paused (enroll)",
+    "killSwitchModeOff": "Off",
+    "killSwitchModeAlwaysOn": "Always On",
+    "killSwitchModePaused": "Paused (enrollment)",
     "killSwitchPausedHint": "Temporarily off for Zero Trust browser/IdP enrollment. Completing a registration token restores the kill switch; otherwise it resumes after 30 minutes.",
+    "killSwitchRestoreHint": "Always On is on. Turn it off here if you need the internet while WARP is disconnected.",
     "killSwitchAllowLan": "Allow LAN (RFC1918 / ULA)",
     "killSwitchAllowLanHint": "Keep printers and local NAS reachable while the kill switch is on.",
     "killSwitchConfirm": "Enable the kill switch? Outbound traffic outside the WARP tunnel will be dropped until you turn this off. Requires nftables privileges (nft or pkexec).",
-    "killSwitchGuided": "Could not apply automatically. Save the script and run with sudo:"
+    "killSwitchGuided": "Could not apply automatically. Save the script and run with sudo:",
+    "readinessBlocked": "Fix the issue below before connecting.",
+    "readinessBlockedTitle": "Cannot connect yet",
+    "readinessBlockedBadge": "Needs fix",
+    "readinessAttentionTitle": "Something needs attention",
+    "readinessAttentionBadge": "Warning",
+    "copyDiagnostics": "Copy diagnostics",
+    "diagnosticsCopied": "Diagnostics copied"
   },
   "app": {
     "title": "App",

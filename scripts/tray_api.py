@@ -15,6 +15,12 @@ DEFAULT_PORT = 4173
 PORT_SCAN = 31
 
 
+def session_token_path(port: int) -> str:
+  """Mirror lib/http/request-gate.mjs sessionTokenPath()."""
+  home = os.environ.get("HOME") or os.path.expanduser("~")
+  return os.path.join(home, ".config", "thirdflare", f"session-{port}.token")
+
+
 def app_dir() -> str:
   env = os.environ.get("THIRDFLARE_APP_DIR")
   if env:
@@ -50,9 +56,10 @@ def connection_control(snapshot: dict[str, Any] | None) -> dict[str, Any]:
   Returns action (connect|disconnect|None), label, and enabled flag.
   """
   snap = snapshot or {}
-  daemon = snap.get("daemon") or {}
+  readiness = snap.get("readiness") or {}
   status = snap.get("status") or {}
-  if not daemon.get("available", True):
+  hard_blocked = bool(readiness.get("hardBlocked"))
+  if hard_blocked or (not readiness and not (snap.get("daemon") or {}).get("available", True)):
     return {"action": None, "label": "Connect", "enabled": False}
   connected = bool(status.get("connected"))
   connecting = bool(status.get("connecting"))
@@ -63,6 +70,20 @@ def connection_control(snapshot: dict[str, Any] | None) -> dict[str, Any]:
   return {"action": "connect", "label": "Connect", "enabled": True}
 
 
+def tray_icon_state(snapshot: dict[str, Any] | None) -> str:
+  """Map snapshot readiness + connection to a tray icon variant name."""
+  snap = snapshot or {}
+  readiness = snap.get("readiness") or {}
+  status = snap.get("status") or {}
+  if readiness.get("needsAttention") or readiness.get("hardBlocked"):
+    return "needs-attention"
+  if status.get("connecting"):
+    return "connecting"
+  if status.get("connected"):
+    return "connected"
+  return "disconnected"
+
+
 class ThirdFlareClient:
   """Minimal HTTP client for the local ThirdFlare One daemon."""
 
@@ -71,9 +92,11 @@ class ThirdFlareClient:
     env_port = os.environ.get("THIRDFLARE_PORT") or os.environ.get("CLOUDFLARE_ONE_GUI_PORT")
     self.base_port = int(env_port) if env_port else DEFAULT_PORT
     self.base_url: str | None = None
+    self.session: str | None = None
     self.discover()
 
   def discover(self) -> bool:
+    self.session = None
     for port in range(self.base_port, self.base_port + PORT_SCAN):
       url = f"http://{self.host}:{port}/api/health"
       try:
@@ -89,27 +112,77 @@ class ThirdFlareClient:
     self.base_url = None
     return False
 
-  def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
-    if not self.base_url and not self.discover():
-      raise RuntimeError("ThirdFlare One daemon is not running.")
+  def load_session(self, refresh: bool = False) -> str | None:
+    """Read this daemon's session credential from disk, or ask the daemon for it."""
+    if self.session and not refresh:
+      return self.session
+    try:
+      with open(session_token_path(self.base_port), encoding="utf-8") as handle:
+        token = handle.read().strip()
+      if token:
+        self.session = token
+        return token
+    except OSError:
+      pass
+    if self.base_url:
+      try:
+        request = urllib.request.Request(
+          f"{self.base_url}/api/session",
+          headers={"Accept": "application/json"},
+          method="GET",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+          payload = json.loads(response.read().decode("utf-8"))
+        token = str(payload.get("session") or "")
+        if token:
+          self.session = token
+          return token
+      except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
+        pass
+    self.session = None
+    return None
+
+  def _send(self, method: str, path: str, body: dict[str, Any] | None) -> str:
     assert self.base_url
     data = None
     headers = {"Accept": "application/json"}
-    if body is not None:
-      data = json.dumps(body).encode("utf-8")
+    if method.upper() == "GET":
+      if body is not None:
+        data = json.dumps(body).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    else:
+      # The daemon only accepts JSON for anything that changes state, so send an
+      # empty object rather than no body at all.
+      data = json.dumps(body if body is not None else {}).encode("utf-8")
       headers["Content-Type"] = "application/json"
+      token = self.load_session()
+      if token:
+        headers["X-Thirdflare-Session"] = token
     request = urllib.request.Request(
       f"{self.base_url}{path}",
       data=data,
       headers=headers,
       method=method,
     )
+    with urllib.request.urlopen(request, timeout=20) as response:
+      return response.read().decode("utf-8")
+
+  def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    if not self.base_url and not self.discover():
+      raise RuntimeError("ThirdFlare One daemon is not running.")
     try:
-      with urllib.request.urlopen(request, timeout=20) as response:
-        raw = response.read().decode("utf-8")
+      raw = self._send(method, path, body)
     except urllib.error.HTTPError as exc:
-      detail = exc.read().decode("utf-8", errors="replace")
-      raise RuntimeError(detail or str(exc)) from exc
+      # A restarted daemon has a new credential; refresh once before giving up.
+      if exc.code == 403 and method.upper() != "GET" and self.load_session(refresh=True):
+        try:
+          raw = self._send(method, path, body)
+        except urllib.error.HTTPError as retry_exc:
+          detail = retry_exc.read().decode("utf-8", errors="replace")
+          raise RuntimeError(detail or str(retry_exc)) from retry_exc
+      else:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(detail or str(exc)) from exc
     if not raw.strip():
       return {}
     return json.loads(raw)

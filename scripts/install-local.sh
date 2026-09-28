@@ -239,6 +239,23 @@ ExecStart=/usr/bin/env node ${INSTALL_DIR}/server.js
 Restart=on-failure
 RestartSec=3
 
+# Confinement — keep in sync with packaging/thirdflare-one.service.
+# NoNewPrivileges, PrivateTmp, and MemoryDenyWriteExecute are deliberately
+# absent; see docs/PACKAGING.md.
+ProtectSystem=strict
+ConfigurationDirectory=thirdflare
+ConfigurationDirectoryMode=0700
+CacheDirectory=thirdflare
+CacheDirectoryMode=0700
+ReadWritePaths=-%h/.config/autostart -%h/.local/share/applications
+ReadWritePaths=-%t -/run/cloudflare-warp
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+SystemCallArchitectures=native
+
 [Install]
 WantedBy=default.target
 SERVICE

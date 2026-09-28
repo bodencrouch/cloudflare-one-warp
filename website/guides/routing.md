@@ -9,6 +9,7 @@ curl -s http://127.0.0.1:4173/api/snapshot | jq '.commands.splitTunnelDump'
 curl -s http://127.0.0.1:4173/api/snapshot | jq '.commands.splitTunnelIps'
 curl -X POST http://127.0.0.1:4173/api/action \
   -H 'Content-Type: application/json' \
+  -H "x-thirdflare-session: $(cat ~/.config/thirdflare/session-4173.token)" \
   -d '{"action":"resetSplitIps"}'
 ```
 

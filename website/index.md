@@ -72,8 +72,9 @@ The Split Tunnel page includes an **App routing** panel:
 
 ```bash
 # Same flow from the API
+SESSION=$(cat ~/.config/thirdflare/session-4173.token)
 curl -X POST http://127.0.0.1:4173/api/action \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H "x-thirdflare-session: $SESSION" \
   -d '{"action":"enableLocalProxy"}'
 curl -s http://127.0.0.1:4173/api/apps | jq
 ```

@@ -6,6 +6,14 @@ Start daemon:
 thirdflare --no-open
 ```
 
+Reading is open to anything on this computer. Anything that **changes** state needs the local session credential, so load it once per shell:
+
+```bash
+SESSION=$(cat ~/.config/thirdflare/session-4173.token)
+```
+
+See [endpoints](./endpoints.md#requests-that-change-something) for the full rules.
+
 ## Health & version
 
 ```bash
@@ -24,11 +32,11 @@ curl -s http://127.0.0.1:4173/api/account | jq
 
 ```bash
 curl -X POST http://127.0.0.1:4173/api/action \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H "x-thirdflare-session: $SESSION" \
   -d '{"action":"connect"}'
 
 curl -X POST http://127.0.0.1:4173/api/action \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H "x-thirdflare-session: $SESSION" \
   -d '{"action":"disconnect"}'
 ```
 
@@ -36,11 +44,11 @@ curl -X POST http://127.0.0.1:4173/api/action \
 
 ```bash
 curl -X POST http://127.0.0.1:4173/api/action \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H "x-thirdflare-session: $SESSION" \
   -d '{"action":"setMode","value":"warp"}'
 
 curl -X POST http://127.0.0.1:4173/api/action \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H "x-thirdflare-session: $SESSION" \
   -d '{"action":"setProtocol","value":"MASQUE"}'
 ```
 
@@ -50,7 +58,7 @@ curl -X POST http://127.0.0.1:4173/api/action \
 curl -s http://127.0.0.1:4173/api/killswitch | jq
 
 curl -X POST http://127.0.0.1:4173/api/killswitch \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H "x-thirdflare-session: $SESSION" \
   -d '{"enabled":true,"allowLan":false}'
 ```
 
@@ -60,7 +68,7 @@ curl -X POST http://127.0.0.1:4173/api/killswitch \
 curl -s http://127.0.0.1:4173/api/config | jq
 
 curl -X POST http://127.0.0.1:4173/api/config/session \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H "x-thirdflare-session: $SESSION" \
   -d '{"webui":{"enabled":true}}'
 ```
 
@@ -81,7 +89,7 @@ curl -N http://127.0.0.1:4173/api/events
 ```bash
 curl -s http://127.0.0.1:4173/api/apps | jq
 curl -X POST http://127.0.0.1:4173/api/apps/proxy-launcher \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H "x-thirdflare-session: $SESSION" \
   -d '{"appId":"firefox"}'
 ```
 

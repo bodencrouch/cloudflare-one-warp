@@ -39,6 +39,7 @@ Use for in-app Settings changes without editing files:
 ```bash
 curl -X POST http://127.0.0.1:4173/api/config/session \
   -H 'Content-Type: application/json' \
+  -H "x-thirdflare-session: $(cat ~/.config/thirdflare/session-4173.token)" \
   -d '{"ui":{"theme":"dark"}}'
 ```
 

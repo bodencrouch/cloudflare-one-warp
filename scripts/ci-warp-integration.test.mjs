@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { lookup } from "node:dns/promises";
-import { request } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
+import { createHttpJson } from "./ci-http-client.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const mockWarp = join(root, "scripts/mock-warp-cli.mjs");
@@ -56,38 +56,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function httpJson(method, path, body) {
-  return new Promise((resolve, reject) => {
-    const payload = body ? JSON.stringify(body) : null;
-    const req = request(
-      `${baseUrl}${path}`,
-      {
-        method,
-        headers: body
-          ? { "content-type": "application/json", "content-length": Buffer.byteLength(payload) }
-          : {}
-      },
-      (res) => {
-        let text = "";
-        res.on("data", (chunk) => {
-          text += chunk;
-        });
-        res.on("end", () => {
-          let json = null;
-          try {
-            json = text ? JSON.parse(text) : null;
-          } catch {
-            json = { raw: text };
-          }
-          resolve({ status: res.statusCode, json });
-        });
-      }
-    );
-    req.on("error", reject);
-    if (payload) req.write(payload);
-    req.end();
-  });
-}
+const httpJson = createHttpJson(baseUrl);
 
 async function waitForHealth(timeoutMs = 20000) {
   const started = Date.now();
@@ -209,12 +178,35 @@ test("/api/snapshot reports warp daemon and network debug", async () => {
   assert.equal(res.status, 200);
   assert.equal(res.json.daemon.available, true);
   assert.equal(res.json.status.disconnected, true);
+  assert.equal(typeof res.json.readiness, "object");
+  assert.equal(res.json.readiness.hardBlocked, false);
+  assert.ok(Array.isArray(res.json.readiness.items));
   assert.match(res.json.commands.network.stdout, /DNS servers:/);
   assert.match(res.json.commands.network.stdout, /1\.1\.1\.1/);
   assert.equal(typeof res.json.splitTunnel, "object");
   assert.equal(res.json.splitTunnel.mode, "exclude");
   assert.ok(Array.isArray(res.json.splitTunnel.ips));
   assert.ok(Array.isArray(res.json.splitTunnel.hosts));
+});
+
+test("GET /api/readiness reports items and kill-switch mode", async () => {
+  const res = await httpJson("GET", "/api/readiness");
+  assert.equal(res.status, 200);
+  assert.equal(res.json.ok, true);
+  assert.equal(typeof res.json.hardBlocked, "boolean");
+  assert.ok(["off", "always_on", "paused"].includes(res.json.killSwitchMode));
+  assert.ok(res.json.items.some((item) => item.id === "warp_cli"));
+});
+
+test("GET /api/diagnostics returns clipboard text without account fields", async () => {
+  const res = await httpJson("GET", "/api/diagnostics");
+  assert.equal(res.status, 200);
+  assert.equal(res.json.ok, true);
+  assert.match(res.json.text, /ThirdFlare One diagnostics/);
+  // Command names may say "registration organization"; account values must not appear.
+  assert.doesNotMatch(res.json.text, /Organization:\s+\S+/i);
+  assert.doesNotMatch(res.json.text, /License:\s+\S+/i);
+  assert.doesNotMatch(res.json.text, /Account ID:\s+\S+/i);
 });
 
 test("connect then disconnect updates snapshot status", async () => {
@@ -511,6 +503,90 @@ test("POST /api/action applyLicense and registerOrganization validate input", as
 test("POST /api/action status via runCustom is rejected safely", async () => {
   const res = await action("runCustom", "status; rm -rf /");
   assert.equal(res.status, 400);
+});
+
+test("GET /api/session hands the credential to a local caller", async () => {
+  const res = await httpJson("GET", "/api/session");
+  assert.equal(res.status, 200);
+  assert.match(res.json.session, /^[0-9a-f]{64}$/);
+  assert.equal(res.json.header, "x-thirdflare-session");
+});
+
+test("API responses carry no-sniff and framing protections", async () => {
+  const res = await httpJson("GET", "/api/health");
+  assert.equal(res.status, 200);
+  assert.equal(res.headers["x-content-type-options"], "nosniff");
+  assert.equal(res.headers["x-frame-options"], "DENY");
+  assert.match(res.headers["content-security-policy"], /default-src 'none'/);
+});
+
+test("Web UI assets carry a restrictive content security policy", async () => {
+  const res = await httpJson("GET", "/index.html");
+  assert.equal(res.status, 200);
+  assert.match(res.headers["content-security-policy"], /connect-src 'self'/);
+  assert.equal(res.headers["x-frame-options"], "DENY");
+});
+
+test("a request with a foreign Host header is refused", async () => {
+  const res = await httpJson("GET", "/api/health", null, { headers: { host: "attacker.example" } });
+  assert.equal(res.status, 403);
+  assert.equal(res.json.reason, "host_not_allowed");
+});
+
+test("a cross-origin POST cannot change WARP state", async () => {
+  await action("disconnect");
+  const res = await httpJson(
+    "POST",
+    "/api/action",
+    { action: "connect" },
+    { headers: { origin: "http://attacker.example" } }
+  );
+  assert.equal(res.status, 403);
+  assert.equal(res.json.reason, "cross_origin_denied");
+  const snap = await httpJson("GET", "/api/snapshot");
+  assert.equal(snap.json.status.disconnected, true);
+});
+
+test("a form-style POST is refused before the body is read", async () => {
+  const res = await httpJson(
+    "POST",
+    "/api/action",
+    { action: "connect" },
+    { headers: { "content-type": "text/plain;charset=UTF-8" } }
+  );
+  assert.equal(res.status, 415);
+  assert.equal(res.json.reason, "json_required");
+  const snap = await httpJson("GET", "/api/snapshot");
+  assert.equal(snap.json.status.disconnected, true);
+});
+
+test("a POST without the session credential is refused", async () => {
+  const res = await httpJson("POST", "/api/action", { action: "connect" }, { session: false });
+  assert.equal(res.status, 403);
+  assert.equal(res.json.reason, "session_required");
+  const snap = await httpJson("GET", "/api/snapshot");
+  assert.equal(snap.json.status.disconnected, true);
+});
+
+test("a POST with a wrong session credential is refused", async () => {
+  const res = await httpJson(
+    "POST",
+    "/api/action",
+    { action: "connect" },
+    { headers: { "x-thirdflare-session": "0".repeat(64) } }
+  );
+  assert.equal(res.status, 403);
+  assert.equal(res.json.reason, "session_required");
+});
+
+test("blocked requests are recorded in the console log", async () => {
+  await httpJson("POST", "/api/action", { action: "connect" }, { session: false });
+  const logs = await httpJson("GET", "/api/logs");
+  const blocked = (logs.json.entries || []).filter((entry) => entry.source === "security");
+  assert.ok(blocked.length > 0, "expected a security entry");
+  const last = blocked.at(-1);
+  assert.match(last.stderr, /blocked: session_required/);
+  assert.equal(last.ok, false);
 });
 
 test("health-check script accepts this server", async () => {

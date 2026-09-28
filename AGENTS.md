@@ -40,6 +40,10 @@
 - `npm run test:polkit` — polkit helper script validation tests.
 - `npm run test:killswitch` — nftables kill-switch rule generation tests.
 - `npm run test:tray` — tray XDG autostart config and desktop entry tests.
+- `npm run test:readiness` — readiness hard/soft blocker and diagnostics clipboard unit tests.
+- `npm run test:request-gate` — HTTP request authenticity gate unit tests.
+- `npm run test:systemd` — systemd unit confinement and packaged/user unit drift checks.
+- `npm run test:tray-client` — Python tray client session credential wiring against a live daemon.
 - `npm run test:ui` — Playwright UI smoke (mock daemon).
 - `npm run test:all` — all Plane M Node test suites (not Playwright).
 - `npm run test:warp:real` — Plane R real WARP smoke (Linux; soft-skip unless required).

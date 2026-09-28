@@ -108,6 +108,29 @@ Enable the user service after install:
 systemctl --user enable --now thirdflare-one.service
 ```
 
+## Service confinement
+
+[`packaging/thirdflare-one.service`](../packaging/thirdflare-one.service) and the user unit written by [`scripts/install-local.sh`](../scripts/install-local.sh) carry the same confinement block. `npm run test:systemd` parses both and fails on drift, so change them together.
+
+The daemon runs with `ProtectSystem=strict`, so the whole filesystem is read-only apart from the paths it is granted:
+
+| Directive | Why |
+|-----------|-----|
+| `ConfigurationDirectory=thirdflare` (mode `0700`) | `~/.config/thirdflare` holds `config.json` and the local session credential |
+| `CacheDirectory=thirdflare` (mode `0700`) | Update downloads and cached release metadata |
+| `ReadWritePaths=-%h/.config/autostart -%h/.local/share/applications` | Tray autostart entries and generated app shortcuts |
+| `ReadWritePaths=-%t -/run/cloudflare-warp` | Runtime dir plus the WARP service socket |
+| `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK` | Loopback HTTP, the WARP socket, and interface lookups — nothing else |
+
+Every `ReadWritePaths` entry is `-` prefixed so a missing optional path does not stop the daemon from starting.
+
+Three common hardening directives are deliberately absent, and the test asserts they stay out:
+
+- `NoNewPrivileges` and `PrivateTmp` — both break the `pkexec` hop the kill switch uses to apply nftables rules. `NoNewPrivileges` blocks the setuid transition outright, and `PrivateTmp` hides the temporary rule file from the privileged helper.
+- `MemoryDenyWriteExecute` — the Node JIT needs writable-executable pages.
+
+If you revisit these, verify the kill switch end to end (`POST /api/killswitch` with a real `nft`), not just daemon startup — CI cannot exercise the privileged path.
+
 ## Signing
 
 CI publishes `SHA256SUMS` for every release. Optional GPG signing of `.deb`/`.rpm` can be enabled later via repository secrets and [`packaging/scripts/checksums.sh`](../packaging/scripts/checksums.sh).

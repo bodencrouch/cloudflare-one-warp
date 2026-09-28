@@ -14,6 +14,7 @@ from tray_api import (
   ensure_daemon,
   launcher_path,
   snapshot_label,
+  tray_icon_state,
 )
 
 
@@ -36,6 +37,20 @@ def icon_source_path(root: str) -> str:
   if os.path.isfile(tray_icon):
     return tray_icon
   return os.path.join(root, "assets", "thirdflare.svg")
+
+
+def tray_state_icon_path(root: str, state: str) -> str:
+  """Prefer state-specific SVG; fall back to the classic tray icon."""
+  name = {
+    "connected": "tray-connected.svg",
+    "connecting": "tray-connecting.svg",
+    "disconnected": "tray-disconnected.svg",
+    "needs-attention": "tray-needs-attention.svg",
+  }.get(state, "tray-disconnected.svg")
+  path = os.path.join(root, "assets", name)
+  if os.path.isfile(path):
+    return path
+  return icon_source_path(root)
 
 
 def icon_theme_root() -> str:
@@ -263,16 +278,20 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
     connection_action.setText(str(ctrl["label"]))
     connection_action.setEnabled(bool(ctrl["enabled"]))
 
-  def refresh_tooltip() -> None:
+  def refresh_tray_state() -> None:
+    snap = None
     try:
-      label = snapshot_label(client.snapshot())
+      snap = client.snapshot()
+      label = snapshot_label(snap)
       tray.setToolTip(tray_tooltip(label))
     except Exception:
       tray.setToolTip(tray_tooltip(status_text(launcher)))
+    state_name = tray_icon_state(snap)
+    tray.setIcon(QIcon(tray_state_icon_path(root, state_name)))
     refresh_connection_action()
 
-  def refresh_tray_state() -> None:
-    refresh_tooltip()
+  def refresh_tooltip() -> None:
+    refresh_tray_state()
 
   menu = QMenu()
   menu.addAction("Show ThirdFlare One", show_window)

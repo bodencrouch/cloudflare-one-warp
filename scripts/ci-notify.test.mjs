@@ -19,6 +19,12 @@ test("parseStatus detects connected and disconnected", () => {
   assert.equal(disconnected.connected, false);
 });
 
+test("notificationForTransition suppresses Connected→Connecting roam flaps", () => {
+  const connected = parseStatus("Status update: Connected\nNetwork: Healthy");
+  const connecting = parseStatus("Status update: Connecting");
+  assert.equal(notificationForTransition(connected, connecting), null);
+});
+
 test("notificationForTransition suppresses bootstrap and duplicates", () => {
   const a = parseStatus("Status update: Disconnected");
   const b = parseStatus("Status update: Connected");
@@ -28,10 +34,21 @@ test("notificationForTransition suppresses bootstrap and duplicates", () => {
   const note = notificationForTransition(a, b);
   assert.ok(note);
   assert.match(note.body, /Connected/i);
+  assert.equal(note.kind, "connect_success");
 
   const down = notificationForTransition(b, a);
   assert.ok(down);
   assert.match(down.body, /Disconnected/i);
+  assert.equal(down.kind, "unexpected_disconnect");
+});
+
+test("Always On disconnect uses a needs-attention notification", () => {
+  const connected = parseStatus("Status update: Connected");
+  const disconnected = parseStatus("Status update: Disconnected");
+  const note = notificationForTransition(connected, disconnected, { killSwitchDesired: true });
+  assert.ok(note);
+  assert.equal(note.kind, "needs_attention");
+  assert.match(note.body, /Always On/i);
 });
 
 test("statusFingerprint ignores label-only changes", () => {

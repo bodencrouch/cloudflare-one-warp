@@ -1,3 +1,4 @@
+import { apiFetch } from "./api-client.js";
 import { loadLocale, t, tip, getLocale } from "./i18n.js";
 import {
   appendStatusLine,
@@ -224,32 +225,55 @@ function setting(...keys) {
   return "Unknown";
 }
 
+function readinessReport() {
+  return state.snapshot?.readiness || null;
+}
+
+function readinessHardBlocked() {
+  const readiness = readinessReport();
+  if (readiness) return Boolean(readiness.hardBlocked);
+  return state.snapshot?.daemon?.available === false;
+}
+
+function readinessAttentionItems() {
+  const readiness = readinessReport();
+  if (!readiness?.items) return [];
+  return readiness.items.filter((item) => item.state !== "ready");
+}
+
 function statusKind() {
+  const readiness = readinessReport();
+  if (readiness?.hardBlocked) return "bad";
+  if (readiness?.softWarnings) return "warn";
   if (!state.snapshot?.daemon?.available) return "bad";
   return state.snapshot.status?.severity || "warn";
 }
 
 function statusText() {
   if (!state.snapshot) return "Loading WARP state";
+  const blockers = readinessAttentionItems().filter((item) => item.hardBlocker);
+  if (blockers.length) return blockers[0].title;
   if (!state.snapshot.daemon.available) return "Daemon unavailable";
   return state.snapshot.status.label || "State unavailable";
 }
 
 /** Single Connect/Disconnect control driven by live WARP status. */
 function connectionToggle() {
-  const daemonOk = state.snapshot?.daemon?.available !== false;
+  const hardBlocked = readinessHardBlocked();
   const status = state.snapshot?.status;
   const connected = Boolean(status?.connected);
   const connecting = Boolean(status?.connecting);
+  const blocker = readinessAttentionItems().find((item) => item.hardBlocker);
 
-  if (!daemonOk) {
+  if (hardBlocked) {
     return {
       action: null,
       label: t("common.connect"),
       tipKey: "daemon",
       className: "primary tip connection-toggle",
       disabled: true,
-      pressed: false
+      pressed: false,
+      reason: blocker?.nextStep || t("home.readinessBlocked")
     };
   }
   if (connected || connecting) {
@@ -442,7 +466,7 @@ async function refresh({ silent = false, preserveError = false } = {}) {
     render();
   }
   try {
-    const response = await fetch("/api/snapshot");
+    const response = await apiFetch("/api/snapshot");
     state.snapshot = await response.json();
     seedStatusFromSnapshot(state);
     if (state.view === "account") await loadAccount(false);
@@ -467,7 +491,7 @@ async function refresh({ silent = false, preserveError = false } = {}) {
 async function loadKillSwitch(showBusy = true) {
   if (showBusy) state.killswitch.loading = true;
   try {
-    const response = await fetch("/api/killswitch");
+    const response = await apiFetch("/api/killswitch");
     const body = await response.json();
     state.killswitch.desired = Boolean(body.desired);
     state.killswitch.allowLan = Boolean(body.allowLan);
@@ -491,7 +515,7 @@ async function setKillSwitch(enabled, allowLan = state.killswitch.allowLan) {
   state.error = null;
   render();
   try {
-    const response = await fetch("/api/killswitch", {
+    const response = await apiFetch("/api/killswitch", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ enabled, allowLan })
@@ -517,21 +541,31 @@ async function setKillSwitch(enabled, allowLan = state.killswitch.allowLan) {
   else patchSilentRefresh();
 }
 
+function killSwitchMode() {
+  const ks = state.killswitch;
+  if (ks.enrollmentPaused) return "paused";
+  if (ks.desired || ks.active) return "always_on";
+  return "off";
+}
+
 function killSwitchPanel() {
   const ks = state.killswitch;
   const panel = el("section", "panel killswitch-panel");
   // Treat orphan active (desired off, table on) as on so the toggle can disable.
   const effectivelyOn = Boolean(ks.active) || (Boolean(ks.desired) && !ks.enrollmentPaused);
   const mismatch = Boolean(ks.active) !== Boolean(ks.desired) || Boolean(ks.probeError);
-  const badge = ks.enrollmentPaused
-    ? t("home.killSwitchPaused")
-    : ks.probeError
-      ? t("home.killSwitchUnknown")
-      : (ks.active ? t("home.killSwitchOn") : t("home.killSwitchOff"));
+  const mode = killSwitchMode();
+  const badge = mode === "paused"
+    ? t("home.killSwitchModePaused")
+    : mode === "always_on"
+      ? t("home.killSwitchModeAlwaysOn")
+      : ks.probeError
+        ? t("home.killSwitchUnknown")
+        : t("home.killSwitchModeOff");
   panel.innerHTML = `
     <div class="panel-heading">
       <h3${tipMarkup("killSwitch")}>${t("home.killSwitch")}</h3>
-      <span>${badge}</span>
+      <span data-testid="killswitch-mode">${badge}</span>
     </div>
     <p class="panel-lede tip" data-tip="${escapeHtml(tip("killSwitch"))}" tabindex="0">${t("home.killSwitchCopy")}</p>
   `;
@@ -541,9 +575,11 @@ function killSwitchPanel() {
     <div class="switch-meta">
       <strong class="tip" data-tip="${escapeHtml(tip("killSwitch"))}" tabindex="0">${t("home.killSwitchLabel")}</strong>
       <p>${escapeHtml(
-        ks.enrollmentPaused
+        mode === "paused"
           ? t("home.killSwitchPausedHint")
-          : (ks.detail || (mismatch ? t("home.killSwitchMismatch") : t("home.killSwitchHint")))
+          : mode === "always_on"
+            ? (ks.detail || t("home.killSwitchRestoreHint"))
+            : (ks.detail || (mismatch ? t("home.killSwitchMismatch") : t("home.killSwitchHint")))
       )}</p>
     </div>
   `;
@@ -590,7 +626,7 @@ async function loadAccount(showBusy = true) {
     render();
   }
   try {
-    const response = await fetch("/api/account");
+    const response = await apiFetch("/api/account");
     state.account = await response.json();
   } catch (error) {
     state.error = error.message;
@@ -604,7 +640,7 @@ async function loadDesktopApps(showBusy = true) {
     render();
   }
   try {
-    const response = await fetch("/api/apps");
+    const response = await apiFetch("/api/apps");
     const body = await response.json();
     state.desktopApps.list = body.ok ? body.apps || [] : [];
     if (!state.desktopApps.selectedId && state.desktopApps.list.length) {
@@ -632,7 +668,7 @@ async function createAppShortcut() {
   state.error = null;
   render();
   try {
-    const response = await fetch("/api/apps/proxy-launcher", {
+    const response = await apiFetch("/api/apps/proxy-launcher", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ appId, port: proxyPortValue() })
@@ -658,7 +694,7 @@ async function action(actionName, value, secondary, confirmCommand = false) {
   state.error = null;
   render();
   try {
-    const response = await fetch("/api/action", {
+    const response = await apiFetch("/api/action", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: actionName, value, secondary })
@@ -682,7 +718,7 @@ async function enableLocalProxy() {
   state.error = null;
   render();
   try {
-    const response = await fetch("/api/action", {
+    const response = await apiFetch("/api/action", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "enableLocalProxy" })
@@ -971,7 +1007,7 @@ function simpleShell() {
 async function loadSimpleAbout() {
   if (state.version) return;
   try {
-    const response = await fetch("/api/version");
+    const response = await apiFetch("/api/version");
     state.version = await response.json();
   } catch (error) {
     state.error = error.message;
@@ -1114,25 +1150,65 @@ function pageTitle(title, copy, tipKey = "") {
   return el("div", "page-title", `<h1${tipMarkup(tipKey)}>${title}</h1><p>${copy}</p>`);
 }
 
+function readinessBanner() {
+  const items = readinessAttentionItems();
+  if (!items.length) return null;
+  const panel = el("section", "panel readiness-panel");
+  panel.setAttribute("data-testid", "readiness-banner");
+  const hard = items.some((item) => item.hardBlocker);
+  panel.innerHTML = `
+    <div class="panel-heading">
+      <h3>${hard ? t("home.readinessBlockedTitle") : t("home.readinessAttentionTitle")}</h3>
+      <span>${hard ? t("home.readinessBlockedBadge") : t("home.readinessAttentionBadge")}</span>
+    </div>
+    <ul class="readiness-list"></ul>
+  `;
+  const list = panel.querySelector(".readiness-list");
+  items.forEach((item) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<strong>${escapeHtml(item.title)}</strong> — ${escapeHtml(item.nextStep || item.detail || "")}`;
+    list.append(li);
+  });
+  return panel;
+}
+
+async function copyDiagnostics() {
+  try {
+    const response = await apiFetch("/api/diagnostics");
+    const body = await response.json();
+    if (!response.ok || !body.text) throw new Error(body.error || "Diagnostics unavailable");
+    await copyText(t("home.diagnosticsCopied"), body.text);
+  } catch (error) {
+    state.error = error.message;
+    render();
+  }
+}
+
 function homeView() {
   const grid = el("div", "view-stack");
   grid.append(pageTitle(t("home.title"), t("home.copy"), "pageHome"));
 
   const layout = el("div", "home-grid");
   const primary = el("section", "hero-panel panel");
+  const toggle = connectionToggle();
+  const heroMessage = toggle.reason
+    || state.snapshot?.daemon?.message
+    || t("common.loading");
   primary.innerHTML = `
     <div class="status-orb ${statusKind()}"><span></span></div>
     <div class="hero-copy">
       <div class="status-label tip" data-tip="${escapeHtml(tip("liveStatus"))}" tabindex="0">${statusText()}</div>
-      <h2 class="tip" data-tip="${escapeHtml(tip("daemon"))}" tabindex="0">${state.snapshot?.daemon?.available ? t("home.tunnelControls") : t("home.daemonMissing")}</h2>
-      <p>${state.snapshot?.daemon?.message || t("common.loading")}</p>
+      <h2 class="tip" data-tip="${escapeHtml(tip("daemon"))}" tabindex="0">${readinessHardBlocked() ? t("home.daemonMissing") : t("home.tunnelControls")}</h2>
+      <p>${escapeHtml(heroMessage)}</p>
     </div>
     <div class="hero-actions">
       <button type="button" class="connection-toggle" data-connection-toggle data-testid="connection-toggle" tabindex="0"></button>
+      <button type="button" class="secondary" data-copy-diagnostics data-testid="copy-diagnostics">${t("home.copyDiagnostics")}</button>
     </div>
   `;
   const toggleBtn = primary.querySelector("[data-connection-toggle]");
   wireConnectionToggle(toggleBtn);
+  primary.querySelector("[data-copy-diagnostics]").onclick = () => copyDiagnostics();
   const quick = el("section", "panel quick-panel");
   quick.innerHTML = `<div class="panel-heading"><h3${tipMarkup("mode")}>${t("home.quickSettings")}</h3><span>${t("home.quickHint")}</span></div>`;
   quick.append(segmented(t("home.mode"), quickModes, "setMode", setting("Mode"), tip("mode"), modeValueTips, "Mode"));
@@ -1140,6 +1216,8 @@ function homeView() {
   quick.append(segmented(t("home.families"), families, "setFamilies", setting("Families mode", "DNS families"), tip("families"), familiesValueTips, "Families mode|DNS families"));
 
   layout.append(primary, quick);
+  const banner = readinessBanner();
+  if (banner) grid.append(banner);
   grid.append(layout, killSwitchPanel(), metrics(), liveStatePanel(), outputPanel("Last command", state.lastAction, "rawOutput", "lastAction"));
   return grid;
 }
@@ -1823,7 +1901,7 @@ function appView() {
   localeRow.querySelector("[data-locale]").value = getLocale();
   localeRow.querySelector("[data-save-locale]").onclick = async () => {
     const next = localeRow.querySelector("[data-locale]").value;
-    await fetch("/api/config/session", {
+    await apiFetch("/api/config/session", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ config: { ui: { locale: next } } })
@@ -2098,7 +2176,7 @@ async function applySelectedSource() {
   state.error = null;
   render();
   try {
-    const response = await fetch("/api/update/source", {
+    const response = await apiFetch("/api/update/source", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ owner, repo })
@@ -2121,7 +2199,7 @@ async function applySelectedSource() {
 }
 
 async function saveUpdatePrefs(partial) {
-  const response = await fetch("/api/config/session", {
+  const response = await apiFetch("/api/config/session", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ config: { updates: partial } })
@@ -2134,7 +2212,7 @@ async function setTrayAutostart(enabled) {
   state.busy = true;
   render();
   try {
-    const response = await fetch("/api/config/tray-autostart", {
+    const response = await apiFetch("/api/config/tray-autostart", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ autostart: enabled })
@@ -2154,7 +2232,7 @@ async function setTrayShell(shell) {
   state.busy = true;
   render();
   try {
-    const response = await fetch("/api/config/tray-shell", {
+    const response = await apiFetch("/api/config/tray-shell", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ shell })
@@ -2243,7 +2321,7 @@ async function loadUpdateCatalog({ force = false } = {}) {
   state.update.loadingCatalog = true;
   render();
   try {
-    const response = await fetch("/api/update/forks");
+    const response = await apiFetch("/api/update/forks");
     const body = await response.json();
     state.update.upstream = body.upstream || null;
     state.update.forks = body.forks || [];
@@ -2260,9 +2338,9 @@ async function loadUpdateCatalog({ force = false } = {}) {
 async function loadAppPanel() {
   try {
     const [versionRes, configRes, healthRes] = await Promise.all([
-      fetch("/api/version"),
-      fetch("/api/config"),
-      fetch("/api/health")
+      apiFetch("/api/version"),
+      apiFetch("/api/config"),
+      apiFetch("/api/health")
     ]);
     state.version = await versionRes.json();
     const configBody = await configRes.json();
@@ -2286,7 +2364,7 @@ async function runUpdateCheck() {
   state.error = null;
   render();
   try {
-    const response = await fetch("/api/update/check");
+    const response = await apiFetch("/api/update/check");
     state.update.result = await response.json();
     if (state.update.result?.applyConfirmToken) {
       state.update.confirmToken = state.update.result.applyConfirmToken;
@@ -2312,7 +2390,7 @@ async function loadReleases() {
     const owner = state.update.selectedOwner;
     const repo = state.update.selectedRepo;
     const query = owner && repo ? `?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}` : "";
-    const response = await fetch(`/api/update/releases${query}`);
+    const response = await apiFetch(`/api/update/releases${query}`);
     const body = await response.json();
     state.update.releases = body.releases || [];
   } catch (error) {
@@ -2327,7 +2405,7 @@ async function applySelectedUpdate() {
   render();
   try {
     const tag = state.update.selectedTag || undefined;
-    const prepRes = await fetch("/api/update/prepare", {
+    const prepRes = await apiFetch("/api/update/prepare", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ tag })
@@ -2345,7 +2423,7 @@ async function applySelectedUpdate() {
       render();
       return;
     }
-    const response = await fetch("/api/update/apply", {
+    const response = await apiFetch("/api/update/apply", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -2370,11 +2448,11 @@ async function applySelectedUpdate() {
 
 async function maybeStartupUpdateCheck() {
   try {
-    const configRes = await fetch("/api/config");
+    const configRes = await apiFetch("/api/config");
     const configBody = await configRes.json();
     state.appConfig = configBody.config;
     if (!configBody.config?.updates?.checkOnStartup) return;
-    const response = await fetch("/api/update/check");
+    const response = await apiFetch("/api/update/check");
     const result = await response.json();
     if (result.updateAvailable) {
       state.toast = t("app.updateAvailable", { version: result.latest });
@@ -2681,7 +2759,7 @@ function applyRouteFromHash() {
 async function boot() {
   let locale = "en";
   try {
-    const configRes = await fetch("/api/config");
+    const configRes = await apiFetch("/api/config");
     const configBody = await configRes.json();
     state.appConfig = configBody.config;
     locale = configBody.config?.ui?.locale || "en";

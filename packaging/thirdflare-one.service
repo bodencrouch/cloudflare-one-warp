@@ -12,5 +12,23 @@ ExecStart=/usr/bin/env node /usr/lib/thirdflare/server.js
 Restart=on-failure
 RestartSec=3
 
+# Confinement. This is a per-user unit, so it keeps only the access the daemon
+# needs: its own config and cache, plus the optional desktop integration dirs.
+# See docs/PACKAGING.md for why NoNewPrivileges, PrivateTmp, and
+# MemoryDenyWriteExecute are deliberately absent.
+ProtectSystem=strict
+ConfigurationDirectory=thirdflare
+ConfigurationDirectoryMode=0700
+CacheDirectory=thirdflare
+CacheDirectoryMode=0700
+ReadWritePaths=-%h/.config/autostart -%h/.local/share/applications
+ReadWritePaths=-%t -/run/cloudflare-warp
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+SystemCallArchitectures=native
+
 [Install]
 WantedBy=default.target

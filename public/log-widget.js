@@ -1,3 +1,4 @@
+import { apiFetch } from "./api-client.js";
 import { t } from "./i18n.js";
 
 export const LOG_WIDGET_HEIGHT_KEY = "thirdflare-log-height";
@@ -199,7 +200,7 @@ export async function pollConsoleLogs(state) {
   try {
     const since = state.logWidget.consoleCursor || 0;
     const path = since > 0 ? `/api/logs?since=${since}` : "/api/logs";
-    const response = await fetch(path);
+    const response = await apiFetch(path);
     const body = await response.json();
     if (!response.ok || !body.ok) return;
     const incoming = body.entries || [];

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { request } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
+import { createHttpJson } from "./ci-http-client.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const mockWarp = join(root, "scripts/mock-warp-cli.mjs");
@@ -27,38 +27,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function httpJson(method, path, body) {
-  return new Promise((resolve, reject) => {
-    const payload = body ? JSON.stringify(body) : null;
-    const req = request(
-      `${baseUrl}${path}`,
-      {
-        method,
-        headers: body
-          ? { "content-type": "application/json", "content-length": Buffer.byteLength(payload) }
-          : {}
-      },
-      (res) => {
-        let text = "";
-        res.on("data", (chunk) => {
-          text += chunk;
-        });
-        res.on("end", () => {
-          let json = null;
-          try {
-            json = text ? JSON.parse(text) : null;
-          } catch {
-            json = { raw: text };
-          }
-          resolve({ status: res.statusCode, json });
-        });
-      }
-    );
-    req.on("error", reject);
-    if (payload) req.write(payload);
-    req.end();
-  });
-}
+const httpJson = createHttpJson(baseUrl);
 
 function assertRequired(obj, required, label) {
   for (const key of required) {
@@ -119,6 +88,18 @@ test("OpenAPI /api/health response shape", async () => {
   assert.equal(res.status, 200);
   assertRequired(res.json, schemaRequired("/api/health"), "health");
   assert.equal(res.json.app, "thirdflare");
+});
+
+test("OpenAPI /api/readiness response shape", async () => {
+  const res = await httpJson("GET", "/api/readiness");
+  assert.equal(res.status, 200);
+  assertRequired(res.json, schemaRequired("/api/readiness"), "readiness");
+});
+
+test("OpenAPI /api/diagnostics response shape", async () => {
+  const res = await httpJson("GET", "/api/diagnostics");
+  assert.equal(res.status, 200);
+  assertRequired(res.json, schemaRequired("/api/diagnostics"), "diagnostics");
 });
 
 test("OpenAPI /api/version response shape", async () => {

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { request } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -13,6 +12,7 @@ import {
   resetCommandLogForTests,
   setCommandLogCapacity
 } from "../lib/warp/command-log.mjs";
+import { createHttpJson } from "./ci-http-client.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const mockWarp = join(root, "scripts/mock-warp-cli.mjs");
@@ -30,38 +30,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function httpJson(method, path, body) {
-  return new Promise((resolve, reject) => {
-    const payload = body ? JSON.stringify(body) : null;
-    const req = request(
-      `${baseUrl}${path}`,
-      {
-        method,
-        headers: body
-          ? { "content-type": "application/json", "content-length": Buffer.byteLength(payload) }
-          : {}
-      },
-      (res) => {
-        let text = "";
-        res.on("data", (chunk) => {
-          text += chunk;
-        });
-        res.on("end", () => {
-          let json = null;
-          try {
-            json = text ? JSON.parse(text) : null;
-          } catch {
-            json = { raw: text };
-          }
-          resolve({ status: res.statusCode, json });
-        });
-      }
-    );
-    req.on("error", reject);
-    if (payload) req.write(payload);
-    req.end();
-  });
-}
+const httpJson = createHttpJson(baseUrl);
 
 before(async () => {
   serverProc = spawn(process.execPath, ["server.js"], {

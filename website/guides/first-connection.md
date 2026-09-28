@@ -45,7 +45,10 @@ thirdflare --connect
 From API:
 
 ```bash
-curl -X POST http://127.0.0.1:4173/api/action/connect
+curl -X POST http://127.0.0.1:4173/api/action \
+  -H 'Content-Type: application/json' \
+  -H "x-thirdflare-session: $(cat ~/.config/thirdflare/session-4173.token)" \
+  -d '{"action":"connect"}'
 ```
 
 From UI: use the connect toggle in the native panel or Web UI.

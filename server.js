@@ -24,6 +24,16 @@ import {
   isValidServerPort
 } from "./lib/config.mjs";
 import {
+  API_SECURITY_HEADERS,
+  createSessionToken,
+  evaluateRequest,
+  removeSessionToken,
+  SESSION_HEADER,
+  SESSION_ROUTE,
+  WEB_SECURITY_HEADERS
+} from "./lib/http/request-gate.mjs";
+import { syncTrayAutostart } from "./lib/tray/autostart.mjs";
+import {
   applyTrayShell,
   decorateTrayConfig,
   describeTrayShell,
@@ -70,12 +80,14 @@ import {
   getCommandLogCapacity,
   listEntries
 } from "./lib/warp/command-log.mjs";
+import { assessReadiness, formatDiagnosticsClipboard } from "./lib/readiness/index.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicRoot = join(root, "public");
 const config = reloadConfig();
 const port = Number(config.server?.port || 4173);
 const listenHost = effectiveBind(config);
+const session = createSessionToken(port);
 
 function publicConfig(cfg = getConfig()) {
   return decorateTrayConfig(cfg);
@@ -369,6 +381,18 @@ function daemonError(result) {
     || combined.includes("operation not permitted");
 }
 
+async function buildReadiness(statusResult = null) {
+  const active = getConfig();
+  return assessReadiness({
+    warpCliPath: warpCliCommand(),
+    runStatus: async () => statusResult || runWarp(["status"]),
+    probeKillSwitch: () => probeKillSwitchActive(),
+    getEnrollmentPause: () => getEnrollmentPauseState(),
+    killSwitchDesired: Boolean(active.warp?.killSwitch),
+    killSwitchAllowLan: Boolean(active.warp?.killSwitchAllowLan)
+  });
+}
+
 async function snapshot() {
   const entries = await Promise.all(
     Object.entries(COMMANDS).map(async ([key, args]) => [key, await runWarp(args)])
@@ -384,11 +408,13 @@ async function snapshot() {
       ? (commands.status.stderr || commands.status.stdout)
       : "CloudflareWARP daemon responded."
   };
+  const readiness = await buildReadiness(commands.status);
 
   return {
     generatedAt: new Date().toISOString(),
     daemon,
     status,
+    readiness,
     settings,
     splitTunnel: enrichSplitTunnel({
       dump: commands.splitTunnelDump,
@@ -407,7 +433,8 @@ function json(res, status, body) {
   const payload = JSON.stringify(body, null, 2);
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store"
+    "cache-control": "no-store",
+    ...API_SECURITY_HEADERS
   });
   res.end(payload);
 }
@@ -585,6 +612,12 @@ async function accountDetails() {
 
 async function handleApi(req, res, url) {
   try {
+    if (req.method === "GET" && url.pathname === SESSION_ROUTE) {
+      // The request gate already proved this is a same-origin loopback caller.
+      json(res, 200, { ok: true, session: session.token, header: SESSION_HEADER });
+      return;
+    }
+
     if (req.method !== "GET" && req.method !== "HEAD") {
       const rejection = crossSiteRejection(req);
       if (rejection) {
@@ -605,6 +638,29 @@ async function handleApi(req, res, url) {
         effectivePort: Number(active.server?.port || port),
         generatedAt: new Date().toISOString()
       });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/readiness") {
+      const readiness = await buildReadiness();
+      json(res, 200, { ok: true, ...readiness });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/diagnostics") {
+      const readiness = await buildReadiness();
+      const entries = listEntries();
+      const logLines = entries.map((entry) => {
+        const err = entry.ok ? "" : ` exit=${entry.code ?? "?"}`;
+        return `${entry.ts || ""} ${entry.command || "warp-cli"}${err}`.trim();
+      });
+      const text = formatDiagnosticsClipboard({
+        readiness,
+        version: getVersion(),
+        installFormat: detectInstallFormat(),
+        logs: logLines
+      });
+      json(res, 200, { ok: true, text, readiness });
       return;
     }
 
@@ -872,7 +928,8 @@ async function handleApi(req, res, url) {
         "content-type": "text/event-stream; charset=utf-8",
         "cache-control": "no-store",
         "connection": "keep-alive",
-        "x-accel-buffering": "no"
+        "x-accel-buffering": "no",
+        ...API_SECURITY_HEADERS
       });
       sse(res, "ready", { ok: true, generatedAt: new Date().toISOString() });
 
@@ -1091,7 +1148,7 @@ async function handleApi(req, res, url) {
 async function serveStatic(req, res, url) {
   const active = getConfig();
   if (!active.webui?.enabled) {
-    res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    res.writeHead(404, { "content-type": "text/plain; charset=utf-8", ...WEB_SECURITY_HEADERS });
     res.end("Not found");
     return;
   }
@@ -1101,24 +1158,63 @@ async function serveStatic(req, res, url) {
   const filePath = join(publicRoot, safePath);
 
   if (!filePath.startsWith(publicRoot)) {
-    res.writeHead(403);
+    res.writeHead(403, { ...WEB_SECURITY_HEADERS });
     res.end("Forbidden");
     return;
   }
 
   try {
     const body = await readFile(filePath);
-    res.writeHead(200, { "content-type": MIME[extname(filePath)] || "application/octet-stream" });
+    res.writeHead(200, {
+      "content-type": MIME[extname(filePath)] || "application/octet-stream",
+      ...WEB_SECURITY_HEADERS
+    });
     res.end(body);
   } catch {
     const index = await readFile(join(publicRoot, "index.html"));
-    res.writeHead(200, { "content-type": MIME[".html"] });
+    res.writeHead(200, { "content-type": MIME[".html"], ...WEB_SECURITY_HEADERS });
     res.end(index);
   }
 }
 
+/** Record a blocked request so users can see it in the Console log (never the token or body). */
+function logBlockedRequest(req, url, verdict) {
+  appendFromRunWarp(
+    {
+      command: `${req.method || "GET"} ${url.pathname}`,
+      code: verdict.status,
+      ok: false,
+      stderr: `blocked: ${verdict.reason}`
+    },
+    { source: "security" }
+  );
+}
+
 createServer(async (req, res) => {
-  const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
+  // Parse against our own origin: an attacker-controlled Host header must never
+  // influence routing, and a malformed one must not throw.
+  let url;
+  try {
+    url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
+  } catch {
+    json(res, 400, { ok: false, error: "Malformed request." });
+    return;
+  }
+
+  const verdict = evaluateRequest({
+    method: req.method,
+    pathname: url.pathname,
+    headers: req.headers,
+    remoteAddress: req.socket?.remoteAddress,
+    port,
+    sessionToken: session.token
+  });
+  if (!verdict.allowed) {
+    logBlockedRequest(req, url, verdict);
+    json(res, verdict.status, { ok: false, error: verdict.message, reason: verdict.reason });
+    return;
+  }
+
   if (url.pathname.startsWith("/api/")) {
     await handleApi(req, res, url);
     return;
@@ -1131,6 +1227,7 @@ createServer(async (req, res) => {
   } else {
     console.log("API-only mode (webui.enabled=false). Static UI is not served.");
   }
+  console.log(`Local session credential: ${session.path}`);
 
   const watcher = reconcileStatusWatcher();
   if (watcher?.started) {
@@ -1173,8 +1270,9 @@ createServer(async (req, res) => {
   }
 
   const shutdown = () => {
-    notifyWatcher.stop();
+    notifyWatcher?.stop();
     getStatusListener().stop();
+    removeSessionToken(port);
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
