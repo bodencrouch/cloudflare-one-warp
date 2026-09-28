@@ -896,27 +896,7 @@ function simpleSettingsView() {
   const expertPanel = el("section", "panel");
   expertPanel.append(expertRow);
   view.append(expertPanel);
-
-  const trayAutostart = Boolean(state.appConfig?.tray?.autostart);
-  const trayRow = el("div", "switch-row");
-  trayRow.innerHTML = `
-    <div class="switch-meta">
-      <strong>${t("app.trayAutostart")}</strong>
-      <p>${t("app.trayAutostartHint")}</p>
-    </div>
-  `;
-  const trayToggle = el("button", `switch ${trayAutostart ? "on" : ""}`);
-  trayToggle.type = "button";
-  trayToggle.setAttribute("role", "switch");
-  trayToggle.setAttribute("aria-checked", trayAutostart ? "true" : "false");
-  trayToggle.setAttribute("aria-label", t("app.trayAutostart"));
-  trayToggle.disabled = state.busy;
-  trayToggle.onclick = () => setTrayAutostart(!trayAutostart);
-  trayRow.append(trayToggle);
-  const trayPanel = el("section", "panel");
-  trayPanel.append(trayRow);
-  view.append(trayPanel);
-
+  view.append(desktopAppPanel());
   return view;
 }
 
@@ -1952,26 +1932,7 @@ function appView() {
     daemonPanel.append(hint);
   }
   general.append(daemonPanel);
-
-  const trayAutostart = Boolean(state.appConfig?.tray?.autostart);
-  const trayRow = el("div", "switch-row");
-  trayRow.innerHTML = `
-    <div class="switch-meta">
-      <strong class="tip" data-tip="${escapeHtml(tip("trayAutostart"))}" tabindex="0">${t("app.trayAutostart")}</strong>
-      <p>${t("app.trayAutostartHint")}</p>
-    </div>
-  `;
-  const trayToggle = el("button", `switch ${trayAutostart ? "on" : ""}`);
-  trayToggle.type = "button";
-  trayToggle.setAttribute("role", "switch");
-  trayToggle.setAttribute("aria-checked", trayAutostart ? "true" : "false");
-  trayToggle.setAttribute("aria-label", t("app.trayAutostart"));
-  trayToggle.disabled = state.busy || isNativeShell();
-  if (!isNativeShell()) {
-    trayToggle.onclick = () => setTrayAutostart(!trayAutostart);
-  }
-  trayRow.append(trayToggle);
-  general.append(trayRow);
+  general.append(desktopAppPanel({ withTips: true }));
 
   if (isNativeShell()) {
     const expertRow = el("div", "switch-row");
@@ -2265,6 +2226,94 @@ async function setTrayAutostart(enabled) {
   }
   state.busy = false;
   render();
+}
+
+async function setTrayShell(shell) {
+  state.busy = true;
+  render();
+  try {
+    const response = await apiFetch("/api/config/tray-shell", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ shell })
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || response.statusText);
+    state.appConfig = body.config;
+    state.toast = shell === "cloudflare" ? t("app.desktopAppCloudflareOn") : t("app.desktopAppThirdflareOn");
+    if (body.liveSwap && body.liveSwap.attempted === false) {
+      state.toast = `${state.toast} ${t("app.desktopAppRestartHint")}`;
+    }
+  } catch (error) {
+    state.error = error.message;
+  }
+  state.busy = false;
+  render();
+}
+
+function desktopAppPanel({ withTips = false } = {}) {
+  const tray = state.appConfig?.tray || {};
+  const shell = tray.shell === "thirdflare" ? "thirdflare" : "cloudflare";
+  const available = tray.cloudflareAvailable === true;
+  const panel = el("section", "panel");
+
+  const field = el("label", "combo-field");
+  const label = withTips
+    ? `<span class="tip" data-tip="${escapeHtml(tip("desktopApp"))}" tabindex="0">${t("app.desktopApp")}</span>`
+    : `<strong>${t("app.desktopApp")}</strong>`;
+  field.innerHTML = `${label}<p>${t("app.desktopAppHint")}</p>`;
+  const select = document.createElement("select");
+  select.className = "combo";
+  select.setAttribute("aria-label", t("app.desktopApp"));
+  select.disabled = state.busy;
+
+  const cloudflare = document.createElement("option");
+  cloudflare.value = "cloudflare";
+  cloudflare.textContent = available
+    ? t("app.desktopAppCloudflare")
+    : `${t("app.desktopAppCloudflare")} (${t("app.desktopAppUnavailable")})`;
+  cloudflare.disabled = !available;
+  if (shell === "cloudflare") cloudflare.selected = true;
+  select.append(cloudflare);
+
+  const thirdflare = document.createElement("option");
+  thirdflare.value = "thirdflare";
+  thirdflare.textContent = t("app.desktopAppThirdflare");
+  if (shell === "thirdflare" || !available) thirdflare.selected = true;
+  select.append(thirdflare);
+
+  select.onchange = () => setTrayShell(select.value);
+  field.append(select);
+  panel.append(field);
+
+  if (!available) {
+    panel.append(el("p", "panel-hint", t("app.desktopAppMissing")));
+  }
+
+  if ((tray.active || shell) === "thirdflare") {
+    const trayAutostart = Boolean(tray.autostart);
+    const trayRow = el("div", "switch-row");
+    const autostartLabel = withTips
+      ? `<strong class="tip" data-tip="${escapeHtml(tip("trayAutostart"))}" tabindex="0">${t("app.trayAutostart")}</strong>`
+      : `<strong>${t("app.trayAutostart")}</strong>`;
+    trayRow.innerHTML = `
+      <div class="switch-meta">
+        ${autostartLabel}
+        <p>${t("app.trayAutostartHint")}</p>
+      </div>
+    `;
+    const trayToggle = el("button", `switch ${trayAutostart ? "on" : ""}`);
+    trayToggle.type = "button";
+    trayToggle.setAttribute("role", "switch");
+    trayToggle.setAttribute("aria-checked", trayAutostart ? "true" : "false");
+    trayToggle.setAttribute("aria-label", t("app.trayAutostart"));
+    trayToggle.disabled = state.busy;
+    trayToggle.onclick = () => setTrayAutostart(!trayAutostart);
+    trayRow.append(trayToggle);
+    panel.append(trayRow);
+  }
+
+  return panel;
 }
 
 async function loadUpdateCatalog({ force = false } = {}) {

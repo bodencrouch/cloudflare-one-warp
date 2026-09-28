@@ -100,7 +100,7 @@ Kill switch / polkit:
 - Local install (`./thirdflare-one install`): copy policy manually — install script prints the command
 - Flatpak: policy in `/app/share/polkit-1/`; host `nft` may still be required via `flatpak-spawn --host`
 
-Tray autostart template: `packaging/thirdflare-one-tray.desktop` (installed to `~/.config/autostart/` when `tray.autostart` is true).
+Tray autostart template: `packaging/thirdflare-one-tray.desktop` (installed to `~/.config/autostart/` when `tray.shell` is `thirdflare` and `tray.autostart` is true). Cloudflare One Client autostart stays with the host WARP package unless ThirdFlare One hides it for this user.
 
 Enable the user service after install:
 

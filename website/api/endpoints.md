@@ -11,7 +11,8 @@
 | GET | `/api/snapshot` | Aggregated warp-cli reads (see keys below) |
 | GET | `/api/config` | Effective layered config + sources |
 | POST | `/api/config/session` | Session overrides (until daemon restart) |
-| POST | `/api/config/tray-autostart` | Tray autostart preference |
+| POST | `/api/config/tray-autostart` | ThirdFlare One tray autostart preference |
+| POST | `/api/config/tray-shell` | Desktop app: `cloudflare` or `thirdflare` |
 | POST | `/api/config/webui` | Persist Web UI enablement (restart required) |
 | POST | `/api/config/server` | Persist HTTP port/bind (restart required) |
 | POST | `/api/config/ui` | Persist UI preferences (notifications) |

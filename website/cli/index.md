@@ -4,15 +4,15 @@ ThirdFlare One exposes three CLI layers — similar to how [Cursor CLI](https://
 
 | Command | Role |
 |---------|------|
-| `thirdflare` | Daily driver — tray, WARP toggle, daemon |
+| `thirdflare` | Daily driver — selected desktop app, WARP toggle, daemon |
 | `thirdflare-one` | Operator — install, build, test, dev |
-| `thirdflare-one-tray` | Tray subprocess (PyQt6 native shell) |
+| `thirdflare-one-tray` | Desktop app helper (Cloudflare One Client or PyQt6 tray) |
 
 Aliases: `thirdflare-one-gui` → same as `thirdflare`.
 
 ## Default behavior
 
-Running `thirdflare` with no flags starts the **native tray + app shell** (embedded Web UI on KDE). Pass `--no-open` for API-only daemon mode.
+Running `thirdflare` with no flags starts the **selected desktop app** (Cloudflare One Client by default). Pass `--tray` for the ThirdFlare One tray, or `--no-open` for API-only daemon mode.
 
 ## Environment
 

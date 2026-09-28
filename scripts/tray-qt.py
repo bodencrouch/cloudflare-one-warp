@@ -210,7 +210,8 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
           self._open_settings()
 
       channel = QWebChannel(self)
-      channel.registerObject("thirdflare", ShellBridge(on_open_settings))
+      self._bridge = ShellBridge(on_open_settings)
+      channel.registerObject("thirdflare", self._bridge)
       self._view.page().setWebChannel(channel)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802

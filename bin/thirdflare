@@ -44,7 +44,7 @@ usage() {
 ThirdFlare One — unofficial third-party Cloudflare One client
 
 Usage:
-  thirdflare                    Start the native tray + app shell (same as thirdflare-one-tray)
+  thirdflare                    Start the selected desktop app (Cloudflare One Client by default)
   thirdflare --no-open          Start/reuse the daemon (API-only by default)
   thirdflare --daemon           Start/reuse the daemon with Web UI enabled
   thirdflare --status           Print daemon status
@@ -54,13 +54,13 @@ Usage:
   thirdflare --disconnect       Run warp-cli disconnect and open the Web UI
   thirdflare --toggle           Connect if disconnected, otherwise disconnect (opens Web UI)
   thirdflare --warp-status      Print warp-cli status
-  thirdflare --tray             Start the native tray + app shell (same as thirdflare-one-tray)
-  thirdflare --panel            Show the native app window (starts tray if needed)
+  thirdflare --tray             Start the ThirdFlare One tray (PyQt6 native shell)
+  thirdflare --panel            Show the ThirdFlare One window (starts tray if needed)
   thirdflare --version          Print ThirdFlare One version
   thirdflare --help             Show this help
 
 Aliases: thirdflare-one, thirdflare-one-gui (same binary)
-Tray CLI: thirdflare-one-tray (KDE/Wayland uses StatusNotifierItem; run --check to verify)
+Tray CLI: thirdflare-one-tray
 USAGE
 }
 
@@ -272,7 +272,7 @@ case "${1:-}" in
     warp_status
     ;;
   --tray)
-    exec "$APP_DIR/bin/thirdflare-tray"
+    exec "$APP_DIR/bin/thirdflare-tray" --force-thirdflare
     ;;
   --panel)
     exec "$APP_DIR/bin/thirdflare-tray" --panel

@@ -33,11 +33,12 @@ flowchart LR
 | `server.js` | HTTP server, `/api/*`, guarded `warp-cli` execution |
 | `lib/config.mjs` | Layered configuration merge + session overrides |
 | `public/` | Web UI (PWA-capable), optional when `webui.enabled=false` |
-| `bin/thirdflare` | Launcher: port selection, daemon lifecycle, browser open |
-| `bin/thirdflare-tray` | PyQt6 native shell (KDE/Wayland) + SNI/yad fallbacks; loads `/?shell=1` simple UI |
-| `scripts/tray-qt.py` | Embedded WebEngine window + system tray |
+| `bin/thirdflare` | Launcher: selected desktop app (Cloudflare One Client by default), daemon lifecycle |
+| `bin/thirdflare-tray` | Starts the selected shell; `--force-thirdflare` for a session-only PyQt6/SNI/yad swap; `--settings` for native prefs |
+| `scripts/tray-qt.py` | Embedded WebEngine window + ThirdFlare One system tray |
 | `scripts/thirdflare-nft-apply` | Polkit-scoped privileged helper for kill-switch nft apply |
-| `lib/tray/autostart.mjs` | XDG autostart desktop entry sync (`tray.autostart`) |
+| `lib/tray/autostart.mjs` | ThirdFlare One tray XDG autostart (`tray.autostart`) |
+| `lib/tray/shell.mjs` | Desktop-shell detection, Cloudflare One Client autostart override, `warp-desktop-svc` unit management, live start/stop |
 | `lib/warp/status.mjs` | Shared `warp-cli` status parsing |
 | `lib/notify/` | Desktop notifications (`notify-send`) + status watcher |
 | `scripts/health-check.mjs` | Used by launcher and CI to verify `/api/health` |
@@ -63,7 +64,8 @@ When `ui.notifications` is true (default), `server.js` starts `lib/notify/status
 | `/api/logs` | GET | In-memory ring buffer of recent `warp-cli` invocations (Console tab) |
 | `/api/events` | GET | SSE stream from `warp-cli --listen status` |
 | `/api/action` | POST | Whitelisted mutations (`connect`, `setMode`, …) |
-| `/api/config/tray-autostart` | POST | Persist tray XDG autostart preference (Linux) |
+| `/api/config/tray-autostart` | POST | Persist ThirdFlare One tray XDG autostart (Linux; ignored at login when `tray.shell` is `cloudflare`) |
+| `/api/config/tray-shell` | POST | Persist desktop app: `cloudflare` or `thirdflare` (Linux) |
 | `/api/config/webui` | POST | Persist `webui.enabled` / `allowRemote` (restart required) |
 | `/api/config/server` | POST | Persist `server.port` / `bind` (restart required) |
 | `/api/config/ui` | POST | Persist `ui.notifications` |
@@ -130,6 +132,7 @@ Windows Cloudflare One exposes **Always On** in the client. Linux `warp-cli` has
 - No shell when invoking `warp-cli`; argument allow-lists for `/api/action`.
 - Destructive operations require GUI confirmation.
 - Every mutation passes the [request gate](#request-gate): local Host, loopback peer, same-origin, JSON body, and the per-daemon session credential. A page the user visits cannot drive WARP, and a remote peer cannot mutate anything even when `webui.allowRemote` or a `0.0.0.0` bind is configured.
+- **Cross-site guard:** inside the API handler, every non-GET request also passes `crossSiteRejection()` — `Sec-Fetch-Site`, `Origin`, and a required `application/json` content type — as a second check behind the request gate.
 - AppImage self-updates require a valid Ed25519 signature from a pinned key and refuse downgrades (see [UPDATES.md](UPDATES.md)).
 - **Gap:** the kill-switch helper still elevates through `pkexec`, so the systemd units cannot set `NoNewPrivileges=true` yet (see [PACKAGING.md](PACKAGING.md)).
 

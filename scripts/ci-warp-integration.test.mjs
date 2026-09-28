@@ -74,6 +74,34 @@ async function waitForHealth(timeoutMs = 20000) {
   throw new Error("Server did not become healthy in time");
 }
 
+/** Raw POST with caller-supplied headers, for the cross-site guard tests. */
+function httpRaw(method, path, { headers = {}, body = "" } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = request(
+      `${baseUrl}${path}`,
+      { method, headers: { "content-length": Buffer.byteLength(body), ...headers } },
+      (res) => {
+        let text = "";
+        res.on("data", (chunk) => {
+          text += chunk;
+        });
+        res.on("end", () => {
+          let json = null;
+          try {
+            json = text ? JSON.parse(text) : null;
+          } catch {
+            json = { raw: text };
+          }
+          resolve({ status: res.statusCode, json });
+        });
+      }
+    );
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
 async function action(name, value, secondary) {
   const body = { action: name };
   if (value !== undefined) body.value = value;
@@ -87,12 +115,15 @@ before(async () => {
     env: {
       ...process.env,
       HOME: configHome,
+      XDG_CONFIG_HOME: join(configHome, ".config"),
       PORT: String(port),
       WARP_CLI: mockWarp,
       MOCK_WARP_STATE: stateFile,
       THIRDFLARE_NOTIFICATIONS: "0",
       THIRDFLARE_NFT_NO_PKEXEC: "1",
-      THIRDFLARE_WEBUI: "1"
+      THIRDFLARE_WEBUI: "1",
+      THIRDFLARE_TRAY_SKIP_SYSTEMD: "1",
+      THIRDFLARE_TRAY_LIVE: "0"
     },
     stdio: "pipe"
   });
@@ -401,6 +432,11 @@ test("POST /api/config/tray-autostart persists and syncs desktop entry", async (
   const bad = await httpJson("POST", "/api/config/tray-autostart", { autostart: "yes" });
   assert.equal(bad.status, 400);
 
+  const thirdflare = await httpJson("POST", "/api/config/tray-shell", { shell: "thirdflare" });
+  assert.equal(thirdflare.status, 200);
+  assert.equal(thirdflare.json.config?.tray?.shell, "thirdflare");
+  assert.equal(thirdflare.json.config?.tray?.active, "thirdflare");
+
   const enable = await httpJson("POST", "/api/config/tray-autostart", { autostart: true });
   assert.equal(enable.status, 200);
   assert.equal(enable.json.ok, true);
@@ -419,6 +455,35 @@ test("POST /api/config/tray-autostart persists and syncs desktop entry", async (
   } else {
     assert.equal(disable.json.sync?.skipped, true);
   }
+});
+
+test("POST /api/config/tray-shell persists cloudflare or thirdflare", async () => {
+  const bad = await httpJson("POST", "/api/config/tray-shell", { shell: "nope" });
+  assert.equal(bad.status, 400);
+
+  const missing = await httpJson("POST", "/api/config/tray-shell", {});
+  assert.equal(missing.status, 400);
+
+  const cloudflare = await httpJson("POST", "/api/config/tray-shell", { shell: "cloudflare" });
+  assert.equal(cloudflare.status, 200);
+  assert.equal(cloudflare.json.ok, true);
+  assert.equal(cloudflare.json.config?.tray?.shell, "cloudflare");
+  assert.equal(typeof cloudflare.json.config?.tray?.cloudflareAvailable, "boolean");
+  assert.ok(cloudflare.json.config?.tray?.active === "cloudflare" || cloudflare.json.config?.tray?.active === "thirdflare");
+  assert.ok(cloudflare.json.sync);
+  assert.ok(cloudflare.json.liveSwap);
+  assert.equal(cloudflare.json.liveSwap.attempted, false);
+
+  const got = await httpJson("GET", "/api/config");
+  assert.equal(got.status, 200);
+  assert.equal(got.json.config?.tray?.shell, "cloudflare");
+  assert.equal(typeof got.json.config?.tray?.cloudflareAvailable, "boolean");
+  assert.ok(got.json.notes?.persistEndpoints?.includes("POST /api/config/tray-shell"));
+
+  const thirdflare = await httpJson("POST", "/api/config/tray-shell", { shell: "thirdflare" });
+  assert.equal(thirdflare.status, 200);
+  assert.equal(thirdflare.json.config?.tray?.shell, "thirdflare");
+  assert.equal(thirdflare.json.config?.tray?.active, "thirdflare");
 });
 
 test("POST /api/action applyLicense and registerOrganization validate input", async () => {
@@ -532,4 +597,60 @@ test("health-check script accepts this server", async () => {
     child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`health-check exit ${code}`))));
     child.on("error", reject);
   });
+});
+
+test("cross-site writes are rejected on every mutating route", async () => {
+  const jsonBody = JSON.stringify({ action: "disconnect" });
+
+  // A hostile page's fetch() carries sec-fetch-site: cross-site.
+  const crossSite = await httpRaw("POST", "/api/action", {
+    headers: { "content-type": "application/json", "sec-fetch-site": "cross-site" },
+    body: jsonBody
+  });
+  assert.equal(crossSite.status, 403);
+  assert.equal(crossSite.json?.ok, false);
+
+  const foreignOrigin = await httpRaw("POST", "/api/action", {
+    headers: { "content-type": "application/json", origin: "http://evil.example" },
+    body: jsonBody
+  });
+  assert.equal(foreignOrigin.status, 403);
+
+  // A cross-origin <form> cannot send application/json, so this is the shape a
+  // no-preflight form post would arrive in.
+  const formPost = await httpRaw("POST", "/api/action", {
+    headers: { "content-type": "text/plain" },
+    body: jsonBody
+  });
+  assert.equal(formPost.status, 403);
+
+  const urlencoded = await httpRaw("POST", "/api/config/tray-shell", {
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: "shell=thirdflare"
+  });
+  assert.equal(urlencoded.status, 403);
+});
+
+test("same-origin and non-browser writes still pass the guard", async () => {
+  const sameOrigin = await httpRaw("POST", "/api/action", {
+    headers: {
+      "content-type": "application/json",
+      "sec-fetch-site": "same-origin",
+      origin: `http://127.0.0.1:${port}`,
+      host: `127.0.0.1:${port}`
+    },
+    body: JSON.stringify({ action: "disconnect" })
+  });
+  assert.equal(sameOrigin.status, 200);
+
+  // A direct address-bar navigation or a CLI client: sec-fetch-site: none.
+  const direct = await httpRaw("POST", "/api/action", {
+    headers: { "content-type": "application/json", "sec-fetch-site": "none" },
+    body: JSON.stringify({ action: "disconnect" })
+  });
+  assert.equal(direct.status, 200);
+
+  // curl / the tray CLI send no browser headers at all.
+  const cli = await httpJson("POST", "/api/action", { action: "disconnect" });
+  assert.equal(cli.status, 200);
 });

@@ -23,6 +23,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tray icons that distinguish connected, connecting, disconnected, and needs-attention
 - Always On kill-switch UI modes: Off, Always On, and Paused (enrollment)
 
+### Fixes
+
+- Ship the modules the packaged daemon actually imports: `lib/api-revision.mjs`, `lib/tray/shell.mjs`, `lib/warp/split-tunnel.mjs`, `lib/warp/status-listener.mjs`, plus `daemon-ready.mjs`, `tray-shell-cli.mjs`, and `tray-warp-action.py`. The installed `.deb` failed at startup with `ERR_MODULE_NOT_FOUND`
+- Add `npm run test:packaging`, which derives the required file set from the code and fails when `stage-payload.sh` misses one
+- Green up Plane M CI: the proxy-launcher XDG tests asserted Linux-only behaviour on macOS and Windows, where `listDesktopApps()` returns `[]` by design, so every OS had been failing since July
+- Reject cross-site writes on every mutating route (`Sec-Fetch-Site`, `Origin`, and a required `application/json` content type), so a hostile page can no longer drive `warp-cli`, systemd, or the user's config through the loopback daemon
+- Run `systemctl --user` and `pkill` off the event loop — a hung user manager could block every SSE subscriber and health check for the length of the timeout
+- Fix tray autostart never starting: the generated entry carried `Hidden=true`, which in an autostart directory means "ignore this entry" (`systemd-xdg-autostart-generator` logs "not generating unit, entry is hidden")
+- Keep `tray.autostart` as a remembered preference instead of forcing it off when Cloudflare One Client is selected, so it survives a switch there and back
+- Report `active` and `effective` from `POST /api/config/tray-autostart` rather than a bare `ok` for a preference that changes nothing today
+- Re-evaluate notification ownership when the desktop app or `ui.notifications` changes, instead of freezing it at daemon startup
+- Stop a scripted or piped re-install from resetting the user's desktop-app choice (`sync-tray-autostart --if-unset`)
+- Close the ThirdFlare tray and panel before restarting the daemon they talk to, so switching to Cloudflare One Client no longer leaves an open panel showing a connection error
+- Do not swap the running shell twice when saving from the native settings dialog — the daemon already does it, and the second pass could leave two Cloudflare tray icons
+- Skip the live shell swap on non-Linux instead of falling through to the ThirdFlare branch and running `pkill`/`spawn` there
+
+- Keep the ThirdFlare Web UI off while Cloudflare One Client is the desktop app — the daemon now starts API-only on that path
+- Turn the Web UI back off when switching from the ThirdFlare One tray to Cloudflare One Client, unless `webui.enabled` is set
+- Leave `warp-desktop-svc` unit management to the host under Flatpak instead of writing a unit systemd never reads
+- Let Cloudflare One Client own status notifications while it is active, so one WARP transition no longer notifies twice
+- Detect a running `warp-desktop-svc` by command line — `pgrep -x` never matched its 16-character process name, so the fallback could start a second copy
+- Report WARP status from the active desktop app in `thirdflare-one-tray --status`
+- Start `warp-taskbar` from the user's home so its `.sentry-native/` cache no longer lands in the ThirdFlare install tree
+- Sandbox `HOME` and `XDG_CONFIG_HOME` in the suites that spawn the daemon — `npm run test:all` was rewriting the developer's real `~/.config/thirdflare/config.json` and deleting their real tray autostart entry
+- Thread `env` through `describeTrayShell` into `detectCloudflareGui`, so Flatpak detection reads the caller's environment instead of the sandbox
+- Re-enable `warp-desktop-svc.service` on uninstall when ThirdFlare had taken over the desktop app, so Cloudflare One Client keeps its background service
+- Scope `--force-thirdflare` to the session: stop only the Cloudflare tray icon, leave `warp-desktop-svc` running, and put the icon back if the ThirdFlare tray fails to start
+
 ### Documentation
 
 - Publish VitePress docs to GitHub Pages (install, CLI, API, guides, packaging)
@@ -34,8 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- Document every mutating route in `openapi/thirdflare-api.json`, including `POST /api/config/tray-autostart` and the shared `403` cross-site response
+- Desktop app switch: default to host Cloudflare One Client tray, or ThirdFlare One’s PyQt6 tray (`tray.shell`, `POST /api/config/tray-shell`, install `--shell`)
+- Run `warp-desktop-svc` from a ThirdFlare-managed systemd user unit when the WARP package ships none (`~/.config/systemd/user/thirdflare-warp-desktop-svc.service`)
+- Launch `warp-taskbar` and `warp-desktop-svc` on the host through `flatpak-spawn --host` when ThirdFlare One runs under Flatpak
+- Report `warp-taskbar` and `warp-desktop-svc` state in `thirdflare-one-tray --check`
 - Linux native shell: PyQt6 tray + embedded Web UI with Cloudflare One Client–style simple layout (`/?shell=1`) and expert-mode toggle
-- Native PyQt6 system settings (`thirdflare-one-tray --settings`) for Web UI enable, HTTP port, tray autostart, and notifications
+- Native PyQt6 system settings (`thirdflare-one-tray --settings`) for Web UI enable, HTTP port, desktop app, tray autostart, and notifications
 - Web UI startup modes: API-only by default (`--no-open`, systemd); `--daemon` serves full static UI with no runtime disable toggle
 - Persist Web UI and server settings via `POST /api/config/webui`, `POST /api/config/server`, and `POST /api/config/ui`
 - First-class tray packaging: stage tray Python modules, `/usr/bin/thirdflare-one-tray`, PyQt6 recommends in deb/rpm/Fedora spec

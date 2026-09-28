@@ -2,7 +2,7 @@
 Type=Application
 Name=ThirdFlare One
 Comment=Unofficial cross-platform Cloudflare One client for warp-cli
-Exec=thirdflare-one-tray
+Exec=thirdflare
 Icon=thirdflare
 Terminal=false
 Categories=Network;

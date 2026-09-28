@@ -27,6 +27,8 @@ const child = spawn(process.execPath, ["server.js"], {
     THIRDFLARE_WEBUI: "1",
     THIRDFLARE_NOTIFICATIONS: "0",
     THIRDFLARE_NFT_NO_PKEXEC: "1",
+    THIRDFLARE_TRAY_SKIP_SYSTEMD: "1",
+    THIRDFLARE_TRAY_LIVE: "0",
     MOCK_WARP_STATE: join(root, ".tmp-mock-warp-ui.json")
   },
   stdio: "ignore"

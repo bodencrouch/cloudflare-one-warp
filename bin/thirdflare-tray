@@ -23,19 +23,91 @@ usage() {
 ThirdFlare One tray
 
 Usage:
-  thirdflare-one-tray            Start the tray + native app shell (background)
-  thirdflare-one-tray --panel    Show the native app window (starts tray if needed)
+  thirdflare-one-tray            Start the selected desktop app (Cloudflare One Client by default)
+  thirdflare-one-tray --force-thirdflare
+                                 Start the ThirdFlare One tray for this session only
+  thirdflare-one-tray --panel    Show the ThirdFlare One window (starts tray if needed)
   thirdflare-one-tray --settings Open ThirdFlare One preferences (PyQt6)
-  thirdflare-one-tray --stop     Stop the tray
+  thirdflare-one-tray --stop     Stop the active desktop app
   thirdflare-one-tray --check    Print tray readiness (exit 0 when ready)
   thirdflare-one-tray --status   Show WARP status (notify when available)
   thirdflare-one-tray --help     Show this help
 
 Also available as: thirdflare-one --tray
 
-On KDE Plasma / Wayland the tray uses PyQt6 with the full Web UI embedded (left-click).
-Use thirdflare-one --no-open for API-only daemon mode without the native shell.
+Cloudflare One Client is the default desktop app. Pick the ThirdFlare One tray in
+Settings to use this project's own tray and control panel instead.
+
+On KDE Plasma / Wayland the ThirdFlare One tray uses PyQt6 with the full Web UI embedded (left-click).
+Use thirdflare-one --no-open for API-only daemon mode without a desktop app.
 USAGE
+}
+
+tray_node_bin() {
+  if [[ -x "${APP_DIR}/runtime/node/bin/node" ]]; then
+    printf '%s\n' "${APP_DIR}/runtime/node/bin/node"
+    return 0
+  fi
+  if [[ -n "${THIRDFLARE_NODE:-${CLOUDFLARE_ONE_GUI_NODE:-}}" ]]; then
+    printf '%s\n' "${THIRDFLARE_NODE:-$CLOUDFLARE_ONE_GUI_NODE}"
+    return 0
+  fi
+  printf '%s\n' "node"
+}
+
+tray_shell_cli() {
+  "$(tray_node_bin)" "$APP_DIR/scripts/tray-shell-cli.mjs" "$@"
+}
+
+tray_active_shell() {
+  local active
+  active="$(tray_shell_cli active 2>/dev/null || true)"
+  if [[ "$active" == "cloudflare" || "$active" == "thirdflare" ]]; then
+    printf '%s\n' "$active"
+    return 0
+  fi
+  printf '%s\n' "thirdflare"
+}
+
+start_cloudflare_shell() {
+  mkdir -p "$RUNTIME_DIR" "$CACHE_DIR"
+  # Close the ThirdFlare tray and panel first. They talk to the Web UI daemon
+  # that ensure_daemon_api_only is about to restart, and an open panel left
+  # behind would just show a connection error.
+  tray_shell_cli stop-thirdflare >/dev/null 2>&1 || true
+  clear_tray_pid
+  ensure_daemon_api_only
+  if tray_shell_cli start-cloudflare >>"$TRAY_LOG_FILE" 2>&1; then
+    echo "Started Cloudflare One Client." >&2
+    echo "Open ThirdFlare One Settings to switch to the ThirdFlare One tray." >&2
+    return 0
+  fi
+  echo "Could not start Cloudflare One Client. Starting the ThirdFlare One tray." >&2
+  run_thirdflare_tray
+}
+
+# One-session swap. The persisted choice is untouched, so Cloudflare One Client
+# returns at next login. Leave warp-desktop-svc running — only the tray icon clashes.
+run_thirdflare_tray() {
+  local had_cloudflare=0
+  if [[ "$(tray_shell_cli taskbar 2>/dev/null || echo stopped)" == "running" ]]; then
+    had_cloudflare=1
+  fi
+  tray_shell_cli stop-cloudflare-tray >/dev/null 2>&1 || true
+  if run_tray; then
+    if [[ "$had_cloudflare" -eq 1 ]]; then
+      echo "Stopped the Cloudflare One Client tray icon for this session." >&2
+      echo "Bring it back with: thirdflare-one-tray" >&2
+    fi
+    return 0
+  fi
+  # The ThirdFlare tray did not come up. Put back the icon we just took away
+  # rather than leaving the user with no tray at all.
+  if [[ "$had_cloudflare" -eq 1 ]]; then
+    echo "Restoring the Cloudflare One Client tray." >&2
+    tray_shell_cli start-cloudflare >/dev/null 2>&1 || true
+  fi
+  return 1
 }
 
 tray_python_bin() {
@@ -210,6 +282,38 @@ ensure_daemon() {
     echo "Starting ThirdFlare One daemon for tray actions..." >&2
   fi
   THIRDFLARE_WEBUI=1 "$LAUNCHER" --daemon >/dev/null
+}
+
+webui_config_enabled() {
+  [[ "$(tray_shell_cli webui 2>/dev/null || echo disabled)" == "enabled" ]]
+}
+
+daemon_url() {
+  "$LAUNCHER" --status 2>/dev/null | sed -n 's|.* at \(http://[^ ]*\)$|\1|p'
+}
+
+daemon_serves_webui() {
+  local url
+  url="$(daemon_url)"
+  [[ -n "$url" ]] || return 1
+  "$(tray_node_bin)" "$APP_DIR/scripts/health-webui-check.mjs" "$url/api/health" --require-webui >/dev/null 2>&1
+}
+
+# Cloudflare One Client needs no ThirdFlare UI. Start the daemon API-only so the
+# Web UI stays off until someone turns it on.
+ensure_daemon_api_only() {
+  if webui_config_enabled; then
+    # The user turned the Web UI on in config. Leave it on.
+    THIRDFLARE_WEBUI=1 "$LAUNCHER" --daemon >/dev/null
+    return
+  fi
+  if daemon_serves_webui; then
+    echo "Turning off the ThirdFlare Web UI — Cloudflare One Client is the desktop app." >&2
+    "$LAUNCHER" --stop >/dev/null 2>&1 || true
+  elif ! "$LAUNCHER" --status >/dev/null 2>&1; then
+    echo "Starting ThirdFlare One daemon (API only)..." >&2
+  fi
+  THIRDFLARE_WEBUI=0 "$LAUNCHER" --no-open >/dev/null
 }
 
 tray_process_running() {
@@ -410,6 +514,10 @@ run_tray() {
 
 print_check() {
   local reason backend py
+  echo "desktop-app: $(tray_active_shell)"
+  echo "cloudflare-gui: $(tray_shell_cli available 2>/dev/null || echo no)"
+  echo "warp-taskbar: $(tray_shell_cli taskbar 2>/dev/null || echo unknown)"
+  echo "warp-desktop-svc: $(tray_shell_cli svc 2>/dev/null || echo unknown)"
   if reason="$(tray_diagnose)"; then
     backend="$(tray_backend)"
     echo "tray: ready"
@@ -453,9 +561,15 @@ case "${1:-}" in
     ;;
   --stop)
     stop_tray
+    if [[ "$(tray_active_shell)" == "cloudflare" ]]; then
+      tray_shell_cli stop-cloudflare >/dev/null 2>&1 || true
+      echo "Stopped Cloudflare One Client."
+    fi
     ;;
   --status)
-    if tray_qt_available && [[ "${2:-}" != "--force-shell" ]]; then
+    if [[ "$(tray_active_shell)" == "cloudflare" && "${2:-}" != "--force-shell" ]]; then
+      notify_status
+    elif tray_qt_available && [[ "${2:-}" != "--force-shell" ]]; then
       THIRDFLARE_APP_DIR="$APP_DIR" "$(tray_python_bin)" "$QT_TRAY" --status
     elif tray_sni_available && [[ "${2:-}" != "--force-shell" ]]; then
       THIRDFLARE_APP_DIR="$APP_DIR" "$(tray_python_bin)" "$SNI_TRAY" --status
@@ -474,8 +588,15 @@ case "${1:-}" in
       exit 1
     fi
     ;;
+  --force-thirdflare)
+    run_thirdflare_tray
+    ;;
   "")
-    run_tray
+    if [[ "$(tray_active_shell)" == "cloudflare" ]]; then
+      start_cloudflare_shell
+    else
+      run_thirdflare_tray
+    fi
     ;;
   *)
     usage >&2

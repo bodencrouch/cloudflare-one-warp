@@ -17,6 +17,7 @@ import {
   setSessionKillSwitch,
   persistUserKillSwitch,
   persistUserTrayAutostart,
+  persistUserTrayShell,
   persistUserWebUi,
   persistUserServer,
   persistUserUi,
@@ -32,6 +33,14 @@ import {
   WEB_SECURITY_HEADERS
 } from "./lib/http/request-gate.mjs";
 import { syncTrayAutostart } from "./lib/tray/autostart.mjs";
+import {
+  applyTrayShell,
+  decorateTrayConfig,
+  describeTrayShell,
+  isValidTrayShell,
+  shouldWatchStatusNotifications,
+  syncTrayShell
+} from "./lib/tray/shell.mjs";
 import { getVersion, getVersionInfo } from "./lib/version.mjs";
 import { API_REVISION } from "./lib/api-revision.mjs";
 import { applyUpdate, checkForUpdate, prepareApply } from "./lib/update/index.mjs";
@@ -79,6 +88,10 @@ const config = reloadConfig();
 const port = Number(config.server?.port || 4173);
 const listenHost = effectiveBind(config);
 const session = createSessionToken(port);
+
+function publicConfig(cfg = getConfig()) {
+  return decorateTrayConfig(cfg);
+}
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -192,6 +205,42 @@ function spawnWarpCli(warpArgs, options = {}) {
     return spawn(process.execPath, [cmd, ...warpArgs], options);
   }
   return spawn(cmd, warpArgs, options);
+}
+
+/** @type {ReturnType<typeof startStatusWatcher> | null} */
+let notifyWatcher = null;
+/** @type {boolean | null} */
+let notifyWatcherEnabled = null;
+
+function activeTrayShell() {
+  const active = getConfig();
+  return describeTrayShell({
+    shell: active.tray?.shell,
+    autostart: active.tray?.autostart
+  }).active;
+}
+
+/**
+ * Start, stop, or leave the notification watcher alone to match current config.
+ *
+ * Cloudflare One Client posts its own status notifications, so ours stay off
+ * while it is the active desktop app. Switching shells or toggling
+ * ui.notifications has to take effect without a daemon restart.
+ */
+function reconcileStatusWatcher() {
+  const enabled = shouldWatchStatusNotifications({
+    notifications: getConfig().ui?.notifications !== false,
+    active: activeTrayShell()
+  });
+  if (notifyWatcherEnabled === enabled) return notifyWatcher;
+  notifyWatcher?.stop();
+  notifyWatcherEnabled = enabled;
+  notifyWatcher = startStatusWatcher({
+    statusListener: getStatusListener(),
+    enabled,
+    env: process.env
+  });
+  return notifyWatcher;
 }
 
 /** @type {ReturnType<typeof createStatusListener> | null} */
@@ -395,6 +444,55 @@ function sse(res, event, data) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
+const SAFE_FETCH_SITES = new Set(["same-origin", "none"]);
+
+/**
+ * Reject cross-site writes. There is no CSRF token, and every mutating route
+ * reaches warp-cli, systemd, or the user's config — so a hostile page must not
+ * be able to drive them just because the daemon listens on loopback.
+ *
+ * Three independent gates, any one of which is enough to stop a browser:
+ *  - Sec-Fetch-Site: browsers always send it; only same-origin/none pass.
+ *  - Origin: when present it must match the host we were reached on.
+ *  - Content-Type: a cross-origin form can only send urlencoded/multipart/
+ *    text-plain, so requiring JSON forces a preflight we never answer.
+ *
+ * Non-browser clients (curl, the tray CLI, tests) send none of these headers
+ * and are unaffected.
+ *
+ * @returns {string | null} rejection reason, or null when the request may proceed
+ */
+function crossSiteRejection(req) {
+  const site = req.headers["sec-fetch-site"];
+  if (typeof site === "string" && !SAFE_FETCH_SITES.has(site)) {
+    return `cross-site request blocked (sec-fetch-site: ${site})`;
+  }
+
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && origin !== "null") {
+    const host = req.headers.host || `127.0.0.1:${port}`;
+    let originHost = null;
+    try {
+      originHost = new URL(origin).host;
+    } catch {
+      return "cross-site request blocked (malformed origin)";
+    }
+    if (originHost !== host) {
+      return "cross-site request blocked (origin does not match host)";
+    }
+  }
+
+  const contentType = req.headers["content-type"];
+  if (typeof contentType === "string" && contentType.trim()) {
+    const mime = contentType.split(";")[0].trim().toLowerCase();
+    if (mime !== "application/json") {
+      return `unsupported content-type: ${mime} (send application/json)`;
+    }
+  }
+
+  return null;
+}
+
 async function readJson(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -520,6 +618,14 @@ async function handleApi(req, res, url) {
       return;
     }
 
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      const rejection = crossSiteRejection(req);
+      if (rejection) {
+        json(res, 403, { ok: false, error: rejection });
+        return;
+      }
+    }
+
     if (req.method === "GET" && url.pathname === "/api/health") {
       const active = getConfig();
       json(res, 200, {
@@ -632,7 +738,7 @@ async function handleApi(req, res, url) {
       setSessionUpdateSource({ owner, repo });
       json(res, 200, {
         ok: true,
-        config: getConfig(),
+        config: publicConfig(getConfig()),
         source: { owner, repo },
         sources: describeConfigSources()
       });
@@ -657,7 +763,7 @@ async function handleApi(req, res, url) {
       const active = getConfig();
       json(res, 200, {
         ok: true,
-        config: active,
+        config: publicConfig(active),
         sources: describeConfigSources(),
         effective: {
           bind: effectiveBind(active),
@@ -670,7 +776,8 @@ async function handleApi(req, res, url) {
             "POST /api/config/webui",
             "POST /api/config/server",
             "POST /api/config/ui",
-            "POST /api/config/tray-autostart"
+            "POST /api/config/tray-autostart",
+            "POST /api/config/tray-shell"
           ]
         }
       });
@@ -686,7 +793,7 @@ async function handleApi(req, res, url) {
       }
       json(res, 200, {
         ok: true,
-        config: getConfig(),
+        config: publicConfig(getConfig()),
         sources: describeConfigSources()
       });
       return;
@@ -699,8 +806,49 @@ async function handleApi(req, res, url) {
         return;
       }
       const config = persistUserTrayAutostart({ autostart: body.autostart });
-      const sync = syncTrayAutostart({ autostart: body.autostart });
-      json(res, 200, { ok: true, config, sync });
+      const applied = await syncTrayShell({
+        shell: config.tray?.shell,
+        autostart: config.tray?.autostart
+      });
+      // `autostart` is remembered even when it changes nothing today: the entry
+      // is only written while ThirdFlare One is the active desktop app. Say so
+      // rather than reporting a bare ok for a no-op.
+      const active = applied.active || activeTrayShell();
+      json(res, 200, {
+        ok: true,
+        config: publicConfig(config),
+        sync: applied.tray || applied,
+        active,
+        effective: active === "thirdflare" && Boolean(config.tray?.autostart)
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/config/tray-shell") {
+      const body = await readJson(req);
+      if (!isValidTrayShell(body?.shell)) {
+        json(res, 400, { ok: false, error: "shell must be cloudflare or thirdflare" });
+        return;
+      }
+      const config = persistUserTrayShell({ shell: body.shell });
+      if (!config) {
+        json(res, 400, { ok: false, error: "shell must be cloudflare or thirdflare" });
+        return;
+      }
+      const applied = await applyTrayShell({
+        shell: config.tray?.shell,
+        autostart: config.tray?.autostart
+      });
+      // Notification ownership follows the active shell, so re-evaluate now
+      // instead of leaving it frozen at whatever it was when the daemon started.
+      reconcileStatusWatcher();
+      json(res, 200, {
+        ok: true,
+        config: publicConfig(config),
+        sync: applied.sync,
+        liveSwap: applied.liveSwap,
+        notifications: { owner: notifyWatcherEnabled ? "thirdflare" : "cloudflare" }
+      });
       return;
     }
 
@@ -724,7 +872,7 @@ async function handleApi(req, res, url) {
       });
       json(res, 200, {
         ok: true,
-        config,
+        config: publicConfig(config),
         restartRequired: true
       });
       return;
@@ -753,7 +901,7 @@ async function handleApi(req, res, url) {
       });
       json(res, 200, {
         ok: true,
-        config,
+        config: publicConfig(config),
         restartRequired: true
       });
       return;
@@ -770,7 +918,8 @@ async function handleApi(req, res, url) {
         return;
       }
       const config = persistUserUi({ notifications: body.notifications });
-      json(res, 200, { ok: true, config });
+      reconcileStatusWatcher();
+      json(res, 200, { ok: true, config: publicConfig(config) });
       return;
     }
 
@@ -1080,14 +1229,11 @@ createServer(async (req, res) => {
   }
   console.log(`Local session credential: ${session.path}`);
 
-  const notifyWatcher = startStatusWatcher({
-    statusListener: getStatusListener(),
-    enabled: getConfig().ui?.notifications !== false,
-    env: process.env,
-    getKillSwitchDesired: () => Boolean(getConfig().warp?.killSwitch)
-  });
-  if (notifyWatcher.started) {
+  const watcher = reconcileStatusWatcher();
+  if (watcher?.started) {
     console.log("Desktop notifications enabled (ui.notifications).");
+  } else if (notifyWatcherEnabled === false && activeTrayShell() === "cloudflare") {
+    console.log("Desktop notifications left to Cloudflare One Client (tray.shell=cloudflare).");
   }
 
   // Reconcile kill switch: enable when desired; clear orphan table only when probe sees it.
@@ -1124,7 +1270,7 @@ createServer(async (req, res) => {
   }
 
   const shutdown = () => {
-    notifyWatcher.stop();
+    notifyWatcher?.stop();
     getStatusListener().stop();
     removeSessionToken(port);
     process.exit(0);

@@ -9,7 +9,7 @@ usage() {
 ThirdFlare One — unofficial Cloudflare One client
 
 Usage:
-  thirdflare-one install [--service]     Idempotent user install (~/.local/share/thirdflare-one)
+  thirdflare-one install [--service] [--shell cloudflare|thirdflare]
   thirdflare-one uninstall [--purge]   Remove desktop links, CLI symlinks, optional tree
   thirdflare-one run [args...]         Launch GUI (same as bin/thirdflare)
   thirdflare-one build <target>        Build packages (appimage, deb, rpm, arch, flatpak, snap, source, all)

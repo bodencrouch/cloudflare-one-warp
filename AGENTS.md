@@ -11,7 +11,7 @@
 - `lib/version.mjs` — installed semver from `package.json`.
 - `lib/update/` — GitHub/manifest update engine and AppImage apply.
 - `lib/killswitch/` — nftables kill-switch rules and privileged apply (`thirdflare-nft-apply` / polkit).
-- `lib/tray/` — XDG autostart sync for tray (`tray.autostart`).
+- `lib/tray/` — XDG autostart and desktop-shell swap (`tray.autostart`, `tray.shell`: Cloudflare One Client vs ThirdFlare One tray). Default is Cloudflare One Client — host `warp-taskbar` plus `warp-desktop-svc`. On that path the daemon runs API-only and leaves notifications to Cloudflare's tray; ThirdFlare's own tray and Web UI are opt-in.
 - `scripts/tray-qt.py`, `scripts/thirdflare-nft-apply` — native shell and polkit helper.
 - `config/config.example.json` — documented defaults.
 - `config/update-manifest.json` — stable/beta pointers for client update checks.

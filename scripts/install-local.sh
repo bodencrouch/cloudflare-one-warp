@@ -15,6 +15,8 @@ SERVICE_FILE="${SYSTEMD_USER_DIR}/thirdflare-one.service"
 WITH_DESKTOP=1
 WITH_SERVICE=0
 WITH_BIN_LINKS=1
+TRAY_SHELL=cloudflare
+TRAY_SHELL_EXPLICIT=0
 
 usage() {
   cat <<USAGE
@@ -35,6 +37,9 @@ Options:
   --no-desktop         Skip desktop entry
   --service            Install/refresh user systemd unit
   --no-bin-links       Skip ~/.local/bin symlinks
+  --shell cloudflare|thirdflare
+                       Desktop app at login (default: cloudflare). Cloudflare One
+                       Client comes with WARP; ThirdFlare One is this project's tray.
   -h, --help           Show this help
 
 Examples:
@@ -66,6 +71,20 @@ while [[ $# -gt 0 ]]; do
       WITH_BIN_LINKS=0
       shift
       ;;
+    --shell)
+      case "${2:-}" in
+        cloudflare|thirdflare)
+          TRAY_SHELL="$2"
+          TRAY_SHELL_EXPLICIT=1
+          shift 2
+          ;;
+        *)
+          echo "Unknown desktop app: ${2:-}" >&2
+          echo "Use --shell cloudflare or --shell thirdflare." >&2
+          exit 2
+          ;;
+      esac
+      ;;
     -h|--help)
       usage
       exit 0
@@ -77,6 +96,25 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$TRAY_SHELL_EXPLICIT" -eq 0 && -t 0 ]]; then
+  echo
+  echo "Which desktop app should start at login?"
+  echo "  1) Cloudflare One Client (default) — comes with WARP"
+  echo "  2) ThirdFlare One — this project's tray and control panel"
+  choice=""
+  read -r -p "Choice [1]: " choice || true
+  case "${choice:-1}" in
+    2|thirdflare|ThirdFlare)
+      TRAY_SHELL=thirdflare
+      ;;
+    *)
+      TRAY_SHELL=cloudflare
+      ;;
+  esac
+  # An answered prompt is a choice, so apply it even on a re-install.
+  TRAY_SHELL_EXPLICIT=1
+fi
 
 thirdflare_require_command rsync
 thirdflare_require_command node
@@ -133,7 +171,7 @@ if [[ "$WITH_DESKTOP" -eq 1 ]]; then
 Type=Application
 Name=ThirdFlare One
 Comment=Unofficial cross-platform Cloudflare One client
-Exec=${INSTALL_DIR}/bin/thirdflare-tray
+Exec=${INSTALL_DIR}/bin/thirdflare
 Icon=${INSTALL_DIR}/assets/thirdflare.svg
 Terminal=false
 Categories=Network;
@@ -165,7 +203,14 @@ SETTINGS
 fi
 
 if [[ -f "${INSTALL_DIR}/scripts/sync-tray-autostart.mjs" ]]; then
-  THIRDFLARE_ONE_HOME="${INSTALL_DIR}" node "${INSTALL_DIR}/scripts/sync-tray-autostart.mjs" >/dev/null 2>&1 || true
+  # Without --shell on the command line this is a default to seed, not a choice
+  # to impose: a scripted re-install must not flip a user back to Cloudflare.
+  TRAY_SHELL_ARGS=(--shell "$TRAY_SHELL")
+  if [[ "$TRAY_SHELL_EXPLICIT" -eq 0 ]]; then
+    TRAY_SHELL_ARGS+=(--if-unset)
+  fi
+  THIRDFLARE_ONE_HOME="${INSTALL_DIR}" node "${INSTALL_DIR}/scripts/sync-tray-autostart.mjs" "${TRAY_SHELL_ARGS[@]}" >/dev/null 2>&1 || true
+  echo "Desktop app: $(THIRDFLARE_ONE_HOME="${INSTALL_DIR}" node "${INSTALL_DIR}/scripts/tray-shell-cli.mjs" active 2>/dev/null || echo "$TRAY_SHELL") (change later in Settings)."
 fi
 
 if [[ -x "${INSTALL_DIR}/scripts/thirdflare-nm" ]] && command -v nmcli >/dev/null 2>&1; then

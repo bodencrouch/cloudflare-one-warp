@@ -9,12 +9,20 @@ import {
   sanitizeExec
 } from "../lib/apps/proxy-launcher.mjs";
 
+// listDesktopApps() returns [] anywhere but Linux/FreeBSD by design, so the
+// XDG cases cannot pass on macOS or Windows. sanitizeExec is pure and still runs.
+const xdgOnly = {
+  skip: process.platform !== "linux" && process.platform !== "freebsd"
+    ? "XDG desktop entries are Linux/FreeBSD only"
+    : false
+};
+
 test("sanitizeExec strips desktop field codes", () => {
   assert.equal(sanitizeExec("firefox %u"), "firefox");
   assert.equal(sanitizeExec("konsole -e %f"), "konsole -e");
 });
 
-test("listDesktopApps reads XDG applications", async () => {
+test("listDesktopApps reads XDG applications", xdgOnly, async () => {
   const root = await mkdtemp(join(tmpdir(), "tf-apps-"));
   const appsDir = join(root, "applications");
   await mkdir(appsDir, { recursive: true });
@@ -35,7 +43,7 @@ Icon=demo
   assert.equal(apps[0].name, "Demo Browser");
 });
 
-test("createProxyLauncher writes script and desktop entry", async () => {
+test("createProxyLauncher writes script and desktop entry", xdgOnly, async () => {
   const root = await mkdtemp(join(tmpdir(), "tf-launch-"));
   const appsDir = join(root, "share", "applications");
   await mkdir(appsDir, { recursive: true });

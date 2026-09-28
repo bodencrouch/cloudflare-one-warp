@@ -27,6 +27,7 @@
     "checkOnStartup": true
   },
   "tray": {
-    "autostart": false
+    "autostart": false,
+    "shell": "cloudflare"
   }
 }

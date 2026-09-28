@@ -18,7 +18,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const mockWarp = join(root, "scripts/mock-warp-cli.mjs");
 const port = Number(process.env.CI_LOGS_PORT || 14736);
 const baseUrl = `http://127.0.0.1:${port}`;
-const stateFile = join(mkdtempSync(join(tmpdir(), "tf-logs-")), "state.json");
+const logsTempDir = mkdtempSync(join(tmpdir(), "tf-logs-"));
+const stateFile = join(logsTempDir, "state.json");
+// Keep the daemon's startup tray sync off the developer's real config.
+const logsConfigHome = join(logsTempDir, "home");
 
 /** @type {import('node:child_process').ChildProcess | null} */
 let serverProc = null;
@@ -34,11 +37,15 @@ before(async () => {
     cwd: root,
     env: {
       ...process.env,
+      HOME: logsConfigHome,
+      XDG_CONFIG_HOME: join(logsConfigHome, ".config"),
       PORT: String(port),
       WARP_CLI: mockWarp,
       MOCK_WARP_STATE: stateFile,
       THIRDFLARE_NOTIFICATIONS: "0",
-      THIRDFLARE_NFT_NO_PKEXEC: "1"
+      THIRDFLARE_NFT_NO_PKEXEC: "1",
+      THIRDFLARE_TRAY_SKIP_SYSTEMD: "1",
+      THIRDFLARE_TRAY_LIVE: "0"
     },
     stdio: "pipe"
   });
@@ -61,7 +68,7 @@ after(async () => {
     if (!serverProc.killed) serverProc.kill("SIGKILL");
   }
   try {
-    rmSync(dirname(stateFile), { recursive: true, force: true });
+    rmSync(logsTempDir, { recursive: true, force: true });
   } catch {
     /* ignore */
   }

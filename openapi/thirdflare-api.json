@@ -418,6 +418,46 @@
         }
       }
     },
+    "/api/config/tray-shell": {
+      "post": {
+        "summary": "Persist desktop shell (cloudflare or thirdflare)",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "config"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "config": { "type": "object" },
+                    "sync": { "type": "object" },
+                    "liveSwap": { "type": "object" },
+                    "notifications": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/action": {
       "post": {
         "summary": "Whitelisted warp-cli mutation",
@@ -485,6 +525,346 @@
                     }
                   }
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/tray-autostart": {
+      "post": {
+        "summary": "Persist ThirdFlare One tray autostart preference",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "config"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "config": { "type": "object" },
+                    "sync": { "type": "object" },
+                    "active": { "type": "string", "enum": ["cloudflare", "thirdflare"] },
+                    "effective": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/session": {
+      "post": {
+        "summary": "Set session-only config overrides",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/webui": {
+      "post": {
+        "summary": "Persist Web UI enable / allowRemote (restart required)",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/server": {
+      "post": {
+        "summary": "Persist HTTP port and bind (restart required)",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/ui": {
+      "post": {
+        "summary": "Persist UI preferences such as notifications",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/update/source": {
+      "post": {
+        "summary": "Persist or session-override the update source",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/update/prepare": {
+      "post": {
+        "summary": "Prepare an update and return an apply token",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/update/apply": {
+      "post": {
+        "summary": "Apply a prepared update",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/proxy-launcher": {
+      "post": {
+        "summary": "Create a per-app proxy launcher",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/killswitch": {
+      "post": {
+        "summary": "Enable or disable the nftables kill switch",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/killswitch/enrollment-pause": {
+      "post": {
+        "summary": "Pause or resume the kill switch for enrollment",
+        "responses": {
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "error"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
               }
             }
           }

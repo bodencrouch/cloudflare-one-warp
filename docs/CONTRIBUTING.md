@@ -64,15 +64,15 @@ thirdflare-one/                 # repo root (operator entrypoint)
 ├── thirdflare-one              # install | build | run | test | dev
 ├── server.js                   # HTTP API + warp-cli orchestration
 ├── bin/
-│   ├── thirdflare              # launcher (daemon lifecycle, browser, warp actions)
-│   ├── thirdflare-tray         # PyQt6 native shell + tray (SNI/yad fallback)
+│   ├── thirdflare              # launcher (daemon lifecycle, selected desktop app)
+│   ├── thirdflare-tray         # selected desktop app / PyQt6 tray
 │   ├── thirdflare-one-gui      # alias → thirdflare
 │   └── thirdflare-one-tray     # alias → thirdflare-tray
 ├── lib/
 │   ├── config.mjs              # layered configuration merge
 │   ├── version.mjs
 │   ├── warp/                   # status + registration parsers
-│   ├── tray/                   # XDG autostart sync
+│   ├── tray/                   # XDG autostart + Cloudflare/ThirdFlare desktop shell
 │   ├── notify/                 # libnotify / status watcher
 │   ├── killswitch/             # nftables rule generation + apply
 │   └── update/                 # GitHub release checks, AppImage apply
@@ -230,7 +230,7 @@ New scripts should use `set -euo pipefail`. CI runs `shellcheck` on Linux for `t
 | Add update format / install detection | `lib/update/detect-format.mjs`, `lib/update/index.mjs` |
 | Add desktop notification | `lib/notify/` |
 | Add kill-switch behavior | `lib/killswitch/rules.mjs`, `scripts/thirdflare-nft-apply`, `packaging/polkit/` (unit tests in `ci-killswitch.test.mjs`, `ci-polkit-helper.test.mjs`) |
-| Add tray / native shell behavior | `scripts/tray-qt.py`, `bin/thirdflare-tray`, `lib/tray/autostart.mjs` |
+| Add tray / native shell behavior | `scripts/tray-qt.py`, `bin/thirdflare-tray`, `lib/tray/autostart.mjs`, `lib/tray/shell.mjs` |
 | Add locale string | `public/locales/en.json` + `public/i18n.js` patterns |
 | Add packaging format | `packaging/scripts/`, `packaging/nfpm.yaml` or format-specific manifest |
 

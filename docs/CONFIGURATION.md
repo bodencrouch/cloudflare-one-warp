@@ -65,7 +65,7 @@ Zero Trust browser/IdP enrollment cannot reach `*.cloudflareaccess.com` / corpor
 | `openBrowser` | boolean | `true` | Launcher opens a browser when starting GUI |
 | `theme` | string | `system` | Reserved for future theme sync |
 | `locale` | string | `en` | UI locale (`public/locales/<locale>.json`) |
-| `notifications` | boolean | `true` | Desktop notifications on WARP connect/disconnect (requires `notify-send`) |
+| `notifications` | boolean | `true` | Desktop notifications on WARP connect/disconnect (requires `notify-send`). Cloudflare One Client posts its own, so the daemon stays quiet while `tray.shell` is `cloudflare` |
 
 ### `updates`
 
@@ -81,7 +81,8 @@ See [UPDATES.md](UPDATES.md) for the release → client pipeline.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `autostart` | boolean | `false` | Write `~/.config/autostart/thirdflare-one-tray.desktop` so the tray starts at desktop login (Linux). **Persisted** via `POST /api/config/tray-autostart` or App → General toggle |
+| `shell` | string | `cloudflare` | Desktop app in the system tray: `cloudflare` (Cloudflare One Client from the host WARP package) or `thirdflare` (ThirdFlare One tray). **Persisted** via `POST /api/config/tray-shell`, install `--shell`, or App → Settings |
+| `autostart` | boolean | `false` | When `shell` is `thirdflare`, write `~/.config/autostart/thirdflare-one-tray.desktop` so that tray starts at login (Linux). The value is a remembered preference: it survives a switch to Cloudflare One Client and back, and the entry is only written while `shell` is `thirdflare`, so the two trays never fight at login. **Persisted** via `POST /api/config/tray-autostart`, whose response reports `active` and `effective` |
 
 ## Environment variables
 
@@ -198,7 +199,7 @@ curl -s -X POST http://127.0.0.1:4173/api/config/session \
 
 **Restart required** after changing `server.port`, `server.bind`, `webui.enabled`, or `webui.allowRemote`.
 
-Persist Web UI, server, UI notifications, and tray autostart:
+Persist Web UI, server, UI notifications, desktop app, and tray autostart:
 
 ```bash
 curl -s -X POST http://127.0.0.1:4173/api/config/webui \
@@ -209,6 +210,9 @@ curl -s -X POST http://127.0.0.1:4173/api/config/server \
 
 curl -s -X POST http://127.0.0.1:4173/api/config/ui \
   -H 'content-type: application/json' -H "x-thirdflare-session: $SESSION" -d '{"notifications":true}'
+
+curl -s -X POST http://127.0.0.1:4173/api/config/tray-shell \
+  -H 'content-type: application/json' -d '{"shell":"cloudflare"}'
 
 curl -s -X POST http://127.0.0.1:4173/api/config/tray-autostart \
   -H 'content-type: application/json' -H "x-thirdflare-session: $SESSION" -d '{"autostart":true}'
