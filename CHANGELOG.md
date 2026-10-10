@@ -1,3 +1,8 @@
+# 0.3.1 (2026-10-10)
+
+* Resolve the AppImage launcher inside the bundled filesystem.
+* Preserve the XML declaration and apply manifest permissions when finishing Flatpak builds.
+
 # 0.3.0 (2026-10-10)
 
 * Rename the client, commands, configuration, services, app IDs, and distribution packages to Cloudflare One WARP.

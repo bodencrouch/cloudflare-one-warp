@@ -1,6 +1,6 @@
 {
   "name": "cloudflare-one-warp",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "Cloudflare One WARP \u2014 unofficial cross-platform Cloudflare One client via warp-cli.",

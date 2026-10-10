@@ -22,10 +22,10 @@ flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/fl
 flatpak install -y --user flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
 
 # Patch metainfo release version for this build.
-sed -i "s/version=\"[0-9.][0-9.]*\"/version=\"${VERSION}\"/" "$METAINFO"
+sed -i "s/<release version=\"[0-9.][0-9.]*\"/<release version=\"${VERSION}\"/" "$METAINFO"
 
 flatpak-builder --force-clean --user --build-only "$BUILD_DIR" "$MANIFEST"
-flatpak build-finish "$BUILD_DIR"
+flatpak-builder --user --finish-only "$BUILD_DIR" "$MANIFEST"
 flatpak build-export "$REPO_DIR" "$BUILD_DIR"
 flatpak build-bundle "$REPO_DIR" \
   "${OUT}/cloudflare-one-warp-${VERSION}-x86_64.flatpak" \

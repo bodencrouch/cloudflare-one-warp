@@ -1,4 +1,4 @@
-Cloudflare One WARP 0.3.0 renames the client and all distribution artifacts to match the repository.
+Cloudflare One WARP 0.3.1 renames the client and all distribution artifacts to match the repository.
 
 - Product: **Cloudflare One WARP**.
 - CLI and package: `cloudflare-one-warp`; tray: `cloudflare-one-warp-tray`.
@@ -6,6 +6,7 @@ Cloudflare One WARP 0.3.0 renames the client and all distribution artifacts to m
 - Configuration: `~/.config/cloudflare-one-warp/config.json` and `/etc/cloudflare-one-warp/config.json`.
 - systemd service: `cloudflare-one-warp.service`.
 - App ID: `io.github.bodencrouch.CloudflareOneWarp`.
+- Fix AppImage launcher paths and Flatpak metadata/permissions.
 - Documentation: https://bodencrouch.github.io/cloudflare-one-warp/.
 
 This release changes installation and configuration paths. Reinstall using the renamed package and move any existing configuration to the paths above. Cloudflare's host `warp-cli` remains required.
