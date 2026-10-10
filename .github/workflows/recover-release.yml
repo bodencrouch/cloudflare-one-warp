@@ -19,14 +19,17 @@ jobs:
           github-token: ${{ github.token }}
           run-id: 38074235651
           pattern: packages-*
-          path: dist/packages
+          path: artifacts
           merge-multiple: true
       - name: Checksum completed packages
         env:
           PACKAGE_VERSION: 0.3.3
           CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM: ${{ secrets.CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM }}
           CLOUDFLARE_ONE_WARP_ALLOW_UNSIGNED: ${{ secrets.CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM == '' && '1' || '0' }}
-        run: bash packaging/scripts/checksums.sh
+        run: |
+          mkdir -p dist/packages
+          find artifacts -type f -exec cp -t dist/packages {} +
+          bash packaging/scripts/checksums.sh
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
