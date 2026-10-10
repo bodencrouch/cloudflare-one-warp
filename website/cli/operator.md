@@ -1,19 +1,19 @@
 # cloudflare-one-warp operator
 
-Build, install, and test entrypoint — comparable to `podman` system commands or a project `./cloudflare-one-warp` wrapper.
+Run this entrypoint from a source checkout to build, install, and test the project. The installed `cloudflare-one-warp` command is the daily launcher.
 
 ## Usage
 
 ```
-cloudflare-one-warp install [--service]   User install to ~/.local/share/cloudflare-one-warp
-cloudflare-one-warp uninstall [--purge]   Remove install
-cloudflare-one-warp run [args...]         Launch GUI (bin/cloudflare-one-warp)
-cloudflare-one-warp build <target>        Package builds
-cloudflare-one-warp dev                   Dev server + Web UI
-cloudflare-one-warp check                 Syntax check
-cloudflare-one-warp test [suite]          Test suites
-cloudflare-one-warp version               Print version
-cloudflare-one-warp help                  Show help
+./cloudflare-one-warp install [--service]   User install to ~/.local/share/cloudflare-one-warp
+./cloudflare-one-warp uninstall [--purge]   Remove install
+./cloudflare-one-warp run [args...]         Launch GUI (bin/cloudflare-one-warp)
+./cloudflare-one-warp build <target>        Package builds
+./cloudflare-one-warp dev                   Dev server + Web UI
+./cloudflare-one-warp check                 Syntax check
+./cloudflare-one-warp test [suite]          Test suites
+./cloudflare-one-warp version               Print version
+./cloudflare-one-warp help                  Show help
 ```
 
 ## Install

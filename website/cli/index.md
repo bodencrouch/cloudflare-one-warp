@@ -5,7 +5,7 @@ Cloudflare One WARP exposes three CLI layers — similar to how [Cursor CLI](htt
 | Command | Role |
 |---------|------|
 | `cloudflare-one-warp` | Daily driver — selected desktop app, WARP toggle, daemon |
-| `cloudflare-one-warp` | Operator — install, build, test, dev |
+| `./cloudflare-one-warp` | Source checkout operator — install, build, test, dev |
 | `cloudflare-one-warp-tray` | Desktop app helper (Cloudflare One Client or PyQt6 tray) |
 
 Aliases: `cloudflare-one-warp-gui` → same as `cloudflare-one-warp`.
