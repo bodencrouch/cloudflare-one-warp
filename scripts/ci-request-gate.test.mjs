@@ -211,7 +211,10 @@ test("session token file is per-port, private, and removable", () => {
     assert.equal(created.path, sessionTokenPath(4173, env));
     assert.match(created.token, /^[0-9a-f]{64}$/);
     assert.equal(readSessionToken(4173, env), created.token);
-    assert.equal(statSync(created.path).mode & 0o777, 0o600);
+    // Windows exposes synthesized POSIX modes; ACLs control file access there.
+    if (process.platform !== "win32") {
+      assert.equal(statSync(created.path).mode & 0o777, 0o600);
+    }
 
     const second = createSessionToken(4180, env);
     assert.notEqual(second.path, created.path);
