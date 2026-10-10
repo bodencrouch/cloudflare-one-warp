@@ -1,4 +1,4 @@
-Cloudflare One WARP 0.3.1 renames the client and all distribution artifacts to match the repository.
+Cloudflare One WARP 0.3.2 renames the client and all distribution artifacts to match the repository.
 
 - Product: **Cloudflare One WARP**.
 - CLI and package: `cloudflare-one-warp`; tray: `cloudflare-one-warp-tray`.

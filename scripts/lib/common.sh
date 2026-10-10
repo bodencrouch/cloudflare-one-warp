@@ -51,7 +51,6 @@ cloudflare_one_warp_remove_legacy_desktop_entries() {
   local names=(
     cloudflare-one-gui.desktop
     cloudflare-one-warp.desktop
-    cloudflare-one-warp.desktop
   )
   local name
   for name in "${names[@]}"; do

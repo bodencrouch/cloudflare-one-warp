@@ -50,7 +50,7 @@ Install [Cloudflare WARP](https://developers.cloudflare.com/cloudflare-one/conne
 git clone https://github.com/bodencrouch/cloudflare-one-warp.git
 cd cloudflare-one-warp
 ./cloudflare-one-warp install
-cloudflare-one-warp --version   # 0.2.7+
+cloudflare-one-warp --version   # 0.3.2+
 cloudflare-one-warp             # tray + native panel on Linux
 ```
 
@@ -103,7 +103,7 @@ Default HTTP port is **4173** (launcher tries up to 30 ports if busy). Confirm w
 
 Web UI is **off by default** in the systemd user unit.
 
-## What ships in 0.2.7
+## What ships in 0.3.2
 
 - Guarded warp-cli bridge (`/api/snapshot`, `/api/action`)
 - Account / Zero Trust registration UI (`/api/account`)

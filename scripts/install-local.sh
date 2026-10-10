@@ -105,7 +105,7 @@ if [[ "$TRAY_SHELL_EXPLICIT" -eq 0 && -t 0 ]]; then
   choice=""
   read -r -p "Choice [1]: " choice || true
   case "${choice:-1}" in
-    2|cloudflare-one-warp|Cloudflare One WARP)
+    2|cloudflare-one-warp|"Cloudflare One WARP")
       TRAY_SHELL=cloudflare-one-warp
       ;;
     *)

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import {
   buildReadinessReport,
@@ -89,7 +90,7 @@ test("missing tray toolkit is a soft warning so Connect stays available", () => 
 });
 
 test("probeWarpCliPresent finds an absolute script path", () => {
-  const self = new URL(import.meta.url).pathname;
+  const self = fileURLToPath(import.meta.url);
   const result = probeWarpCliPresent(self);
   assert.equal(result.present, true);
 });

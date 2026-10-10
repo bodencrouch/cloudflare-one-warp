@@ -1,3 +1,9 @@
+# 0.3.2 (2026-10-10)
+
+* Quote the product name in the interactive installer.
+* Use filesystem URL conversion in the Windows readiness test.
+* Keep the documentation build artifact available when Pages administration is unavailable.
+
 # 0.3.1 (2026-10-10)
 
 * Resolve the AppImage launcher inside the bundled filesystem.
