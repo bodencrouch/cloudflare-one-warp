@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "stable": {
-    "version": "0.2.6",
-    "tag": "v0.2.6"
+    "version": "0.3.3",
+    "tag": "v0.3.3"
   },
   "beta": null
 }
