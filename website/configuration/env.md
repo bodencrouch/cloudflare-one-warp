@@ -6,7 +6,7 @@ Environment overrides map in `lib/config.mjs`:
 |----------|--------|
 | `CLOUDFLARE_ONE_WARP_PORT` | Server port (aliases: `CLOUDFLARE_ONE_GUI_PORT`, `PORT`) |
 | `CLOUDFLARE_ONE_WARP_BIND` | Bind address (alias: `CLOUDFLARE_ONE_GUI_BIND`) |
-| `CLOUDFLARE_ONE_WARP_WARP_CLI` | warp-cli path (alias: `WARP_CLI`) |
+| `CLOUDFLARE_ONE_WARP_CLI` | warp-cli path (alias: `WARP_CLI`) |
 | `CLOUDFLARE_ONE_WARP_WEBUI` | `1`/`true` enable UI; `0`/`false` disable |
 | `CLOUDFLARE_ONE_WARP_WEBUI_ALLOW_REMOTE` | Allow remote UI access |
 | `CLOUDFLARE_ONE_WARP_LOCALE` | UI locale |

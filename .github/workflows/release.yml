@@ -47,7 +47,7 @@ jobs:
             git push origin "$TAG"
           fi
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --title "Cloudflare One WARP ${TAG#v}" --notes-file docs/RELEASE_NOTES.md
+            gh release create "$TAG" --draft --verify-tag --title "Cloudflare One WARP ${TAG#v}" --notes-file docs/RELEASE_NOTES.md
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 

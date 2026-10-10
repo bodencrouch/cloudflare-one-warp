@@ -231,7 +231,7 @@ cloudflare-one-warp-tray --stop    # stop the active desktop app
 sudo dnf install python3-pyqt6 python3-pyqt6-webengine
 
 # Debian/Ubuntu
-sudo apt install python3-pyqt6 python3-pyqt6-webengine
+sudo apt install python3-pyqt6 python3-pyqt6.qtwebengine
 ```
 
 **X11 fallback:** `yad` status-notifier menu when PyQt6 is unavailable.
@@ -286,7 +286,7 @@ Common environment variables:
 | `CLOUDFLARE_ONE_WARP_WEBUI=1` | Enable Web UI for this process |
 | `CLOUDFLARE_ONE_WARP_PORT=4173` | HTTP port |
 | `WARP_CLI=/path/to/warp-cli` | Override warp-cli binary |
-| `CLOUDFLARE_ONE_WARP_WARP_CLI` | Same as `WARP_CLI` (preferred) |
+| `CLOUDFLARE_ONE_WARP_CLI` | Same as `WARP_CLI` (preferred) |
 
 Full key reference: **[CONFIGURATION.md](CONFIGURATION.md)**
 

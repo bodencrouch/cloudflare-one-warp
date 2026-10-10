@@ -66,4 +66,4 @@ parts:
     stage-packages:
       - nodejs
       - python3-pyqt6
-      - python3-pyqt6-webengine
+      - python3-pyqt6.qtwebengine

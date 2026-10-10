@@ -1,3 +1,10 @@
+# 0.3.3 (2026-10-10)
+
+* Declare a valid app-specific Flatpak runtime directory permission.
+* Use the Ubuntu Qt WebEngine package in Snap and deb metadata, and Arch package names for optional tray dependencies.
+* Standardize the host CLI override as `CLOUDFLARE_ONE_WARP_CLI`.
+* Publish releases only after all package artifacts have been uploaded.
+
 # 0.3.2 (2026-10-10)
 
 * Quote the product name in the interactive installer.

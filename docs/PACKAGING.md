@@ -87,7 +87,8 @@ Tray dependencies (recommended, not always required):
 
 | Format | Tray deps |
 |--------|-----------|
-| deb/rpm | `python3-pyqt6`, `python3-pyqt6-webengine`, `yad` (X11 fallback) |
+| deb | `python3-pyqt6`, `python3-pyqt6.qtwebengine`, `yad` (X11 fallback) |
+| rpm | `python3-pyqt6`, `python3-pyqt6-webengine`, `yad` (X11 fallback) |
 | Fedora COPR | same via `Recommends:` in spec |
 | Arch/AUR | `python-pyqt6`, `python-pyqt6-webengine` (optdepends) |
 | Flatpak | Host PyQt6 for native shell; finish-args include StatusNotifier |

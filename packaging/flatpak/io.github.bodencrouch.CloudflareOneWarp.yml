@@ -10,7 +10,7 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
-  - --filesystem=xdg-run/
+  - --filesystem=xdg-run/cloudflare-one-warp:create
   - --filesystem=xdg-cache/
   - --filesystem=xdg-config/
   - --talk-name=org.freedesktop.Flatpak

@@ -409,6 +409,13 @@ jobs:
           TAG: ${{ needs.resolve-version.outputs.tag }}
         run: |
           gh release upload "$TAG" dist/packages/* --clobber
+          gh release edit "$TAG" --draft=false --latest
+          # Retire the empty releases created during the initial rename builds.
+          for previous in v0.3.0 v0.3.1 v0.3.2; do
+            if [[ "$previous" != "$TAG" ]] && [[ "$(gh release view "$previous" --json assets --jq '.assets | length' 2>/dev/null || echo missing)" == "0" ]]; then
+              gh release edit "$previous" --draft=true
+            fi
+          done
 
   sync-manifest:
     needs: [resolve-version, publish]

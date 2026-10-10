@@ -31,7 +31,7 @@ else
 fi
 
 run_warp_cli() {
-  local bin="${CLOUDFLARE_ONE_WARP_WARP_CLI:-${WARP_CLI:-warp-cli}}"
+  local bin="${CLOUDFLARE_ONE_WARP_CLI:-${WARP_CLI:-warp-cli}}"
   if [[ -n "${FLATPAK_ID:-}" && "$bin" == "warp-cli" ]] && command -v flatpak-spawn >/dev/null 2>&1; then
     flatpak-spawn --host -- warp-cli "$@"
   else

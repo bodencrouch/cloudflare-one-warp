@@ -20,7 +20,7 @@ Running `cloudflare-one-warp` with no flags starts the **selected desktop app** 
 |----------|--------|
 | `CLOUDFLARE_ONE_WARP_WEBUI=1` | Serve static Web UI from daemon |
 | `CLOUDFLARE_ONE_WARP_PORT` | HTTP port (default `4173`; launcher scans +30 if busy) |
-| `CLOUDFLARE_ONE_WARP_WARP_CLI` | Path to warp-cli binary |
+| `CLOUDFLARE_ONE_WARP_CLI` | Path to warp-cli binary |
 | `CLOUDFLARE_ONE_WARP_CONFIG` | Override config file path |
 
 Full list: [Configuration → Environment](/configuration/env).
