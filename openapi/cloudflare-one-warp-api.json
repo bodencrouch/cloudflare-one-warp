@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "ThirdFlare One local API",
+    "title": "Cloudflare One WARP local API",
     "version": "0.2.8",
-    "description": "Control-plane contract for the Node daemon. Validated in Plane M CI against a mock warp-cli.\n\nRequests that change anything (POST/PUT/PATCH/DELETE) must come from this computer, be addressed to a loopback Host, send `Content-Type: application/json`, and carry the local session credential in `X-Thirdflare-Session`. Fetch the credential from `GET /api/session` or read it from `~/.config/thirdflare/session-<port>.token`."
+    "description": "Control-plane contract for the Node daemon. Validated in Plane M CI against a mock warp-cli.\n\nRequests that change anything (POST/PUT/PATCH/DELETE) must come from this computer, be addressed to a loopback Host, send `Content-Type: application/json`, and carry the local session credential in `X-Cloudflare-One-Warp-Session`. Fetch the credential from `GET /api/session` or read it from `~/.config/cloudflare-one-warp/session-<port>.token`."
   },
   "servers": [
     {
@@ -15,7 +15,7 @@
       "localSession": {
         "type": "apiKey",
         "in": "header",
-        "name": "X-Thirdflare-Session",
+        "name": "X-Cloudflare-One-Warp-Session",
         "description": "Per-daemon credential minted at startup and written to a private file only this user can read."
       }
     },
@@ -86,7 +86,7 @@
                     "header": {
                       "type": "string",
                       "enum": [
-                        "x-thirdflare-session"
+                        "x-cloudflare-one-warp-session"
                       ]
                     }
                   }
@@ -122,7 +122,7 @@
                     "app": {
                       "type": "string",
                       "enum": [
-                        "thirdflare"
+                        "cloudflare-one-warp"
                       ]
                     },
                     "version": {
@@ -420,7 +420,7 @@
     },
     "/api/config/tray-shell": {
       "post": {
-        "summary": "Persist desktop shell (cloudflare or thirdflare)",
+        "summary": "Persist desktop shell (cloudflare or cloudflare-one-warp)",
         "responses": {
           "403": {
             "description": "Cross-site write rejected (no CSRF token; loopback only)",
@@ -533,7 +533,7 @@
     },
     "/api/config/tray-autostart": {
       "post": {
-        "summary": "Persist ThirdFlare One tray autostart preference",
+        "summary": "Persist Cloudflare One WARP tray autostart preference",
         "responses": {
           "403": {
             "description": "Cross-site write rejected (no CSRF token; loopback only)",
@@ -561,7 +561,7 @@
                     "ok": { "type": "boolean" },
                     "config": { "type": "object" },
                     "sync": { "type": "object" },
-                    "active": { "type": "string", "enum": ["cloudflare", "thirdflare"] },
+                    "active": { "type": "string", "enum": ["cloudflare", "cloudflare-one-warp"] },
                     "effective": { "type": "boolean" }
                   }
                 }

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# NetworkManager dispatcher: connect/disconnect Cloudflare WARP when Cloudflare One WARP VPN profiles activate.
+set -euo pipefail
+
+CONNECTION_ID="${1:-}"
+ACTION="${2:-}"
+
+[[ -n "$CONNECTION_ID" && -n "$ACTION" ]] || exit 0
+
+case "$CONNECTION_ID" in
+  "Cloudflare One WARP (MASQUE)"|\
+  "Cloudflare One WARP (WireGuard)"|\
+  "Cloudflare One WARP (Local proxy)")
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+
+APP_ROOT="${CLOUDFLARE_ONE_WARP_HOME:-/usr/lib/cloudflare-one-warp}"
+if [[ ! -d "$APP_ROOT" && -d "$HOME/.local/share/cloudflare-one-warp" ]]; then
+  APP_ROOT="$HOME/.local/share/cloudflare-one-warp"
+fi
+
+HELPER="${APP_ROOT}/scripts/cloudflare-one-warp-connect"
+if [[ ! -x "$HELPER" ]]; then
+  echo "cloudflare-one-warp dispatcher: missing ${HELPER}" >&2
+  exit 1
+fi
+
+case "$ACTION" in
+  vpn-up|up)
+    exec "$HELPER" up "$CONNECTION_ID"
+    ;;
+  vpn-down|down)
+    exec "$HELPER" down "$CONNECTION_ID"
+    ;;
+  *)
+    exit 0
+    ;;
+esac

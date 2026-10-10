@@ -1,10 +1,10 @@
-# Maintainer: ThirdFlare One contributors
-pkgname=thirdflare-one
+# Maintainer: Cloudflare One WARP contributors
+pkgname=cloudflare-one-warp
 pkgver=__VERSION__
 pkgrel=1
-pkgdesc="ThirdFlare One — unofficial Cloudflare One client via warp-cli"
+pkgdesc="Cloudflare One WARP — unofficial Cloudflare One client via warp-cli"
 arch=('any')
-url="https://github.com/bodencrouch/thirdflare-one"
+url="https://github.com/bodencrouch/cloudflare-one-warp"
 license=('MIT')
 depends=('nodejs>=20')
 optdepends=(
@@ -14,35 +14,35 @@ optdepends=(
   'libnotify: desktop notifications'
   'cloudflare-warp-bin: Cloudflare WARP client providing warp-cli (AUR)'
 )
-source=("${pkgname}-${pkgver}.tar.gz::https://github.com/bodencrouch/thirdflare-one/releases/download/v${pkgver}/thirdflare-one-${pkgver}-src.tar.gz")
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/bodencrouch/cloudflare-one-warp/releases/download/v${pkgver}/cloudflare-one-warp-${pkgver}-src.tar.gz")
 sha256sums=('SKIP')
 
 package() {
   cd "${srcdir}"
 
-  install -d "${pkgdir}/usr/lib/thirdflare"
-  install -m 0644 server.js package.json "${pkgdir}/usr/lib/thirdflare/"
-  cp -a public assets lib config "${pkgdir}/usr/lib/thirdflare/"
-  install -d "${pkgdir}/usr/lib/thirdflare/scripts" "${pkgdir}/usr/lib/thirdflare/bin"
-  install -m 0755 scripts/health-check.mjs scripts/port-open.mjs scripts/thirdflare-nft-apply \
+  install -d "${pkgdir}/usr/lib/cloudflare-one-warp"
+  install -m 0644 server.js package.json "${pkgdir}/usr/lib/cloudflare-one-warp/"
+  cp -a public assets lib config "${pkgdir}/usr/lib/cloudflare-one-warp/"
+  install -d "${pkgdir}/usr/lib/cloudflare-one-warp/scripts" "${pkgdir}/usr/lib/cloudflare-one-warp/bin"
+  install -m 0755 scripts/health-check.mjs scripts/port-open.mjs scripts/cloudflare-one-warp-nft-apply \
     scripts/tray-qt.py scripts/tray-sni.py scripts/tray_api.py scripts/tray-warp-action.py \
-    "${pkgdir}/usr/lib/thirdflare/scripts/"
-  install -m 0755 bin/thirdflare bin/thirdflare-tray bin/thirdflare-one-gui bin/thirdflare-one-tray \
-    "${pkgdir}/usr/lib/thirdflare/bin/"
+    "${pkgdir}/usr/lib/cloudflare-one-warp/scripts/"
+  install -m 0755 bin/cloudflare-one-warp bin/cloudflare-one-warp-tray bin/cloudflare-one-warp-gui bin/cloudflare-one-warp-tray \
+    "${pkgdir}/usr/lib/cloudflare-one-warp/bin/"
 
-  install -Dm755 packaging/usr-bin-wrapper.sh "${pkgdir}/usr/bin/thirdflare"
-  install -Dm755 packaging/usr-bin-alias-wrapper.sh "${pkgdir}/usr/bin/thirdflare-one"
-  install -Dm755 packaging/usr-bin-tray-wrapper.sh "${pkgdir}/usr/bin/thirdflare-one-tray"
-  install -Dm644 packaging/polkit/com.thirdflare.one.policy \
-    "${pkgdir}/usr/share/polkit-1/actions/com.thirdflare.one.policy"
-  install -Dm644 packaging/thirdflare-one.desktop \
-    "${pkgdir}/usr/share/applications/thirdflare-one.desktop"
-  install -Dm644 packaging/thirdflare-one-tray.desktop \
-    "${pkgdir}/usr/share/applications/thirdflare-one-tray.desktop"
-  install -Dm644 assets/thirdflare.svg \
-    "${pkgdir}/usr/share/icons/hicolor/scalable/apps/thirdflare.svg"
-  install -Dm644 packaging/thirdflare-one.service \
-    "${pkgdir}/usr/lib/systemd/user/thirdflare-one.service"
+  install -Dm755 packaging/usr-bin-wrapper.sh "${pkgdir}/usr/bin/cloudflare-one-warp"
+  install -Dm755 packaging/usr-bin-alias-wrapper.sh "${pkgdir}/usr/bin/cloudflare-one-warp"
+  install -Dm755 packaging/usr-bin-tray-wrapper.sh "${pkgdir}/usr/bin/cloudflare-one-warp-tray"
+  install -Dm644 packaging/polkit/com.cloudflare.one.warp.policy \
+    "${pkgdir}/usr/share/polkit-1/actions/com.cloudflare.one.warp.policy"
+  install -Dm644 packaging/cloudflare-one-warp.desktop \
+    "${pkgdir}/usr/share/applications/cloudflare-one-warp.desktop"
+  install -Dm644 packaging/cloudflare-one-warp-tray.desktop \
+    "${pkgdir}/usr/share/applications/cloudflare-one-warp-tray.desktop"
+  install -Dm644 assets/cloudflare-one-warp.svg \
+    "${pkgdir}/usr/share/icons/hicolor/scalable/apps/cloudflare-one-warp.svg"
+  install -Dm644 packaging/cloudflare-one-warp.service \
+    "${pkgdir}/usr/lib/systemd/user/cloudflare-one-warp.service"
   install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
   install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
 }

@@ -17,8 +17,8 @@ const request = get(url, { timeout: 1500 }, (response) => {
       payload = null;
     }
 
-    const appOk = payload?.app === "thirdflare"
-      || payload?.app === "thirdflare-one"
+    const appOk = payload?.app === "cloudflare-one-warp"
+      || payload?.app === "cloudflare-one-warp"
       || payload?.app === "cloudflare-one-gui";
 
     if (response.statusCode !== 200 || payload?.ok !== true || !appOk) {

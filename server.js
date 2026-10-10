@@ -53,7 +53,7 @@ import { enrichSettings, parseSettings } from "./lib/warp/settings.mjs";
 import { enrichSplitTunnel } from "./lib/warp/split-tunnel.mjs";
 import { createProxyLauncher, listDesktopApps } from "./lib/apps/proxy-launcher.mjs";
 import {
-  deactivateThirdflareNmProfiles,
+  deactivateCloudflareOneWarpNmProfiles,
   slugForWarpSettings,
   syncKdeProxy,
   syncNmForWarpState
@@ -108,7 +108,7 @@ async function afterWarpNetworkSync(action) {
   try {
     const snap = await snapshot();
     if (action === "disconnect") {
-      deactivateThirdflareNmProfiles();
+      deactivateCloudflareOneWarpNmProfiles();
       syncKdeProxy({ enabled: false, appRoot: root });
       return;
     }
@@ -811,7 +811,7 @@ async function handleApi(req, res, url) {
         autostart: config.tray?.autostart
       });
       // `autostart` is remembered even when it changes nothing today: the entry
-      // is only written while ThirdFlare One is the active desktop app. Say so
+      // is only written while Cloudflare One WARP is the active desktop app. Say so
       // rather than reporting a bare ok for a no-op.
       const active = applied.active || activeTrayShell();
       json(res, 200, {
@@ -819,7 +819,7 @@ async function handleApi(req, res, url) {
         config: publicConfig(config),
         sync: applied.tray || applied,
         active,
-        effective: active === "thirdflare" && Boolean(config.tray?.autostart)
+        effective: active === "cloudflare-one-warp" && Boolean(config.tray?.autostart)
       });
       return;
     }
@@ -827,12 +827,12 @@ async function handleApi(req, res, url) {
     if (req.method === "POST" && url.pathname === "/api/config/tray-shell") {
       const body = await readJson(req);
       if (!isValidTrayShell(body?.shell)) {
-        json(res, 400, { ok: false, error: "shell must be cloudflare or thirdflare" });
+        json(res, 400, { ok: false, error: "shell must be cloudflare or cloudflare-one-warp" });
         return;
       }
       const config = persistUserTrayShell({ shell: body.shell });
       if (!config) {
-        json(res, 400, { ok: false, error: "shell must be cloudflare or thirdflare" });
+        json(res, 400, { ok: false, error: "shell must be cloudflare or cloudflare-one-warp" });
         return;
       }
       const applied = await applyTrayShell({
@@ -847,7 +847,7 @@ async function handleApi(req, res, url) {
         config: publicConfig(config),
         sync: applied.sync,
         liveSwap: applied.liveSwap,
-        notifications: { owner: notifyWatcherEnabled ? "thirdflare" : "cloudflare" }
+        notifications: { owner: notifyWatcherEnabled ? "cloudflare-one-warp" : "cloudflare" }
       });
       return;
     }

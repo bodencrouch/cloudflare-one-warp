@@ -1,0 +1,63 @@
+name: Release packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-packages
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate release
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npm run test:all
+          npm run package:stage
+      - name: Create release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          git config user.name bodencrouch
+          git config user.email 221775936+bodencrouch@users.noreply.github.com
+          if ! git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            git tag -a "$TAG" -m "Cloudflare One WARP ${TAG#v}"
+            git push origin "$TAG"
+          fi
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --title "Cloudflare One WARP ${TAG#v}" --notes-file docs/RELEASE_NOTES.md
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  package:
+    needs: release
+    uses: ./.github/workflows/package.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+      publish_release: true
+      publish_ghcr: true
+      update_homebrew_tap: true
+      sync_manifest: true
+    secrets: inherit

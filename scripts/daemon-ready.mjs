@@ -41,8 +41,8 @@ const request = get(url, { timeout: 1500 }, (response) => {
       payload = null;
     }
 
-    const appOk = payload?.app === "thirdflare"
-      || payload?.app === "thirdflare-one"
+    const appOk = payload?.app === "cloudflare-one-warp"
+      || payload?.app === "cloudflare-one-warp"
       || payload?.app === "cloudflare-one-gui";
     const versionOk = !expected.version || payload?.version === expected.version;
     const revisionOk = expected.apiRevision == null

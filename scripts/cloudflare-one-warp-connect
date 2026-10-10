@@ -1,59 +1,59 @@
 #!/usr/bin/env bash
-# Apply Cloudflare WARP settings for a ThirdFlare NetworkManager VPN profile.
+# Apply Cloudflare WARP settings for a Cloudflare One WARP NetworkManager VPN profile.
 set -euo pipefail
 
 usage() {
   cat <<USAGE
 Usage:
-  thirdflare-warp-connect up   <connection-id>
-  thirdflare-warp-connect down <connection-id>
+  cloudflare-one-warp-connect up   <connection-id>
+  cloudflare-one-warp-connect down <connection-id>
 USAGE
 }
 
 require_warp() {
   if ! command -v warp-cli >/dev/null 2>&1; then
-    echo "thirdflare-warp-connect: warp-cli not found" >&2
+    echo "cloudflare-one-warp-connect: warp-cli not found" >&2
     exit 1
   fi
 }
 
-APP_ROOT="${THIRDFLARE_ONE_HOME:-}"
+APP_ROOT="${CLOUDFLARE_ONE_WARP_HOME:-}"
 if [[ -z "$APP_ROOT" ]]; then
-  if [[ -d "${HOME}/.local/share/thirdflare-one" ]]; then
-    APP_ROOT="${HOME}/.local/share/thirdflare-one"
-  elif [[ -d /usr/lib/thirdflare ]]; then
-    APP_ROOT="/usr/lib/thirdflare"
+  if [[ -d "${HOME}/.local/share/cloudflare-one-warp" ]]; then
+    APP_ROOT="${HOME}/.local/share/cloudflare-one-warp"
+  elif [[ -d /usr/lib/cloudflare-one-warp ]]; then
+    APP_ROOT="/usr/lib/cloudflare-one-warp"
   fi
 fi
 
-KDE_PROXY="${APP_ROOT}/scripts/thirdflare-kde-proxy-sync"
+KDE_PROXY="${APP_ROOT}/scripts/cloudflare-one-warp-kde-proxy-sync"
 
 warp_up() {
   local connection_id="$1"
   require_warp
 
   case "$connection_id" in
-    "ThirdFlare WARP (MASQUE)")
+    "Cloudflare One WARP (MASQUE)")
       warp-cli tunnel protocol set MASQUE
       warp-cli mode warp
       warp-cli connect
       ;;
-    "ThirdFlare WARP (WireGuard)")
+    "Cloudflare One WARP (WireGuard)")
       warp-cli tunnel protocol set WireGuard
       warp-cli mode warp
       warp-cli connect
       ;;
-    "ThirdFlare WARP (Local proxy)")
+    "Cloudflare One WARP (Local proxy)")
       warp-cli tunnel protocol set MASQUE
       warp-cli mode proxy
-      warp-cli proxy port "${THIRDFLARE_PROXY_PORT:-40000}"
+      warp-cli proxy port "${CLOUDFLARE_ONE_WARP_PROXY_PORT:-40000}"
       warp-cli connect
       if [[ -x "$KDE_PROXY" ]]; then
-        "$KDE_PROXY" on "${THIRDFLARE_PROXY_PORT:-40000}" || true
+        "$KDE_PROXY" on "${CLOUDFLARE_ONE_WARP_PROXY_PORT:-40000}" || true
       fi
       ;;
     *)
-      echo "thirdflare-warp-connect: unknown profile ${connection_id}" >&2
+      echo "cloudflare-one-warp-connect: unknown profile ${connection_id}" >&2
       exit 1
       ;;
   esac

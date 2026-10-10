@@ -1,48 +1,48 @@
-# thirdflare-one operator
+# cloudflare-one-warp operator
 
-Build, install, and test entrypoint — comparable to `podman` system commands or a project `./thirdflare-one` wrapper.
+Build, install, and test entrypoint — comparable to `podman` system commands or a project `./cloudflare-one-warp` wrapper.
 
 ## Usage
 
 ```
-thirdflare-one install [--service]   User install to ~/.local/share/thirdflare-one
-thirdflare-one uninstall [--purge]   Remove install
-thirdflare-one run [args...]         Launch GUI (bin/thirdflare)
-thirdflare-one build <target>        Package builds
-thirdflare-one dev                   Dev server + Web UI
-thirdflare-one check                 Syntax check
-thirdflare-one test [suite]          Test suites
-thirdflare-one version               Print version
-thirdflare-one help                  Show help
+cloudflare-one-warp install [--service]   User install to ~/.local/share/cloudflare-one-warp
+cloudflare-one-warp uninstall [--purge]   Remove install
+cloudflare-one-warp run [args...]         Launch GUI (bin/cloudflare-one-warp)
+cloudflare-one-warp build <target>        Package builds
+cloudflare-one-warp dev                   Dev server + Web UI
+cloudflare-one-warp check                 Syntax check
+cloudflare-one-warp test [suite]          Test suites
+cloudflare-one-warp version               Print version
+cloudflare-one-warp help                  Show help
 ```
 
 ## Install
 
 ```bash
-./thirdflare-one install
-./thirdflare-one install --service   # systemd user unit
+./cloudflare-one-warp install
+./cloudflare-one-warp install --service   # systemd user unit
 ```
 
 ## Build targets
 
 ```bash
-./thirdflare-one build appimage
-./thirdflare-one build deb
-./thirdflare-one build rpm
-./thirdflare-one build arch
-./thirdflare-one build flatpak
-./thirdflare-one build snap
-./thirdflare-one build source
-./thirdflare-one build all
+./cloudflare-one-warp build appimage
+./cloudflare-one-warp build deb
+./cloudflare-one-warp build rpm
+./cloudflare-one-warp build arch
+./cloudflare-one-warp build flatpak
+./cloudflare-one-warp build snap
+./cloudflare-one-warp build source
+./cloudflare-one-warp build all
 ```
 
 ## Development
 
 ```bash
-./thirdflare-one dev        # npm run dev
-./thirdflare-one check      # npm run check
-./thirdflare-one test all   # Plane M mock tests
-./thirdflare-one test ui    # Playwright smoke
+./cloudflare-one-warp dev        # npm run dev
+./cloudflare-one-warp check      # npm run check
+./cloudflare-one-warp test all   # Plane M mock tests
+./cloudflare-one-warp test ui    # Playwright smoke
 ```
 
 ## Test suites

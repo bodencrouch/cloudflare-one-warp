@@ -18,11 +18,11 @@ PORT_SCAN = 31
 def session_token_path(port: int) -> str:
   """Mirror lib/http/request-gate.mjs sessionTokenPath()."""
   home = os.environ.get("HOME") or os.path.expanduser("~")
-  return os.path.join(home, ".config", "thirdflare", f"session-{port}.token")
+  return os.path.join(home, ".config", "cloudflare-one-warp", f"session-{port}.token")
 
 
 def app_dir() -> str:
-  env = os.environ.get("THIRDFLARE_APP_DIR")
+  env = os.environ.get("CLOUDFLARE_ONE_WARP_APP_DIR")
   if env:
     return env
   return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -30,7 +30,7 @@ def app_dir() -> str:
 
 def launcher_path(root: str | None = None) -> str:
   root = root or app_dir()
-  return os.path.join(root, "bin", "thirdflare")
+  return os.path.join(root, "bin", "cloudflare-one-warp")
 
 
 def ensure_daemon(launcher: str | None = None, *, webui: bool = True) -> None:
@@ -39,7 +39,7 @@ def ensure_daemon(launcher: str | None = None, *, webui: bool = True) -> None:
   env = os.environ.copy()
   args = [launcher, "--daemon"] if webui else [launcher, "--no-open"]
   if webui:
-    env["THIRDFLARE_WEBUI"] = "1"
+    env["CLOUDFLARE_ONE_WARP_WEBUI"] = "1"
   subprocess.run(
     args,
     check=False,
@@ -84,12 +84,12 @@ def tray_icon_state(snapshot: dict[str, Any] | None) -> str:
   return "disconnected"
 
 
-class ThirdFlareClient:
-  """Minimal HTTP client for the local ThirdFlare One daemon."""
+class CloudflareOneWarpClient:
+  """Minimal HTTP client for the local Cloudflare One WARP daemon."""
 
   def __init__(self, host: str = "127.0.0.1") -> None:
     self.host = host
-    env_port = os.environ.get("THIRDFLARE_PORT") or os.environ.get("CLOUDFLARE_ONE_GUI_PORT")
+    env_port = os.environ.get("CLOUDFLARE_ONE_WARP_PORT") or os.environ.get("CLOUDFLARE_ONE_GUI_PORT")
     self.base_port = int(env_port) if env_port else DEFAULT_PORT
     self.base_url: str | None = None
     self.session: str | None = None
@@ -105,7 +105,7 @@ class ThirdFlareClient:
       except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
         continue
       app_id = payload.get("app")
-      if payload.get("ok") and app_id in ("thirdflare", "thirdflare-one", "cloudflare-one-gui"):
+      if payload.get("ok") and app_id in ("cloudflare-one-warp", "cloudflare-one-warp", "cloudflare-one-gui"):
         self.base_url = f"http://{self.host}:{port}"
         self.base_port = port
         return True
@@ -157,7 +157,7 @@ class ThirdFlareClient:
       headers["Content-Type"] = "application/json"
       token = self.load_session()
       if token:
-        headers["X-Thirdflare-Session"] = token
+        headers["X-Cloudflare-One-Warp-Session"] = token
     request = urllib.request.Request(
       f"{self.base_url}{path}",
       data=data,
@@ -169,7 +169,7 @@ class ThirdFlareClient:
 
   def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
     if not self.base_url and not self.discover():
-      raise RuntimeError("ThirdFlare One daemon is not running.")
+      raise RuntimeError("Cloudflare One WARP daemon is not running.")
     try:
       raw = self._send(method, path, body)
     except urllib.error.HTTPError as exc:
@@ -225,7 +225,7 @@ class ThirdFlareClient:
       timeout=10,
     )
     env = os.environ.copy()
-    env["THIRDFLARE_WEBUI"] = "1"
+    env["CLOUDFLARE_ONE_WARP_WEBUI"] = "1"
     subprocess.run(
       [launcher, "--daemon"],
       check=False,
@@ -240,9 +240,9 @@ class ThirdFlareClient:
     launcher = launcher or launcher_path()
     env = os.environ.copy()
     if webui is True:
-      env["THIRDFLARE_WEBUI"] = "1"
+      env["CLOUDFLARE_ONE_WARP_WEBUI"] = "1"
     elif webui is False:
-      env["THIRDFLARE_WEBUI"] = "0"
+      env["CLOUDFLARE_ONE_WARP_WEBUI"] = "0"
     subprocess.run(
       [launcher, "--stop"],
       check=False,
@@ -263,7 +263,7 @@ class ThirdFlareClient:
 
   def app_url(self) -> str:
     if not self.base_url and not self.discover():
-      raise RuntimeError("ThirdFlare One daemon is not running.")
+      raise RuntimeError("Cloudflare One WARP daemon is not running.")
     base = self.base_url or f"http://{self.host}:{self.base_port}"
     return f"{base}/?shell=1"
 
@@ -282,4 +282,4 @@ def snapshot_label(snapshot: dict[str, Any]) -> str:
   status = snapshot.get("status") or {}
   if not daemon.get("available", True):
     return "daemon unavailable"
-  return str(status.get("label") or "ThirdFlare One")
+  return str(status.get("label") or "Cloudflare One WARP")

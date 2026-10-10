@@ -1,6 +1,6 @@
 # CI confidence levels
 
-ThirdFlare One CI uses two planes. A green required check **never** means “WARP tunnels traffic on every GitHub-hosted OS.”
+Cloudflare One WARP CI uses two planes. A green required check **never** means “WARP tunnels traffic on every GitHub-hosted OS.”
 
 ## Plane M — Mock / contract (required)
 
@@ -21,7 +21,7 @@ npm run test:ui   # Playwright library smoke (Home connect + Account register)
 
 ### Test environment variables
 
-Mock integration, OpenAPI, and UI smoke harnesses set `THIRDFLARE_NFT_NO_PKEXEC=1`. This simulates an **unprivileged daemon**: it blocks pkexec fallback and skips nft rule apply (`runNftScript`), so `sudo npm run test:all` matches GitHub-hosted CI (for example, POST `/api/killswitch` enable without privilege returns 502 and desired stays false). nft list/probe for GET `/api/killswitch` status reads is **not** blocked.
+Mock integration, OpenAPI, and UI smoke harnesses set `CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC=1`. This simulates an **unprivileged daemon**: it blocks pkexec fallback and skips nft rule apply (`runNftScript`), so `sudo npm run test:all` matches GitHub-hosted CI (for example, POST `/api/killswitch` enable without privilege returns 502 and desired stays false). nft list/probe for GET `/api/killswitch` status reads is **not** blocked.
 
 ## Plane R — Real WARP network smoke (optional)
 
@@ -37,7 +37,7 @@ WARP_CI_REQUIRE_REAL=1 npm run test:warp:real
 
 ## Hard rules
 
-- **Never** enable the ThirdFlare kill-switch apply path on shared GitHub-hosted runners (it can brick egress).
+- **Never** enable the Cloudflare One WARP kill-switch apply path on shared GitHub-hosted runners (it can brick egress).
 - Kill-switch **rule generation** stays in unit tests; apply remains Linux-local / manual.
 - Prefer `cdn-cgi/trace` over `ifconfig.me` alone as the connectivity oracle.
 - Win/Mac required jobs cover the portable Node control plane only.

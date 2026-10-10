@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=ThirdFlare One
+Name=Cloudflare One WARP
 Comment=Unofficial cross-platform Cloudflare One client for warp-cli
-Exec=thirdflare
-Icon=thirdflare
+Exec=cloudflare-one-warp
+Icon=cloudflare-one-warp
 Terminal=false
 Categories=Network;
-Keywords=Cloudflare;WARP;Zero Trust;ThirdFlare One;VPN;DNS;
+Keywords=Cloudflare;WARP;Zero Trust;Cloudflare One WARP;VPN;DNS;
 StartupNotify=true

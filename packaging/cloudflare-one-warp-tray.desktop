@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=ThirdFlare One Tray
-Comment=ThirdFlare One system tray and control panel
-Exec=thirdflare-one-tray
-Icon=thirdflare
+Name=Cloudflare One WARP Tray
+Comment=Cloudflare One WARP system tray and control panel
+Exec=cloudflare-one-warp-tray
+Icon=cloudflare-one-warp
 Terminal=false
 Categories=Network;
 Hidden=true

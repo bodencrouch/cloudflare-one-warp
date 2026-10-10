@@ -1,12 +1,12 @@
 # Contributing
 
-Thank you for improving **ThirdFlare One**.
+Thank you for improving **Cloudflare One WARP**.
 
 ## Setup
 
 ```bash
-git clone https://github.com/bodencrouch/thirdflare-one.git
-cd thirdflare-one
+git clone https://github.com/bodencrouch/cloudflare-one-warp.git
+cd cloudflare-one-warp
 npm install
 npm run check
 npm run test:all
@@ -15,8 +15,8 @@ npm run test:all
 ## Conventions
 
 - 2-space indent, `camelCase` in JS, `kebab-case` filenames
-- [Conventional Commits](https://www.conventionalcommits.org/) for release-please
-- Product name **ThirdFlare One** in user-facing strings
+- [Conventional Commits](https://www.conventionalcommits.org/) for clear changelogs
+- Product name **Cloudflare One WARP** in user-facing strings
 - Plain language in UI — no planning/prompt copy
 
 ## Test planes
@@ -26,7 +26,7 @@ npm run test:all
 | **M** | Mock warp-cli — required CI on Linux/macOS/Windows |
 | **R** | Real WARP smoke — optional Ubuntu |
 
-See [CI.md](https://github.com/bodencrouch/thirdflare-one/blob/main/docs/CI.md).
+See [CI.md](https://github.com/bodencrouch/cloudflare-one-warp/blob/main/docs/CI.md).
 
 ## Before handoff
 
@@ -43,4 +43,4 @@ After API changes, smoke `/api/health`, `/api/version`, `/api/account`, `/api/ki
 - Published site: this VitePress site (`website/`)
 - Update both when behavior changes
 
-Full guide: [CONTRIBUTING.md](https://github.com/bodencrouch/thirdflare-one/blob/main/docs/CONTRIBUTING.md).
+Full guide: [CONTRIBUTING.md](https://github.com/bodencrouch/cloudflare-one-warp/blob/main/docs/CONTRIBUTING.md).

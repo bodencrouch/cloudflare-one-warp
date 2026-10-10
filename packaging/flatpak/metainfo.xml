@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.bodencrouch.ThirdFlareOne</id>
-  <name>ThirdFlare One</name>
+  <id>io.github.bodencrouch.CloudflareOneWarp</id>
+  <name>Cloudflare One WARP</name>
   <summary>Unofficial Cloudflare One client via warp-cli</summary>
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
   <description>
     <p>
-      ThirdFlare One is an unofficial third-party client for Cloudflare One / WARP.
+      Cloudflare One WARP is an unofficial third-party client for Cloudflare One / WARP.
       It wraps the host Cloudflare WARP client (warp-cli) with a local API and optional
       browser UI. The Flatpak bundles Node and calls warp-cli on the host through
       flatpak-spawn --host. Cloudflare WARP must already be installed on the system.
@@ -17,10 +17,10 @@
       of Cloudflare, Inc.
     </p>
   </description>
-  <launchable type="desktop-id">io.github.bodencrouch.ThirdFlareOne.desktop</launchable>
-  <url type="homepage">https://github.com/bodencrouch/thirdflare-one</url>
+  <launchable type="desktop-id">io.github.bodencrouch.CloudflareOneWarp.desktop</launchable>
+  <url type="homepage">https://github.com/bodencrouch/cloudflare-one-warp</url>
   <developer id="io.github.bodencrouch">
-    <name>ThirdFlare One contributors</name>
+    <name>Cloudflare One WARP contributors</name>
   </developer>
   <categories>
     <category>Network</category>
@@ -29,7 +29,7 @@
   <releases>
     <release version="0.2.6" date="2026-07-18">
       <description>
-        <p>ThirdFlare One packaging and Flathub-ready app ID.</p>
+        <p>Cloudflare One WARP packaging and Flathub-ready app ID.</p>
       </description>
     </release>
   </releases>

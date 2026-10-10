@@ -14,4 +14,4 @@ Task-oriented docs — start with [First connection](/guides/first-connection), 
 | [Updates](/guides/updates) | Client update channel |
 | [systemd](/guides/systemd) | User daemon unit |
 
-Architecture deep-dive: [ARCHITECTURE](https://github.com/bodencrouch/thirdflare-one/blob/main/docs/ARCHITECTURE.md) in the repository.
+Architecture deep-dive: [ARCHITECTURE](https://github.com/bodencrouch/cloudflare-one-warp/blob/main/docs/ARCHITECTURE.md) in the repository.

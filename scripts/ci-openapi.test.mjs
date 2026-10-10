@@ -12,13 +12,13 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const mockWarp = join(root, "scripts/mock-warp-cli.mjs");
 const port = Number(process.env.CI_OPENAPI_PORT || 14735);
 const baseUrl = `http://127.0.0.1:${port}`;
-const openapiTempDir = mkdtempSync(join(tmpdir(), "tf-openapi-"));
+const openapiTempDir = mkdtempSync(join(tmpdir(), "cf-one-warp-openapi-"));
 const stateFile = join(openapiTempDir, "state.json");
 // Pin both: configPaths() keys off HOME, while the autostart and unit paths key
 // off XDG_CONFIG_HOME. Without both, POST /api/config/tray-shell rewrites the
 // developer's real config and deletes their real autostart entry.
 const configHome = join(openapiTempDir, "home");
-const spec = JSON.parse(readFileSync(join(root, "openapi/thirdflare-api.json"), "utf8"));
+const spec = JSON.parse(readFileSync(join(root, "openapi/cloudflare-one-warp-api.json"), "utf8"));
 
 /** @type {import('node:child_process').ChildProcess | null} */
 let serverProc = null;
@@ -51,10 +51,10 @@ before(async () => {
       PORT: String(port),
       WARP_CLI: mockWarp,
       MOCK_WARP_STATE: stateFile,
-      THIRDFLARE_NOTIFICATIONS: "0",
-      THIRDFLARE_NFT_NO_PKEXEC: "1",
-      THIRDFLARE_TRAY_SKIP_SYSTEMD: "1",
-      THIRDFLARE_TRAY_LIVE: "0"
+      CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0",
+      CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1",
+      CLOUDFLARE_ONE_WARP_TRAY_SKIP_SYSTEMD: "1",
+      CLOUDFLARE_ONE_WARP_TRAY_LIVE: "0"
     },
     stdio: "pipe"
   });
@@ -87,7 +87,7 @@ test("OpenAPI /api/health response shape", async () => {
   const res = await httpJson("GET", "/api/health");
   assert.equal(res.status, 200);
   assertRequired(res.json, schemaRequired("/api/health"), "health");
-  assert.equal(res.json.app, "thirdflare");
+  assert.equal(res.json.app, "cloudflare-one-warp");
 });
 
 test("OpenAPI /api/readiness response shape", async () => {
@@ -130,7 +130,7 @@ test("OpenAPI /api/config response shape", async () => {
   const res = await httpJson("GET", "/api/config");
   assert.equal(res.status, 200);
   assertRequired(res.json, ["ok", "config"], "config");
-  assert.equal(res.json.config?.tray?.shell === "cloudflare" || res.json.config?.tray?.shell === "thirdflare", true);
+  assert.equal(res.json.config?.tray?.shell === "cloudflare" || res.json.config?.tray?.shell === "cloudflare-one-warp", true);
   assert.equal(typeof res.json.config?.tray?.cloudflareAvailable, "boolean");
 });
 

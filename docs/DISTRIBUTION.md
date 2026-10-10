@@ -1,6 +1,6 @@
 # Distribution channels
 
-Where to install ThirdFlare One and how each channel is published from this repository.
+Where to install Cloudflare One WARP and how each channel is published from this repository.
 
 > **Not affiliated with Cloudflare.** Install [Cloudflare WARP](https://developers.cloudflare.com/warp-client/get-started/linux/) separately on every platform.
 
@@ -8,44 +8,44 @@ Where to install ThirdFlare One and how each channel is published from this repo
 
 | Channel | Install command | Discoverability |
 |---------|-----------------|-----------------|
-| **GitHub Releases** | Download artifact from [Releases](https://github.com/bodencrouch/thirdflare-one/releases) | Always available |
-| **Flathub** | `flatpak install flathub io.github.bodencrouch.ThirdFlareOne` | After Flathub PR merge |
-| **Snap Store** | `snap install thirdflare-one --classic` | After store upload + classic review |
-| **Fedora COPR** | `dnf copr enable bodencrouch/thirdflare-one && dnf install thirdflare-one` | After Packit/COPR build |
-| **Homebrew (macOS)** | `brew tap bodencrouch/thirdflare-one homebrew-tap && brew install thirdflare-one` | Automated on release |
+| **GitHub Releases** | Download artifact from [Releases](https://github.com/bodencrouch/cloudflare-one-warp/releases) | Always available |
+| **Flathub** | `flatpak install flathub io.github.bodencrouch.CloudflareOneWarp` | After Flathub PR merge |
+| **Snap Store** | `snap install cloudflare-one-warp --classic` | After store upload + classic review |
+| **Fedora COPR** | `dnf copr enable bodencrouch/cloudflare-one-warp && dnf install cloudflare-one-warp` | After Packit/COPR build |
+| **Homebrew (macOS)** | `brew tap bodencrouch/cloudflare-one-warp homebrew-tap && brew install cloudflare-one-warp` | Automated on release |
 | **AppImageHub** | Listed at [appimage.github.io](https://appimage.github.io/) | After listing PR merge |
-| **Arch AUR** | `yay -S thirdflare-one` | After AUR package publish |
-| **User install (any Linux)** | `./thirdflare-one install` from a clone | Manual |
+| **Arch AUR** | `yay -S cloudflare-one-warp` | After AUR package publish |
+| **User install (any Linux)** | `./cloudflare-one-warp install` from a clone | Manual |
 
 ### GitHub Releases (direct download)
 
 ```bash
 # AppImage (x86_64, bundles Node)
-chmod +x thirdflare-VERSION-x86_64.AppImage
-./thirdflare-VERSION-x86_64.AppImage
+chmod +x cloudflare-one-warp-VERSION-x86_64.AppImage
+./cloudflare-one-warp-VERSION-x86_64.AppImage
 
 # Debian / Ubuntu
-sudo dpkg -i thirdflare_VERSION_all.deb
+sudo dpkg -i cloudflare-one-warp_VERSION_all.deb
 
 # Fedora / RHEL (from release asset)
-sudo rpm -Uvh thirdflare-VERSION-1.noarch.rpm
+sudo rpm -Uvh cloudflare-one-warp-VERSION-1.noarch.rpm
 ```
 
 ### Flathub
 
 ```bash
-flatpak install flathub io.github.bodencrouch.ThirdFlareOne
-thirdflare-one
+flatpak install flathub io.github.bodencrouch.CloudflareOneWarp
+cloudflare-one-warp
 ```
 
-Manifest for submission: [`packaging/flathub/io.github.bodencrouch.ThirdFlareOne.yml`](../packaging/flathub/io.github.bodencrouch.ThirdFlareOne.yml)
+Manifest for submission: [`packaging/flathub/io.github.bodencrouch.CloudflareOneWarp.yml`](../packaging/flathub/io.github.bodencrouch.CloudflareOneWarp.yml)
 
-**Migration:** Older sideloaded `.flatpak` bundles used app ID `io.github.cloudflare_one_gui_linux.CloudflareOneGui`. Flathub and new builds use `io.github.bodencrouch.ThirdFlareOne`.
+**Migration:** Older sideloaded `.flatpak` bundles used app ID `io.github.cloudflare_one_gui_linux.CloudflareOneGui`. Flathub and new builds use `io.github.bodencrouch.CloudflareOneWarp`.
 
 ### Snap Store
 
 ```bash
-snap install thirdflare-one --classic
+snap install cloudflare-one-warp --classic
 ```
 
 Classic confinement is required so the snap can reach the host `warp-cli` and WARP daemon. Justification: [`packaging/snap/CLASSIC_JUSTIFICATION.md`](../packaging/snap/CLASSIC_JUSTIFICATION.md)
@@ -53,8 +53,8 @@ Classic confinement is required so the snap can reach the host `warp-cli` and WA
 ### Fedora COPR
 
 ```bash
-sudo dnf copr enable bodencrouch/thirdflare-one
-sudo dnf install thirdflare-one
+sudo dnf copr enable bodencrouch/cloudflare-one-warp
+sudo dnf install cloudflare-one-warp
 ```
 
 Builds are triggered from release tags via [Packit](https://packit.dev) (see [`.packit.yaml`](../.packit.yaml)).
@@ -62,9 +62,9 @@ Builds are triggered from release tags via [Packit](https://packit.dev) (see [`.
 ### Homebrew (macOS)
 
 ```bash
-brew tap bodencrouch/thirdflare-one homebrew-tap
-brew install thirdflare-one
-thirdflare-one --no-open
+brew tap bodencrouch/cloudflare-one-warp homebrew-tap
+brew install cloudflare-one-warp
+cloudflare-one-warp --no-open
 ```
 
 Requires [Cloudflare WARP for macOS](https://developers.cloudflare.com/warp-client/get-started/macos/).
@@ -73,16 +73,16 @@ Requires [Cloudflare WARP for macOS](https://developers.cloudflare.com/warp-clie
 
 After listing merge, AppImageHub points to the latest GitHub Release AppImage URL pattern:
 
-`https://github.com/bodencrouch/thirdflare-one/releases/download/vVERSION/thirdflare-VERSION-x86_64.AppImage`
+`https://github.com/bodencrouch/cloudflare-one-warp/releases/download/vVERSION/cloudflare-one-warp-VERSION-x86_64.AppImage`
 
-Listing template: [`packaging/appimagehub/thirdflare-one.yml`](../packaging/appimagehub/thirdflare-one.yml)
+Listing template: [`packaging/appimagehub/cloudflare-one-warp.yml`](../packaging/appimagehub/cloudflare-one-warp.yml)
 
 ### Arch AUR
 
 ```bash
-yay -S thirdflare-one
+yay -S cloudflare-one-warp
 # or
-git clone https://aur.archlinux.org/thirdflare-one.git && cd thirdflare-one && makepkg -si
+git clone https://aur.archlinux.org/cloudflare-one-warp.git && cd cloudflare-one-warp && makepkg -si
 ```
 
 PKGBUILD template: [`packaging/aur/PKGBUILD`](../packaging/aur/PKGBUILD)
@@ -105,7 +105,7 @@ A future **Tauri** shell could ship `.exe` / `.app` bundles wrapping the same lo
 
 Release flow:
 
-1. Tag + GitHub Release (Release Please or `gh release create`)
+1. Tag + GitHub Release (Release packages or `gh release create`)
 2. [`package.yml`](../.github/workflows/package.yml) builds artifacts and uploads to the release
 3. [`publish-stores.yml`](../.github/workflows/publish-stores.yml) publishes to stores when secrets are configured
 
@@ -120,9 +120,9 @@ Release flow:
 ### One-time setup checklist
 
 - [ ] Merge Flathub PR at [github.com/flathub/flathub](https://github.com/flathub/flathub) using manifest in `packaging/flathub/`
-- [ ] Register `thirdflare-one` on Snap Store; export login → `SNAPCRAFT_STORE_CREDENTIALS`
-- [ ] Enable Packit on the repo for COPR project `bodencrouch/thirdflare-one`
-- [ ] Create AUR package `thirdflare-one` (manual or CI with `AUR_SSH_PRIVATE_KEY`)
-- [ ] Open AppImageHub PR using `packaging/appimagehub/thirdflare-one.yml`
+- [ ] Register `cloudflare-one-warp` on Snap Store; export login → `SNAPCRAFT_STORE_CREDENTIALS`
+- [ ] Enable Packit on the repo for COPR project `bodencrouch/cloudflare-one-warp`
+- [ ] Create AUR package `cloudflare-one-warp` (manual or CI with `AUR_SSH_PRIVATE_KEY`)
+- [ ] Open AppImageHub PR using `packaging/appimagehub/cloudflare-one-warp.yml`
 
 See also [PACKAGING.md](PACKAGING.md) and [UPDATES.md](UPDATES.md).

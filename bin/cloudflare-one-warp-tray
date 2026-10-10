@@ -9,37 +9,37 @@ while [[ -L "$_script" ]]; do
 done
 APP_DIR="$(cd -- "$(dirname -- "$_script")/.." && pwd)"
 unset _script _dir
-LAUNCHER="$APP_DIR/bin/thirdflare"
-ICON="$APP_DIR/assets/thirdflare.svg"
+LAUNCHER="$APP_DIR/bin/cloudflare-one-warp"
+ICON="$APP_DIR/assets/cloudflare-one-warp.svg"
 SNI_TRAY="$APP_DIR/scripts/tray-sni.py"
 QT_TRAY="$APP_DIR/scripts/tray-qt.py"
-RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/thirdflare"
-CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/thirdflare"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/cloudflare-one-warp"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cloudflare-one-warp"
 TRAY_PID_FILE="${RUNTIME_DIR}/tray.pid"
 TRAY_LOG_FILE="${CACHE_DIR}/tray.log"
 
 usage() {
   cat <<USAGE
-ThirdFlare One tray
+Cloudflare One WARP tray
 
 Usage:
-  thirdflare-one-tray            Start the selected desktop app (Cloudflare One Client by default)
-  thirdflare-one-tray --force-thirdflare
-                                 Start the ThirdFlare One tray for this session only
-  thirdflare-one-tray --panel    Show the ThirdFlare One window (starts tray if needed)
-  thirdflare-one-tray --settings Open ThirdFlare One preferences (PyQt6)
-  thirdflare-one-tray --stop     Stop the active desktop app
-  thirdflare-one-tray --check    Print tray readiness (exit 0 when ready)
-  thirdflare-one-tray --status   Show WARP status (notify when available)
-  thirdflare-one-tray --help     Show this help
+  cloudflare-one-warp-tray            Start the selected desktop app (Cloudflare One Client by default)
+  cloudflare-one-warp-tray --force-cloudflare-one-warp
+                                 Start the Cloudflare One WARP tray for this session only
+  cloudflare-one-warp-tray --panel    Show the Cloudflare One WARP window (starts tray if needed)
+  cloudflare-one-warp-tray --settings Open Cloudflare One WARP preferences (PyQt6)
+  cloudflare-one-warp-tray --stop     Stop the active desktop app
+  cloudflare-one-warp-tray --check    Print tray readiness (exit 0 when ready)
+  cloudflare-one-warp-tray --status   Show WARP status (notify when available)
+  cloudflare-one-warp-tray --help     Show this help
 
-Also available as: thirdflare-one --tray
+Also available as: cloudflare-one-warp --tray
 
-Cloudflare One Client is the default desktop app. Pick the ThirdFlare One tray in
+Cloudflare One Client is the default desktop app. Pick the Cloudflare One WARP tray in
 Settings to use this project's own tray and control panel instead.
 
-On KDE Plasma / Wayland the ThirdFlare One tray uses PyQt6 with the full Web UI embedded (left-click).
-Use thirdflare-one --no-open for API-only daemon mode without a desktop app.
+On KDE Plasma / Wayland the Cloudflare One WARP tray uses PyQt6 with the full Web UI embedded (left-click).
+Use cloudflare-one-warp --no-open for API-only daemon mode without a desktop app.
 USAGE
 }
 
@@ -48,8 +48,8 @@ tray_node_bin() {
     printf '%s\n' "${APP_DIR}/runtime/node/bin/node"
     return 0
   fi
-  if [[ -n "${THIRDFLARE_NODE:-${CLOUDFLARE_ONE_GUI_NODE:-}}" ]]; then
-    printf '%s\n' "${THIRDFLARE_NODE:-$CLOUDFLARE_ONE_GUI_NODE}"
+  if [[ -n "${CLOUDFLARE_ONE_WARP_NODE:-${CLOUDFLARE_ONE_GUI_NODE:-}}" ]]; then
+    printf '%s\n' "${CLOUDFLARE_ONE_WARP_NODE:-$CLOUDFLARE_ONE_GUI_NODE}"
     return 0
   fi
   printf '%s\n' "node"
@@ -62,33 +62,33 @@ tray_shell_cli() {
 tray_active_shell() {
   local active
   active="$(tray_shell_cli active 2>/dev/null || true)"
-  if [[ "$active" == "cloudflare" || "$active" == "thirdflare" ]]; then
+  if [[ "$active" == "cloudflare" || "$active" == "cloudflare-one-warp" ]]; then
     printf '%s\n' "$active"
     return 0
   fi
-  printf '%s\n' "thirdflare"
+  printf '%s\n' "cloudflare-one-warp"
 }
 
 start_cloudflare_shell() {
   mkdir -p "$RUNTIME_DIR" "$CACHE_DIR"
-  # Close the ThirdFlare tray and panel first. They talk to the Web UI daemon
+  # Close the Cloudflare One WARP tray and panel first. They talk to the Web UI daemon
   # that ensure_daemon_api_only is about to restart, and an open panel left
   # behind would just show a connection error.
-  tray_shell_cli stop-thirdflare >/dev/null 2>&1 || true
+  tray_shell_cli stop-cloudflare-one-warp >/dev/null 2>&1 || true
   clear_tray_pid
   ensure_daemon_api_only
   if tray_shell_cli start-cloudflare >>"$TRAY_LOG_FILE" 2>&1; then
     echo "Started Cloudflare One Client." >&2
-    echo "Open ThirdFlare One Settings to switch to the ThirdFlare One tray." >&2
+    echo "Open Cloudflare One WARP Settings to switch to the Cloudflare One WARP tray." >&2
     return 0
   fi
-  echo "Could not start Cloudflare One Client. Starting the ThirdFlare One tray." >&2
-  run_thirdflare_tray
+  echo "Could not start Cloudflare One Client. Starting the Cloudflare One WARP tray." >&2
+  run_cloudflare_one_warp_tray
 }
 
 # One-session swap. The persisted choice is untouched, so Cloudflare One Client
 # returns at next login. Leave warp-desktop-svc running — only the tray icon clashes.
-run_thirdflare_tray() {
+run_cloudflare_one_warp_tray() {
   local had_cloudflare=0
   if [[ "$(tray_shell_cli taskbar 2>/dev/null || echo stopped)" == "running" ]]; then
     had_cloudflare=1
@@ -97,11 +97,11 @@ run_thirdflare_tray() {
   if run_tray; then
     if [[ "$had_cloudflare" -eq 1 ]]; then
       echo "Stopped the Cloudflare One Client tray icon for this session." >&2
-      echo "Bring it back with: thirdflare-one-tray" >&2
+      echo "Bring it back with: cloudflare-one-warp-tray" >&2
     fi
     return 0
   fi
-  # The ThirdFlare tray did not come up. Put back the icon we just took away
+  # The Cloudflare One WARP tray did not come up. Put back the icon we just took away
   # rather than leaving the user with no tray at all.
   if [[ "$had_cloudflare" -eq 1 ]]; then
     echo "Restoring the Cloudflare One Client tray." >&2
@@ -111,8 +111,8 @@ run_thirdflare_tray() {
 }
 
 tray_python_bin() {
-  if [[ -n "${THIRDFLARE_TRAY_PYTHON:-}" && -x "${THIRDFLARE_TRAY_PYTHON}" ]]; then
-    printf '%s\n' "${THIRDFLARE_TRAY_PYTHON}"
+  if [[ -n "${CLOUDFLARE_ONE_WARP_TRAY_PYTHON:-}" && -x "${CLOUDFLARE_ONE_WARP_TRAY_PYTHON}" ]]; then
+    printf '%s\n' "${CLOUDFLARE_ONE_WARP_TRAY_PYTHON}"
     return 0
   fi
   if [[ -x /usr/bin/python3 ]]; then
@@ -237,23 +237,23 @@ tray_explain() {
   local reason="$1"
   case "$reason" in
     missing-sni|missing-sni-wayland)
-      echo "ThirdFlare One tray on KDE Plasma / Wayland needs PyQt6 (preferred) or StatusNotifierItem support." >&2
+      echo "Cloudflare One WARP tray on KDE Plasma / Wayland needs PyQt6 (preferred) or StatusNotifierItem support." >&2
       tray_install_hint >&2
-      echo "Without the tray, use: thirdflare-one --no-open (API) or enable webui in config." >&2
+      echo "Without the tray, use: cloudflare-one-warp --no-open (API) or enable webui in config." >&2
       ;;
     missing-yad)
-      echo "ThirdFlare One tray requires yad (Yet Another Dialog) on X11 sessions." >&2
+      echo "Cloudflare One WARP tray requires yad (Yet Another Dialog) on X11 sessions." >&2
       tray_install_hint >&2
-      echo "Without yad, use the Web UI: thirdflare-one" >&2
+      echo "Without yad, use the Web UI: cloudflare-one-warp" >&2
       ;;
     missing-display)
-      echo "ThirdFlare One tray needs a graphical session (DISPLAY or WAYLAND_DISPLAY)." >&2
+      echo "Cloudflare One WARP tray needs a graphical session (DISPLAY or WAYLAND_DISPLAY)." >&2
       echo "Run this from a desktop terminal, not over plain SSH." >&2
-      echo "Without a tray, use: thirdflare-one --no-open" >&2
+      echo "Without a tray, use: cloudflare-one-warp --no-open" >&2
       ;;
     *)
-      echo "ThirdFlare One tray is not available in this environment." >&2
-      echo "Use the Web UI instead: thirdflare-one" >&2
+      echo "Cloudflare One WARP tray is not available in this environment." >&2
+      echo "Use the Web UI instead: cloudflare-one-warp" >&2
       ;;
   esac
 }
@@ -273,15 +273,15 @@ notify_status() {
   status="$(status_text)"
   printf '%s\n' "$status"
   if command -v notify-send >/dev/null 2>&1; then
-    notify-send "ThirdFlare One" "$status" --icon="$ICON" >/dev/null 2>&1 || true
+    notify-send "Cloudflare One WARP" "$status" --icon="$ICON" >/dev/null 2>&1 || true
   fi
 }
 
 ensure_daemon() {
   if ! "$LAUNCHER" --status >/dev/null 2>&1; then
-    echo "Starting ThirdFlare One daemon for tray actions..." >&2
+    echo "Starting Cloudflare One WARP daemon for tray actions..." >&2
   fi
-  THIRDFLARE_WEBUI=1 "$LAUNCHER" --daemon >/dev/null
+  CLOUDFLARE_ONE_WARP_WEBUI=1 "$LAUNCHER" --daemon >/dev/null
 }
 
 webui_config_enabled() {
@@ -299,21 +299,21 @@ daemon_serves_webui() {
   "$(tray_node_bin)" "$APP_DIR/scripts/health-webui-check.mjs" "$url/api/health" --require-webui >/dev/null 2>&1
 }
 
-# Cloudflare One Client needs no ThirdFlare UI. Start the daemon API-only so the
+# Cloudflare One Client needs no Cloudflare One WARP UI. Start the daemon API-only so the
 # Web UI stays off until someone turns it on.
 ensure_daemon_api_only() {
   if webui_config_enabled; then
     # The user turned the Web UI on in config. Leave it on.
-    THIRDFLARE_WEBUI=1 "$LAUNCHER" --daemon >/dev/null
+    CLOUDFLARE_ONE_WARP_WEBUI=1 "$LAUNCHER" --daemon >/dev/null
     return
   fi
   if daemon_serves_webui; then
-    echo "Turning off the ThirdFlare Web UI — Cloudflare One Client is the desktop app." >&2
+    echo "Turning off the Cloudflare One WARP Web UI — Cloudflare One Client is the desktop app." >&2
     "$LAUNCHER" --stop >/dev/null 2>&1 || true
   elif ! "$LAUNCHER" --status >/dev/null 2>&1; then
-    echo "Starting ThirdFlare One daemon (API only)..." >&2
+    echo "Starting Cloudflare One WARP daemon (API only)..." >&2
   fi
-  THIRDFLARE_WEBUI=0 "$LAUNCHER" --no-open >/dev/null
+  CLOUDFLARE_ONE_WARP_WEBUI=0 "$LAUNCHER" --no-open >/dev/null
 }
 
 tray_process_running() {
@@ -350,16 +350,16 @@ stop_tray() {
   if tray_process_running; then
     pkill -f "${QT_TRAY}" 2>/dev/null || true
     pkill -f "${SNI_TRAY}" 2>/dev/null || true
-    pkill -f "yad --notification.*thirdflare" 2>/dev/null || true
-    echo "Stopped ThirdFlare One tray."
+    pkill -f "yad --notification.*cloudflare-one-warp" 2>/dev/null || true
+    echo "Stopped Cloudflare One WARP tray."
   elif [[ -f "$TRAY_PID_FILE" ]]; then
     pid="$(cat "$TRAY_PID_FILE" 2>/dev/null || true)"
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
     fi
-    echo "Stopped ThirdFlare One tray."
+    echo "Stopped Cloudflare One WARP tray."
   else
-    echo "ThirdFlare One tray is not running."
+    echo "Cloudflare One WARP tray is not running."
   fi
   clear_tray_pid
 }
@@ -367,7 +367,7 @@ stop_tray() {
 tray_registered() {
   qdbus org.kde.StatusNotifierWatcher /StatusNotifierWatcher \
     org.kde.StatusNotifierWatcher.RegisteredStatusNotifierItems 2>/dev/null \
-    | grep -Eiq 'thirdflare|ThirdFlare'
+    | grep -Eiq 'cloudflare-one-warp|Cloudflare One WARP'
 }
 
 start_tray_daemon() {
@@ -375,9 +375,9 @@ start_tray_daemon() {
   py="$(tray_python_bin)"
   script="$1"
   if command -v setsid >/dev/null 2>&1; then
-    nohup setsid env THIRDFLARE_APP_DIR="$APP_DIR" "$py" -u "$script" >>"$TRAY_LOG_FILE" 2>&1 &
+    nohup setsid env CLOUDFLARE_ONE_WARP_APP_DIR="$APP_DIR" "$py" -u "$script" >>"$TRAY_LOG_FILE" 2>&1 &
   else
-    nohup env THIRDFLARE_APP_DIR="$APP_DIR" "$py" -u "$script" >>"$TRAY_LOG_FILE" 2>&1 &
+    nohup env CLOUDFLARE_ONE_WARP_APP_DIR="$APP_DIR" "$py" -u "$script" >>"$TRAY_LOG_FILE" 2>&1 &
   fi
   tray_pid="$!"
   record_tray_pid "$tray_pid"
@@ -390,25 +390,25 @@ wait_for_tray() {
   local i
   for i in $(seq 1 30); do
     if ! kill -0 "$tray_pid" 2>/dev/null; then
-      echo "ThirdFlare One tray failed to start. Log: $TRAY_LOG_FILE" >&2
+      echo "Cloudflare One WARP tray failed to start. Log: $TRAY_LOG_FILE" >&2
       tail -n 20 "$TRAY_LOG_FILE" >&2 || true
       clear_tray_pid
       return 1
     fi
     if tray_process_running && { tray_registered || [[ "$i" -ge 15 ]]; }; then
-      echo "ThirdFlare One tray started ($label, pid $tray_pid)." >&2
-      echo "Left-click the tray icon for the native ThirdFlare One app; right-click for the menu." >&2
+      echo "Cloudflare One WARP tray started ($label, pid $tray_pid)." >&2
+      echo "Left-click the tray icon for the native Cloudflare One WARP app; right-click for the menu." >&2
       if command -v notify-send >/dev/null 2>&1; then
-        notify-send "ThirdFlare One" "Tray started — look for the icon in the system tray." \
-          --icon=thirdflare-one >/dev/null 2>&1 || \
-        notify-send "ThirdFlare One" "Tray started — look for the icon in the system tray." \
+        notify-send "Cloudflare One WARP" "Tray started — look for the icon in the system tray." \
+          --icon=cloudflare-one-warp >/dev/null 2>&1 || \
+        notify-send "Cloudflare One WARP" "Tray started — look for the icon in the system tray." \
           --icon="$ICON" >/dev/null 2>&1 || true
       fi
       return 0
     fi
     sleep 0.2
   done
-  echo "ThirdFlare One tray is running (pid $tray_pid) but KDE has not registered it yet." >&2
+  echo "Cloudflare One WARP tray is running (pid $tray_pid) but KDE has not registered it yet." >&2
   echo "Log: $TRAY_LOG_FILE" >&2
   return 0
 }
@@ -419,7 +419,7 @@ run_tray_qt() {
   mkdir -p "$RUNTIME_DIR" "$CACHE_DIR"
 
   if tray_already_running; then
-    echo "ThirdFlare One tray is already running." >&2
+    echo "Cloudflare One WARP tray is already running." >&2
     tray_registered && echo "Tray icon is registered with KDE." >&2
     return 0
   fi
@@ -435,7 +435,7 @@ run_tray_sni() {
   mkdir -p "$RUNTIME_DIR" "$CACHE_DIR"
 
   if tray_already_running; then
-    echo "ThirdFlare One tray is already running." >&2
+    echo "Cloudflare One WARP tray is already running." >&2
     tray_registered && echo "Tray icon is registered with KDE." >&2
     return 0
   fi
@@ -451,21 +451,21 @@ run_tray_yad() {
 
   local menu panel_cmd py warp_action
   py="$(tray_python_bin)"
-  warp_action="env THIRDFLARE_APP_DIR=$APP_DIR $py -u $APP_DIR/scripts/tray-warp-action.py"
+  warp_action="env CLOUDFLARE_ONE_WARP_APP_DIR=$APP_DIR $py -u $APP_DIR/scripts/tray-warp-action.py"
   if tray_qt_available; then
-    panel_cmd="env THIRDFLARE_APP_DIR=$APP_DIR THIRDFLARE_SHOW_PANEL=1 $py -u $QT_TRAY"
+    panel_cmd="env CLOUDFLARE_ONE_WARP_APP_DIR=$APP_DIR CLOUDFLARE_ONE_WARP_SHOW_PANEL=1 $py -u $QT_TRAY"
   else
-    panel_cmd="env THIRDFLARE_APP_DIR=$APP_DIR $py -u $QT_TRAY --panel"
+    panel_cmd="env CLOUDFLARE_ONE_WARP_APP_DIR=$APP_DIR $py -u $QT_TRAY --panel"
   fi
-  menu="Show ThirdFlare One!${panel_cmd}|Connect or Disconnect!${warp_action}|Show Status!$APP_DIR/bin/thirdflare-tray --status|Quit!quit"
+  menu="Show Cloudflare One WARP!${panel_cmd}|Connect or Disconnect!${warp_action}|Show Status!$APP_DIR/bin/cloudflare-one-warp-tray --status|Quit!quit"
 
-  echo "ThirdFlare One tray started (yad). Look for the icon in your notification area." >&2
+  echo "Cloudflare One WARP tray started (yad). Look for the icon in your notification area." >&2
   echo "Left-click opens the control panel; right-click for more actions." >&2
 
   yad \
     --notification \
     --image="$ICON" \
-    --text="ThirdFlare One - $(status_text)" \
+    --text="Cloudflare One WARP - $(status_text)" \
     --command="$panel_cmd" \
     --menu="$menu"
 }
@@ -477,14 +477,14 @@ show_tray_panel() {
       pid="$(cat "$TRAY_PID_FILE" 2>/dev/null || true)"
       if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
         kill -USR1 "$pid" 2>/dev/null || true
-        echo "ThirdFlare One control panel requested (tray pid $pid)." >&2
+        echo "Cloudflare One WARP control panel requested (tray pid $pid)." >&2
         return 0
       fi
     fi
-    echo "ThirdFlare One tray is running but panel signal failed; restarting tray with panel." >&2
+    echo "Cloudflare One WARP tray is running but panel signal failed; restarting tray with panel." >&2
     stop_tray
   fi
-  THIRDFLARE_SHOW_PANEL=1 run_tray
+  CLOUDFLARE_ONE_WARP_SHOW_PANEL=1 run_tray
 }
 
 run_tray() {
@@ -570,9 +570,9 @@ case "${1:-}" in
     if [[ "$(tray_active_shell)" == "cloudflare" && "${2:-}" != "--force-shell" ]]; then
       notify_status
     elif tray_qt_available && [[ "${2:-}" != "--force-shell" ]]; then
-      THIRDFLARE_APP_DIR="$APP_DIR" "$(tray_python_bin)" "$QT_TRAY" --status
+      CLOUDFLARE_ONE_WARP_APP_DIR="$APP_DIR" "$(tray_python_bin)" "$QT_TRAY" --status
     elif tray_sni_available && [[ "${2:-}" != "--force-shell" ]]; then
-      THIRDFLARE_APP_DIR="$APP_DIR" "$(tray_python_bin)" "$SNI_TRAY" --status
+      CLOUDFLARE_ONE_WARP_APP_DIR="$APP_DIR" "$(tray_python_bin)" "$SNI_TRAY" --status
     else
       notify_status
     fi
@@ -582,20 +582,20 @@ case "${1:-}" in
     ;;
   --settings)
     if tray_qt_available; then
-      THIRDFLARE_APP_DIR="$APP_DIR" "$(tray_python_bin)" "$QT_TRAY" --settings "$@"
+      CLOUDFLARE_ONE_WARP_APP_DIR="$APP_DIR" "$(tray_python_bin)" "$QT_TRAY" --settings "$@"
     else
-      echo "ThirdFlare One settings requires PyQt6 (thirdflare-one-tray --check)." >&2
+      echo "Cloudflare One WARP settings requires PyQt6 (cloudflare-one-warp-tray --check)." >&2
       exit 1
     fi
     ;;
-  --force-thirdflare)
-    run_thirdflare_tray
+  --force-cloudflare-one-warp)
+    run_cloudflare_one_warp_tray
     ;;
   "")
     if [[ "$(tray_active_shell)" == "cloudflare" ]]; then
       start_cloudflare_shell
     else
-      run_thirdflare_tray
+      run_cloudflare_one_warp_tray
     fi
     ;;
   *)

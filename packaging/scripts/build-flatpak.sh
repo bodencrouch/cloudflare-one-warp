@@ -4,10 +4,10 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION="${PACKAGE_VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
 OUT="${ROOT}/dist/packages"
-MANIFEST="${ROOT}/packaging/flatpak/io.github.bodencrouch.ThirdFlareOne.yml"
+MANIFEST="${ROOT}/packaging/flatpak/io.github.bodencrouch.CloudflareOneWarp.yml"
 BUILD_DIR="${ROOT}/packaging/flatpak/build"
 REPO_DIR="${ROOT}/packaging/flatpak/repo"
-APP_ID="io.github.bodencrouch.ThirdFlareOne"
+APP_ID="io.github.bodencrouch.CloudflareOneWarp"
 METAINFO="${ROOT}/packaging/flatpak/metainfo.xml"
 
 mkdir -p "$OUT" "$BUILD_DIR" "$REPO_DIR"
@@ -28,7 +28,7 @@ flatpak-builder --force-clean --user --build-only "$BUILD_DIR" "$MANIFEST"
 flatpak build-finish "$BUILD_DIR"
 flatpak build-export "$REPO_DIR" "$BUILD_DIR"
 flatpak build-bundle "$REPO_DIR" \
-  "${OUT}/thirdflare-${VERSION}-x86_64.flatpak" \
+  "${OUT}/cloudflare-one-warp-${VERSION}-x86_64.flatpak" \
   "$APP_ID"
 
-echo "Built ${OUT}/thirdflare-${VERSION}-x86_64.flatpak"
+echo "Built ${OUT}/cloudflare-one-warp-${VERSION}-x86_64.flatpak"

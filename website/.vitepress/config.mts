@@ -1,18 +1,21 @@
 import { defineConfig } from "vitepress";
 
+const repository = process.env.GITHUB_REPOSITORY || "bodencrouch/cloudflare-one-warp";
+const base = `/${repository.split("/").at(-1)}/`;
+
 export default defineConfig({
-  title: "ThirdFlare One",
+  title: "Cloudflare One WARP",
   description: "Unofficial Cloudflare One client — CLI, API, tray, and Web UI for warp-cli",
   lang: "en-US",
-  base: "/thirdflare-one/",
+  base,
   cleanUrls: true,
   lastUpdated: true,
   head: [
-    ["link", { rel: "icon", href: "/thirdflare-one/favicon.svg", type: "image/svg+xml" }]
+    ["link", { rel: "icon", href: `${base}favicon.svg`, type: "image/svg+xml" }]
   ],
   themeConfig: {
     logo: "/logo.svg",
-    siteTitle: "ThirdFlare One",
+    siteTitle: "Cloudflare One WARP",
     nav: [
       { text: "Install", link: "/install/" },
       { text: "CLI", link: "/cli/" },
@@ -25,7 +28,7 @@ export default defineConfig({
           { text: "Packaging", link: "/packaging/" },
           { text: "Troubleshooting", link: "/troubleshooting/" },
           { text: "Contributing", link: "/contributing/" },
-          { text: "GitHub", link: "https://github.com/bodencrouch/thirdflare-one" }
+          { text: "GitHub", link: "https://github.com/bodencrouch/cloudflare-one-warp" }
         ]
       }
     ],
@@ -47,8 +50,8 @@ export default defineConfig({
           text: "CLI reference",
           items: [
             { text: "Overview", link: "/cli/" },
-            { text: "thirdflare", link: "/cli/thirdflare" },
-            { text: "thirdflare-one operator", link: "/cli/operator" },
+            { text: "cloudflare-one-warp", link: "/cli/cloudflare-one-warp" },
+            { text: "cloudflare-one-warp operator", link: "/cli/operator" },
             { text: "Tray", link: "/cli/tray" },
             { text: "Helper scripts", link: "/cli/helpers" },
             { text: "npm scripts", link: "/cli/npm" }
@@ -99,11 +102,11 @@ export default defineConfig({
       "/contributing/": [{ text: "Contributing", link: "/contributing/" }]
     },
     socialLinks: [
-      { icon: "github", link: "https://github.com/bodencrouch/thirdflare-one" }
+      { icon: "github", link: "https://github.com/bodencrouch/cloudflare-one-warp" }
     ],
     footer: {
       message: "Unofficial client — not affiliated with Cloudflare.",
-      copyright: "ThirdFlare One contributors · MIT"
+      copyright: "Cloudflare One WARP contributors · MIT"
     },
     search: { provider: "local" }
   }

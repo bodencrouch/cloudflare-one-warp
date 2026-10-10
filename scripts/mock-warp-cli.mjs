@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
  * Portable stateful mock for warp-cli (Plane M CI).
- * State file: MOCK_WARP_STATE or os.tmpdir()/thirdflare-mock-warp-$uid.json
+ * State file: MOCK_WARP_STATE or os.tmpdir()/cloudflare-one-warp-mock-warp-$uid.json
  */
 import { readFileSync, writeFileSync, existsSync, unlinkSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const STATE_PATH =
-  process.env.MOCK_WARP_STATE || join(tmpdir(), `thirdflare-mock-warp-${process.getuid?.() ?? "ci"}.json`);
+  process.env.MOCK_WARP_STATE || join(tmpdir(), `cloudflare-one-warp-mock-warp-${process.getuid?.() ?? "ci"}.json`);
 
 function defaultState() {
   return {

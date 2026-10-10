@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Privileged helper for Cloudflare One WARP kill-switch nft apply — invoked via pkexec only.
+set -euo pipefail
+
+subcmd="${1:-}"
+path="${2:-}"
+
+usage() {
+  echo "Usage: cloudflare-one-warp-nft-apply apply|remove <rules.nft>" >&2
+  exit 2
+}
+
+[[ "$subcmd" == "apply" || "$subcmd" == "remove" ]] || usage
+[[ -n "$path" && -f "$path" && -r "$path" ]] || {
+  echo "cloudflare-one-warp-nft-apply: missing or unreadable rules file" >&2
+  exit 2
+}
+
+content="$(cat "$path")"
+
+validate_script() {
+  local script="$1"
+  grep -q 'cloudflare_one_warp_killswitch' <<<"$script" || return 3
+  if grep -E 'table inet ' <<<"$script" | grep -vq 'table inet cloudflare_one_warp_killswitch'; then
+    return 4
+  fi
+  return 0
+}
+
+if ! validate_script "$content"; then
+  echo "cloudflare-one-warp-nft-apply: rejected script (not a Cloudflare One WARP kill switch ruleset)" >&2
+  exit 3
+fi
+
+if [[ "$subcmd" == "apply" ]]; then
+  exec nft -f "$path"
+fi
+
+if grep -q '^destroy table inet cloudflare_one_warp_killswitch' <<<"$content"; then
+  exec nft -f "$path"
+fi
+
+exec nft delete table inet cloudflare_one_warp_killswitch

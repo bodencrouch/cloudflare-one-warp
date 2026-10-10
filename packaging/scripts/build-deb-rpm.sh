@@ -40,18 +40,18 @@ pack() {
 
 case "$FORMAT" in
   deb)
-    pack deb "${OUT}/thirdflare_${VERSION}_all.deb"
+    pack deb "${OUT}/cloudflare-one-warp_${VERSION}_all.deb"
     ;;
   rpm)
-    pack rpm "${OUT}/thirdflare-${VERSION}-1.noarch.rpm"
+    pack rpm "${OUT}/cloudflare-one-warp-${VERSION}-1.noarch.rpm"
     ;;
   arch)
-    pack archlinux "${OUT}/thirdflare-${VERSION}-1-any.pkg.tar.zst"
+    pack archlinux "${OUT}/cloudflare-one-warp-${VERSION}-1-any.pkg.tar.zst"
     ;;
   all)
-    pack deb "${OUT}/thirdflare_${VERSION}_all.deb"
-    pack rpm "${OUT}/thirdflare-${VERSION}-1.noarch.rpm"
-    pack archlinux "${OUT}/thirdflare-${VERSION}-1-any.pkg.tar.zst"
+    pack deb "${OUT}/cloudflare-one-warp_${VERSION}_all.deb"
+    pack rpm "${OUT}/cloudflare-one-warp-${VERSION}-1.noarch.rpm"
+    pack archlinux "${OUT}/cloudflare-one-warp-${VERSION}-1-any.pkg.tar.zst"
     ;;
   *)
     echo "Unknown format: $FORMAT" >&2

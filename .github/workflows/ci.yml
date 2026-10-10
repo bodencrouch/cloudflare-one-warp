@@ -51,7 +51,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
-          shellcheck --severity=warning thirdflare-one bin/thirdflare bin/thirdflare-tray bin/thirdflare-one-gui bin/thirdflare-one-tray
+          shellcheck --severity=warning cloudflare-one-warp bin/cloudflare-one-warp bin/cloudflare-one-warp-tray bin/cloudflare-one-warp-gui bin/cloudflare-one-warp-tray
           shellcheck --severity=warning scripts/lib/common.sh scripts/install-local.sh scripts/uninstall-local.sh scripts/*.sh packaging/scripts/*.sh packaging/usr-bin-wrapper.sh packaging/usr-bin-alias-wrapper.sh packaging/appimage/AppRun
           chmod +x scripts/mock-warp-cli.sh scripts/mock-warp-cli.mjs scripts/ci-real-warp-smoke.sh
 
@@ -59,9 +59,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           npm run package:stage
-          test -x dist/payload/usr/bin/thirdflare
-          test -f dist/payload/usr/lib/thirdflare/server.js
-          test -f dist/payload/usr/share/applications/thirdflare-one.desktop
+          test -x dist/payload/usr/bin/cloudflare-one-warp
+          test -f dist/payload/usr/lib/cloudflare-one-warp/server.js
+          test -f dist/payload/usr/share/applications/cloudflare-one-warp.desktop
 
   ui-smoke:
     name: Playwright UI (mock)

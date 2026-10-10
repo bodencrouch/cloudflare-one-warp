@@ -1,10 +1,10 @@
-# ThirdFlare One documentation
+# Cloudflare One WARP documentation
 
 ## Quick links
 
 | I want to… | Read |
 |------------|------|
-| Install and run ThirdFlare One | [GETTING_STARTED.md](GETTING_STARTED.md) |
+| Install and run Cloudflare One WARP | [GETTING_STARTED.md](GETTING_STARTED.md) |
 | Configure settings | [CONFIGURATION.md](CONFIGURATION.md) |
 | Contribute or run tests | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Understand the architecture | [ARCHITECTURE.md](ARCHITECTURE.md) |
@@ -17,8 +17,8 @@
 
 ```bash
 # End user — from a clone
-./thirdflare-one install
-thirdflare-one
+./cloudflare-one-warp install
+cloudflare-one-warp
 
 # Developer
 export WARP_CLI="$PWD/scripts/mock-warp-cli.mjs"
@@ -26,8 +26,8 @@ npm run check && npm run test:all
 npm run dev
 
 # Maintainer
-./thirdflare-one build appimage
-./thirdflare-one build all
+./cloudflare-one-warp build appimage
+./cloudflare-one-warp build all
 ```
 
 Project overview: [README.md](../README.md)

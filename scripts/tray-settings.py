@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Native PyQt6 preferences for ThirdFlare One (KDE Plasma)."""
+"""Native PyQt6 preferences for Cloudflare One WARP (KDE Plasma)."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ import subprocess
 import sys
 from typing import Any
 
-from tray_api import ThirdFlareClient, app_dir, ensure_daemon, launcher_path
+from tray_api import CloudflareOneWarpClient, app_dir, ensure_daemon, launcher_path
 
 
 def _node_bin() -> str:
   bundled = os.path.join(app_dir(), "runtime", "node", "bin", "node")
   if os.path.isfile(bundled) and os.access(bundled, os.X_OK):
     return bundled
-  return os.environ.get("THIRDFLARE_NODE") or os.environ.get("CLOUDFLARE_ONE_GUI_NODE") or "node"
+  return os.environ.get("CLOUDFLARE_ONE_WARP_NODE") or os.environ.get("CLOUDFLARE_ONE_GUI_NODE") or "node"
 
 
 def _apply_live_shell() -> None:
@@ -48,12 +48,12 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
 
   launcher = launcher_path()
   ensure_daemon(launcher, webui=True)
-  client = ThirdFlareClient()
+  client = CloudflareOneWarpClient()
 
   try:
     config_payload = client.get("/api/config")
   except Exception as exc:
-    print(f"ThirdFlare One settings: could not load config: {exc}", file=sys.stderr)
+    print(f"Cloudflare One WARP settings: could not load config: {exc}", file=sys.stderr)
     return 1
 
   config = config_payload.get("config") or {}
@@ -63,10 +63,10 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
   tray = config.get("tray") or {}
 
   app = QApplication.instance() or QApplication(sys.argv)
-  app.setApplicationName("ThirdFlare One Settings")
+  app.setApplicationName("Cloudflare One WARP Settings")
 
   dialog = QDialog()
-  dialog.setWindowTitle("ThirdFlare One Settings")
+  dialog.setWindowTitle("Cloudflare One WARP Settings")
   dialog.setMinimumWidth(420)
 
   root = QVBoxLayout(dialog)
@@ -103,15 +103,15 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
   session_form = QFormLayout(session_group)
   shell_combo = QComboBox()
   shell_combo.addItem("Cloudflare One Client", "cloudflare")
-  shell_combo.addItem("ThirdFlare One", "thirdflare")
+  shell_combo.addItem("Cloudflare One WARP", "cloudflare-one-warp")
   cloudflare_available = bool(tray.get("cloudflareAvailable"))
   if not cloudflare_available:
     cloudflare_item = shell_combo.model().item(0)
     if cloudflare_item is not None:
       cloudflare_item.setEnabled(False)
-  current_shell = tray.get("shell") if tray.get("shell") in ("cloudflare", "thirdflare") else "cloudflare"
+  current_shell = tray.get("shell") if tray.get("shell") in ("cloudflare", "cloudflare-one-warp") else "cloudflare"
   if not cloudflare_available:
-    current_shell = "thirdflare"
+    current_shell = "cloudflare-one-warp"
   shell_idx = shell_combo.findData(current_shell)
   shell_combo.setCurrentIndex(shell_idx if shell_idx >= 0 else 1)
   session_form.addRow("Desktop app", shell_combo)
@@ -130,7 +130,7 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
   session_form.addRow(autostart_check)
 
   def refresh_autostart_enabled() -> None:
-    autostart_check.setEnabled(shell_combo.currentData() == "thirdflare")
+    autostart_check.setEnabled(shell_combo.currentData() == "cloudflare-one-warp")
 
   shell_combo.currentIndexChanged.connect(refresh_autostart_enabled)
   refresh_autostart_enabled()
@@ -158,7 +158,7 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
     if tray_active and not desired_webui:
       QMessageBox.warning(
         dialog,
-        "ThirdFlare One",
+        "Cloudflare One WARP",
         "The Web UI cannot be disabled while the tray app is running.",
       )
       return
@@ -181,7 +181,7 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
         # leaving two Cloudflare tray icons.
         if not (applied.get("liveSwap") or {}).get("attempted"):
           _apply_live_shell()
-      if desired_autostart != bool(tray.get("autostart")) and desired_shell == "thirdflare":
+      if desired_autostart != bool(tray.get("autostart")) and desired_shell == "cloudflare-one-warp":
         client.post("/api/config/tray-autostart", {"autostart": desired_autostart})
       if desired_notify != (ui.get("notifications", True) is not False):
         client.post("/api/config/ui", {"notifications": desired_notify})
@@ -210,7 +210,7 @@ def main() -> int:
   try:
     return run_settings_dialog(tray_active=tray_active)
   except ImportError as exc:
-    print(f"ThirdFlare One settings requires PyQt6: {exc}", file=sys.stderr)
+    print(f"Cloudflare One WARP settings requires PyQt6: {exc}", file=sys.stderr)
     return 1
 
 

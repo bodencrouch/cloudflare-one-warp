@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="${1:-$(node -p "require('${ROOT}/package.json').version")}"
-SNAP="${ROOT}/dist/packages/thirdflare_${VERSION}_amd64.snap"
+SNAP="${ROOT}/dist/packages/cloudflare-one-warp_${VERSION}_amd64.snap"
 
 if [[ ! -f "$SNAP" ]]; then
   echo "Snap not found: $SNAP" >&2
@@ -29,4 +29,4 @@ fi
 
 echo "Uploading $SNAP ..."
 snapcraft upload "$SNAP" --release=stable
-echo "Published thirdflare-one ${VERSION} to Snap Store (stable)."
+echo "Published cloudflare-one-warp ${VERSION} to Snap Store (stable)."

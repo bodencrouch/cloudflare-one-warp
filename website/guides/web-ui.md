@@ -5,11 +5,11 @@ The Web UI lives under `public/` and is **off by default** for systemd/API-only 
 ## Enable
 
 ```bash
-export THIRDFLARE_WEBUI=1
-thirdflare --no-open
+export CLOUDFLARE_ONE_WARP_WEBUI=1
+cloudflare-one-warp --no-open
 ```
 
-Or use `npm run dev` / `./thirdflare-one dev`.
+Or use `npm run dev` / `./cloudflare-one-warp dev`.
 
 Open `http://127.0.0.1:4173`.
 

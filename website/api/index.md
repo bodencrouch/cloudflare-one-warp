@@ -31,7 +31,7 @@ Localhost-only by default (`server.bind`). Remote bind requires explicit config 
 
 ## OpenAPI
 
-Contract file: `openapi/thirdflare-api.json`. CI validates live responses in Plane M:
+Contract file: `openapi/cloudflare-one-warp-api.json`. CI validates live responses in Plane M:
 
 ```bash
 npm run test:openapi

@@ -13,7 +13,7 @@ import {
   isWarpTaskbarRunning,
   startCloudflareGui,
   stopCloudflareGui,
-  stopThirdflareTrayProcesses,
+  stopCloudflareOneWarpTrayProcesses,
   syncTrayShell
 } from "../lib/tray/shell.mjs";
 
@@ -58,10 +58,10 @@ switch (command) {
   case "persist": {
     const shell = process.argv[3];
     if (!isValidTrayShell(shell)) {
-      console.error("tray shell must be cloudflare or thirdflare");
+      console.error("tray shell must be cloudflare or cloudflare-one-warp");
       process.exit(2);
     }
-    const autostart = shell === "thirdflare" ? true : undefined;
+    const autostart = shell === "cloudflare-one-warp" ? true : undefined;
     const next = persistUserTrayShell({ shell, autostart });
     const result = await applyTrayShell({
       shell: next.tray?.shell,
@@ -81,7 +81,7 @@ switch (command) {
     break;
   }
   case "start-cloudflare": {
-    await stopThirdflareTrayProcesses();
+    await stopCloudflareOneWarpTrayProcesses();
     const started = await startCloudflareGui();
     printJson(started);
     if (started.ok === false) process.exit(1);
@@ -94,11 +94,11 @@ switch (command) {
     // One-session swap: drop the tray icon, leave warp-desktop-svc alone.
     printJson(await stopCloudflareGui({ keepService: true }));
     break;
-  case "stop-thirdflare":
-    printJson(await stopThirdflareTrayProcesses());
+  case "stop-cloudflare-one-warp":
+    printJson(await stopCloudflareOneWarpTrayProcesses());
     break;
   case "stop": {
-    const stopped = { thirdflare: await stopThirdflareTrayProcesses() };
+    const stopped = { cloudflareOneWarp: await stopCloudflareOneWarpTrayProcesses() };
     if (info.active === "cloudflare") {
       stopped.cloudflare = await stopCloudflareGui();
     }

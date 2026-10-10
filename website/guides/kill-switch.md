@@ -8,7 +8,7 @@ Native **nftables** kill switch blocks non-WARP traffic when enabled and WARP is
 curl -s http://127.0.0.1:4173/api/killswitch | jq
 curl -X POST http://127.0.0.1:4173/api/killswitch \
   -H 'Content-Type: application/json' \
-  -H "x-thirdflare-session: $(cat ~/.config/thirdflare/session-4173.token)" \
+  -H "x-cloudflare-one-warp-session: $(cat ~/.config/cloudflare-one-warp/session-4173.token)" \
   -d '{"enabled": true}'
 ```
 
@@ -22,6 +22,6 @@ Applying rules requires privilege — typically **pkexec** / polkit on Linux.
 
 ## Safety
 
-Review generated rules before enabling on production machines. Disable from UI or API before uninstalling ThirdFlare One if rules persist.
+Review generated rules before enabling on production machines. Disable from UI or API before uninstalling Cloudflare One WARP if rules persist.
 
 See repository `docs/ARCHITECTURE.md` for apply flow.

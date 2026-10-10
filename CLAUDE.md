@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-ThirdFlare One is an unofficial Cloudflare One client for Linux/macOS/headless. It owns **no** VPN logic: it shells out to the host's `warp-cli` and exposes that control surface as a localhost HTTP API (`server.js`), an optional Web UI (`public/`), and a PyQt6 native shell (`scripts/tray-qt.py`). Everything the product can do, `warp-cli` already does — ThirdFlare's value is the guarded API, the parity UI, and the Linux-only features Cloudflare doesn't ship (nftables kill-switch, NetworkManager profiles, per-app proxy launchers).
+Cloudflare One WARP is an unofficial Cloudflare One client for Linux/macOS/headless. It owns **no** VPN logic: it shells out to the host's `warp-cli` and exposes that control surface as a localhost HTTP API (`server.js`), an optional Web UI (`public/`), and a PyQt6 native shell (`scripts/tray-qt.py`). Everything the product can do, `warp-cli` already does — Cloudflare One WARP's value is the guarded API, the parity UI, and the Linux-only features Cloudflare doesn't ship (nftables kill-switch, NetworkManager profiles, per-app proxy launchers).
 
-npm package name is `thirdflare`; product name in all user-facing text is **ThirdFlare One**.
+npm package name is `cloudflare-one-warp`; product name in all user-facing text is **Cloudflare One WARP**.
 
 ## Daily commands
 
@@ -17,7 +17,7 @@ npm install
 export WARP_CLI="$PWD/scripts/mock-warp-cli.mjs"   # required for local tests — never hits real WARP
 npm run check            # node --check over every source file (this is the "lint")
 npm run test:all         # all Plane M suites
-npm run dev              # THIRDFLARE_WEBUI=1 node server.js → http://127.0.0.1:4173
+npm run dev              # CLOUDFLARE_ONE_WARP_WEBUI=1 node server.js → http://127.0.0.1:4173
 ```
 
 Run a single suite directly rather than through `test:all`:
@@ -29,14 +29,14 @@ node --test --test-name-pattern "redact" scripts/ci-warp-integration.test.mjs
 
 Every `npm run test:*` script is a one-line wrapper over `node --test scripts/ci-<area>.test.mjs`, so adding a suite means adding both the file and a `test:<area>` script **and** appending it to `test:all` and to the giant `check` chain. Playwright smoke (`npm run test:ui`) is separate and not part of `test:all`.
 
-`./thirdflare-one <install|build|run|test|dev|check>` is the operator entrypoint and mirrors the npm scripts.
+`./cloudflare-one-warp <install|build|run|test|dev|check>` is the operator entrypoint and mirrors the npm scripts.
 
 ## Two CI planes — know which one your change needs
 
 - **Plane M (required, all three OSes)** — everything runs against `scripts/mock-warp-cli.mjs`, a stateful fake. Proves argv construction, allow-lists, parsers, DTO shapes, OpenAPI conformance. Proves nothing about real tunnels.
 - **Plane R (optional, Ubuntu only)** — `npm run test:warp:real`, soft-skips unless `WARP_CI_REQUIRE_REAL=1`. The connectivity oracle is `cdn-cgi/trace` containing `warp=on`.
 
-Mock harnesses set `THIRDFLARE_NFT_NO_PKEXEC=1` to simulate an unprivileged daemon, so `sudo npm run test:all` still matches hosted CI. **Never** enable the kill-switch apply path on a shared runner — it can brick egress. See `docs/CI.md`.
+Mock harnesses set `CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC=1` to simulate an unprivileged daemon, so `sudo npm run test:all` still matches hosted CI. **Never** enable the kill-switch apply path on a shared runner — it can brick egress. See `docs/CI.md`.
 
 ## The allow-list boundary (most important invariant)
 
@@ -50,13 +50,13 @@ Mock harnesses set `THIRDFLARE_NFT_NO_PKEXEC=1` to simulate an unprivileged daem
 
 All command output passes through `redactWarpOutput()` before serialization (device ID, public key, license, account ID). Anything new that echoes `warp-cli` output must go through `redactCommand()`.
 
-Adding a parity feature means: add to `COMMANDS`/`ACTIONS`/`actionArgs` → extend `public/app.js` → update `openapi/thirdflare-api.json` (it's contract-tested) → note in `CHANGELOG.md`. Bump `API_REVISION` in `lib/api-revision.mjs` when route semantics change — it is served on `/api/health` and `scripts/daemon-ready.mjs` compares it so the launcher restarts a stale daemon instead of talking to it.
+Adding a parity feature means: add to `COMMANDS`/`ACTIONS`/`actionArgs` → extend `public/app.js` → update `openapi/cloudflare-one-warp-api.json` (it's contract-tested) → note in `CHANGELOG.md`. Bump `API_REVISION` in `lib/api-revision.mjs` when route semantics change — it is served on `/api/health` and `scripts/daemon-ready.mjs` compares it so the launcher restarts a stale daemon instead of talking to it.
 
 There is still no CSRF token. In its place, `crossSiteRejection()` in `server.js` gates every non-GET request on three signals: `Sec-Fetch-Site` (only `same-origin`/`none` pass), `Origin` (must match the host we were reached on), and `Content-Type` (must be `application/json`, which a cross-origin form cannot send). Non-browser clients send none of these and are unaffected. This stops a hostile page driving the daemon, but it is not authentication — do not expose the Web UI remotely without adding auth.
 
 ## Configuration layering
 
-`lib/config.mjs` merges, lowest to highest: `DEFAULTS` → `/etc/thirdflare/config.json` → legacy `~/.config/cloudflare-one-gui/` → `~/.config/thirdflare/config.json` → `THIRDFLARE_*` env → in-memory session overrides.
+`lib/config.mjs` merges, lowest to highest: `DEFAULTS` → `/etc/cloudflare-one-warp/config.json` → legacy `~/.config/cloudflare-one-gui/` → `~/.config/cloudflare-one-warp/config.json` → `CLOUDFLARE_ONE_WARP_*` env → in-memory session overrides.
 
 Three deliberate rules live here:
 
@@ -68,7 +68,7 @@ Three deliberate rules live here:
 
 - `lib/warp/status-listener.mjs` — one shared `warp-cli --listen status` child process feeds both `/api/events` SSE clients and the notification watcher. Reconnecting UI tabs must not spawn additional listeners.
 - `lib/notify/status-watcher.mjs` — starts on `listen()`, independent of the Web UI. Fires `notify-send` only on meaningful transitions, ~1.5s debounce.
-- `lib/killswitch/` — generates a validated nftables script (`inet thirdflare_killswitch`), applies it via `pkexec thirdflare-nft-apply` under polkit action `com.thirdflare.one.nft-apply`. GET only ever runs read-only `nft list` and never escalates. `enroll-pause.mjs` pauses rules for Zero Trust enrollment without clearing persisted desired state. Rule generation is unit-tested; apply stays Linux-local and manual.
+- `lib/killswitch/` — generates a validated nftables script (`inet cloudflare_one_warp_killswitch`), applies it via `pkexec cloudflare-one-warp-nft-apply` under polkit action `com.cloudflare.one.warp.nft-apply`. GET only ever runs read-only `nft list` and never escalates. `enroll-pause.mjs` pauses rules for Zero Trust enrollment without clearing persisted desired state. Rule generation is unit-tested; apply stays Linux-local and manual.
 - `lib/apps/proxy-launcher.mjs` — the per-app routing answer: local proxy mode plus generated `.desktop` launchers, so users never hand-edit CIDRs.
 - `lib/update/` — channel/manifest/GitHub check, prepare-then-apply with a token, AppImage self-replace.
 - `public/app.js` — one bundle serving two layouts: expert (default) and the simple shell loaded at `/?shell=1` by the PyQt6 window. Nav items are declared in `simpleNavItems`.
@@ -77,4 +77,4 @@ Three deliberate rules live here:
 
 2-space indent, ES modules (`"type": "module"`), `camelCase` in JS, `kebab-case` filenames. Conventional Commits — release-please drives versioning off them.
 
-User-facing copy is governed by `.cursor/rules/user-facing-copy.mdc`: plain language, no OS internals, never explain what Cloudflare "does not support" — ship a ThirdFlare workaround instead. Never paste planning or prompt text into `public/locales/`, tooltips, or guides. UI strings go in `public/locales/en.json` via `i18n.js`, not inline.
+User-facing copy is governed by `.cursor/rules/user-facing-copy.mdc`: plain language, no OS internals, never explain what Cloudflare "does not support" — ship a Cloudflare One WARP workaround instead. Never paste planning or prompt text into `public/locales/`, tooltips, or guides. UI strings go in `public/locales/en.json` via `i18n.js`, not inline.

@@ -2,12 +2,12 @@
 layout: home
 
 hero:
-  name: ThirdFlare One
+  name: Cloudflare One WARP
   text: Your warp-cli control plane
   tagline: Unofficial Cloudflare One client for Linux, macOS, and headless setups. Install once, connect from the tray or terminal, route specific apps through WARP, and script everything over a guarded local API — without replacing Cloudflare's daemon.
   image:
     src: /logo.svg
-    alt: ThirdFlare One
+    alt: Cloudflare One WARP
   actions:
     - theme: brand
       text: Install in 2 minutes
@@ -22,7 +22,7 @@ hero:
 features:
   - icon: ⌨️
     title: CLI-first workflow
-    details: thirdflare for daily connect/disconnect and tray control. thirdflare-one to install, package, and run the full test suite from your checkout.
+    details: cloudflare-one-warp for daily connect/disconnect and tray control. cloudflare-one-warp to install, package, and run the full test suite from your checkout.
   - icon: 🎯
     title: App routing
     details: Turn on local proxy mode, pick apps from a dropdown, and get WARP shortcuts in your app menu — no manual SOCKS settings per application.
@@ -34,27 +34,27 @@ features:
     details: Native shell opens a connect-focused layout. Expert mode adds split tunnel, Gateway DNS, kill switch, diagnostics, and a live warp-cli console.
   - icon: 🖥️
     title: PyQt6 tray on Linux
-    details: StatusNotifierItem on KDE Plasma embeds the full Web UI. thirdflare --no-open runs API-only when you do not need the panel.
+    details: StatusNotifierItem on KDE Plasma embeds the full Web UI. cloudflare-one-warp --no-open runs API-only when you do not need the panel.
   - icon: 🔒
     title: Always On (opt-in)
     details: nftables kill switch blocks leaks if WARP drops. Off by default; enable from Settings when you want Windows-style Always On on Linux.
 ---
 
 ::: info Before you start
-Install [Cloudflare WARP](https://developers.cloudflare.com/cloudflare-one/connections/connect-devices/warp/download-warp/) and register with **warp-cli**. ThirdFlare One wraps that install — it is **not affiliated with Cloudflare**.
+Install [Cloudflare WARP](https://developers.cloudflare.com/cloudflare-one/connections/connect-devices/warp/download-warp/) and register with **warp-cli**. Cloudflare One WARP wraps that install — it is **not affiliated with Cloudflare**.
 :::
 
 ## Install and launch
 
 ```bash
-git clone https://github.com/bodencrouch/thirdflare-one.git
-cd thirdflare-one
-./thirdflare-one install
-thirdflare --version   # 0.2.7+
-thirdflare             # tray + native panel on Linux
+git clone https://github.com/bodencrouch/cloudflare-one-warp.git
+cd cloudflare-one-warp
+./cloudflare-one-warp install
+cloudflare-one-warp --version   # 0.2.7+
+cloudflare-one-warp             # tray + native panel on Linux
 ```
 
-User install path: `~/.local/share/thirdflare-one` · CLI symlinks in `~/.local/bin`
+User install path: `~/.local/share/cloudflare-one-warp` · CLI symlinks in `~/.local/bin`
 
 Verify after reinstall:
 
@@ -72,33 +72,33 @@ The Split Tunnel page includes an **App routing** panel:
 
 ```bash
 # Same flow from the API
-SESSION=$(cat ~/.config/thirdflare/session-4173.token)
+SESSION=$(cat ~/.config/cloudflare-one-warp/session-4173.token)
 curl -X POST http://127.0.0.1:4173/api/action \
-  -H 'Content-Type: application/json' -H "x-thirdflare-session: $SESSION" \
+  -H 'Content-Type: application/json' -H "x-cloudflare-one-warp-session: $SESSION" \
   -d '{"action":"enableLocalProxy"}'
 curl -s http://127.0.0.1:4173/api/apps | jq
 ```
 
-Real warp-cli reports proxy mode as `Mode: WarpProxy on port 40000` — ThirdFlare normalizes that for the UI. See [WARP internals](/guides/warp-internals).
+Real warp-cli reports proxy mode as `Mode: WarpProxy on port 40000` — Cloudflare One WARP normalizes that for the UI. See [WARP internals](/guides/warp-internals).
 
 ## API-only and automation
 
 ```bash
-thirdflare --no-open
+cloudflare-one-warp --no-open
 curl -s http://127.0.0.1:4173/api/health | jq
 curl -s http://127.0.0.1:4173/api/snapshot | jq '.status, .settings.Mode'
 ```
 
-Default HTTP port is **4173** (launcher tries up to 30 ports if busy). Confirm with `thirdflare --status` or `GET /api/config`.
+Default HTTP port is **4173** (launcher tries up to 30 ports if busy). Confirm with `cloudflare-one-warp --status` or `GET /api/config`.
 
 ## Pick your surface
 
 | Goal | Entry |
 |------|--------|
-| Daily desktop (KDE) | `thirdflare` → left-click tray |
-| Browser UI | `THIRDFLARE_WEBUI=1` or enable in Settings → `http://127.0.0.1:4173` |
+| Daily desktop (KDE) | `cloudflare-one-warp` → left-click tray |
+| Browser UI | `CLOUDFLARE_ONE_WARP_WEBUI=1` or enable in Settings → `http://127.0.0.1:4173` |
 | Scripts / CI | [API cookbook](/api/cookbook) |
-| Packages | `./thirdflare-one build appimage` |
+| Packages | `./cloudflare-one-warp build appimage` |
 | Plasma network list | [NetworkManager profiles](/guides/networkmanager) |
 
 Web UI is **off by default** in the systemd user unit.
@@ -116,7 +116,7 @@ Web UI is **off by default** in the systemd user unit.
 ## Documentation map
 
 - [First connection](/guides/first-connection) — register and connect
-- [CLI reference](/cli/thirdflare) — flags and examples
+- [CLI reference](/cli/cloudflare-one-warp) — flags and examples
 - [Configuration](/configuration/) — layered config and env vars
 - [WARP internals](/guides/warp-internals) — modes, MASQUE, proxy port
 - [Troubleshooting](/troubleshooting/) — tray, stale UI, ports, polkit

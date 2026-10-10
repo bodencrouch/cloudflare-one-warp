@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Verify a local ThirdFlare One install serves current UI assets (log widget, proxy action).
+# Verify a local Cloudflare One WARP install serves current UI assets (log widget, proxy action).
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "${ROOT}/scripts/lib/common.sh"
 
-INSTALL_DIR="${THIRDFLARE_ONE_HOME:-$(thirdflare_default_install_dir)}"
-PORT="${THIRDFLARE_PORT:-4173}"
+INSTALL_DIR="${CLOUDFLARE_ONE_WARP_HOME:-$(cloudflare_one_warp_default_install_dir)}"
+PORT="${CLOUDFLARE_ONE_WARP_PORT:-4173}"
 BASE_URL="http://127.0.0.1:${PORT}"
 
 fail() {
@@ -29,8 +29,8 @@ grep -q enableLocalProxy "${INSTALL_DIR}/server.js" || fail "server.js missing e
 
 # Daemon health (start via launcher if needed)
 if ! curl -sf "${BASE_URL}/api/health" >/dev/null 2>&1; then
-  echo "Daemon not responding; starting via ${INSTALL_DIR}/bin/thirdflare ..."
-  THIRDFLARE_WEBUI=1 "${INSTALL_DIR}/bin/thirdflare" --no-open >/dev/null 2>&1 &
+  echo "Daemon not responding; starting via ${INSTALL_DIR}/bin/cloudflare-one-warp ..."
+  CLOUDFLARE_ONE_WARP_WEBUI=1 "${INSTALL_DIR}/bin/cloudflare-one-warp" --no-open >/dev/null 2>&1 &
   for _ in $(seq 1 40); do
     if curl -sf "${BASE_URL}/api/health" >/dev/null 2>&1; then
       break
@@ -42,7 +42,7 @@ fi
 curl -sf "${BASE_URL}/api/health" >/dev/null || fail "daemon /api/health unreachable at ${BASE_URL}"
 
 HEALTH="$(curl -sf "${BASE_URL}/api/health")"
-echo "${HEALTH}" | grep -q '"app"[[:space:]]*:[[:space:]]*"thirdflare"' || fail "unexpected /api/health body"
+echo "${HEALTH}" | grep -q '"app"[[:space:]]*:[[:space:]]*"cloudflare-one-warp"' || fail "unexpected /api/health body"
 
 curl -sf "${BASE_URL}/log-widget.js" | head -1 | grep -qE 'import|export' || fail "/log-widget.js not served"
 

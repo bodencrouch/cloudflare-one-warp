@@ -1,5 +1,5 @@
 /**
- * Single entry point for talking to the ThirdFlare One daemon.
+ * Single entry point for talking to the Cloudflare One WARP daemon.
  *
  * The daemon rejects anything that changes settings unless it carries this
  * browser session's credential, so every UI request goes through here.
@@ -62,6 +62,6 @@ export async function apiFetch(path, options = {}) {
 function withSession(options, token) {
   return {
     ...options,
-    headers: { ...(options.headers || {}), "x-thirdflare-session": token }
+    headers: { ...(options.headers || {}), "x-cloudflare-one-warp-session": token }
   };
 }

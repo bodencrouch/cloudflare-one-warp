@@ -10,7 +10,7 @@ Cloudflare ships a full Cloudflare One desktop client on Windows. Other platform
 
 ## Our approach
 
-ThirdFlare One is a **control plane** over host `warp-cli`: Node HTTP API + optional Web UI. The tunnel, identity, and (on Linux) nftables kill-switch stay on the host. We prove the control plane in CI with a stateful mock on every OS; we prove the data plane with optional Linux real-WARP smoke (`cdn-cgi/trace`), not marketing-grade “green means VPN works everywhere.”
+Cloudflare One WARP is a **control plane** over host `warp-cli`: Node HTTP API + optional Web UI. The tunnel, identity, and (on Linux) nftables kill-switch stay on the host. We prove the control plane in CI with a stateful mock on every OS; we prove the data plane with optional Linux real-WARP smoke (`cdn-cgi/trace`), not marketing-grade “green means VPN works everywhere.”
 
 ## Who it's for
 
@@ -31,7 +31,7 @@ ThirdFlare One is a **control plane** over host `warp-cli`: Node HTTP API + opti
 1. **Control-plane CI** — Exhaustive mock integration, OpenAPI checks, thin UI smoke; cross-OS matrix.
 2. **Consumer-basic Account** — Status, free register, license, collapsed ZT token/team; no full enrollment coach in UI.
 3. **Linux-first data plane** — Real WARP network smoke on Ubuntu; kill-switch rules in unit tests only on shared runners.
-4. **Packaging & updates** — Existing release-please → Package → manifest pipeline.
+4. **Packaging & updates** — Existing Release packages → Package → manifest pipeline.
 
 ## Not working on (now)
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { lookup } from "node:dns/promises";
+import { request } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -12,7 +13,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const mockWarp = join(root, "scripts/mock-warp-cli.mjs");
 const port = Number(process.env.CI_TEST_PORT || 14733);
 const baseUrl = `http://127.0.0.1:${port}`;
-const integTempDir = mkdtempSync(join(tmpdir(), "tf-integ-"));
+const integTempDir = mkdtempSync(join(tmpdir(), "cf-one-warp-integ-"));
 const stateFile = join(integTempDir, "state.json");
 const configHome = join(integTempDir, "home");
 
@@ -63,7 +64,7 @@ async function waitForHealth(timeoutMs = 20000) {
   while (Date.now() - started < timeoutMs) {
     try {
       const res = await httpJson("GET", "/api/health");
-      if (res.status === 200 && res.json?.ok === true && res.json?.app === "thirdflare") {
+      if (res.status === 200 && res.json?.ok === true && res.json?.app === "cloudflare-one-warp") {
         return;
       }
     } catch {
@@ -119,11 +120,11 @@ before(async () => {
       PORT: String(port),
       WARP_CLI: mockWarp,
       MOCK_WARP_STATE: stateFile,
-      THIRDFLARE_NOTIFICATIONS: "0",
-      THIRDFLARE_NFT_NO_PKEXEC: "1",
-      THIRDFLARE_WEBUI: "1",
-      THIRDFLARE_TRAY_SKIP_SYSTEMD: "1",
-      THIRDFLARE_TRAY_LIVE: "0"
+      CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0",
+      CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1",
+      CLOUDFLARE_ONE_WARP_WEBUI: "1",
+      CLOUDFLARE_ONE_WARP_TRAY_SKIP_SYSTEMD: "1",
+      CLOUDFLARE_ONE_WARP_TRAY_LIVE: "0"
     },
     stdio: "pipe"
   });
@@ -159,7 +160,7 @@ test("/api/health returns app identity", async () => {
   const res = await httpJson("GET", "/api/health");
   assert.equal(res.status, 200);
   assert.equal(res.json.ok, true);
-  assert.equal(res.json.app, "thirdflare");
+  assert.equal(res.json.app, "cloudflare-one-warp");
   assert.ok(res.json.version, "health should include semver");
   assert.equal(typeof res.json.apiRevision, "number");
 });
@@ -202,7 +203,7 @@ test("GET /api/diagnostics returns clipboard text without account fields", async
   const res = await httpJson("GET", "/api/diagnostics");
   assert.equal(res.status, 200);
   assert.equal(res.json.ok, true);
-  assert.match(res.json.text, /ThirdFlare One diagnostics/);
+  assert.match(res.json.text, /Cloudflare One WARP diagnostics/);
   // Command names may say "registration organization"; account values must not appear.
   assert.doesNotMatch(res.json.text, /Organization:\s+\S+/i);
   assert.doesNotMatch(res.json.text, /License:\s+\S+/i);
@@ -432,10 +433,10 @@ test("POST /api/config/tray-autostart persists and syncs desktop entry", async (
   const bad = await httpJson("POST", "/api/config/tray-autostart", { autostart: "yes" });
   assert.equal(bad.status, 400);
 
-  const thirdflare = await httpJson("POST", "/api/config/tray-shell", { shell: "thirdflare" });
-  assert.equal(thirdflare.status, 200);
-  assert.equal(thirdflare.json.config?.tray?.shell, "thirdflare");
-  assert.equal(thirdflare.json.config?.tray?.active, "thirdflare");
+  const cloudflareOneWarp = await httpJson("POST", "/api/config/tray-shell", { shell: "cloudflare-one-warp" });
+  assert.equal(cloudflareOneWarp.status, 200);
+  assert.equal(cloudflareOneWarp.json.config?.tray?.shell, "cloudflare-one-warp");
+  assert.equal(cloudflareOneWarp.json.config?.tray?.active, "cloudflare-one-warp");
 
   const enable = await httpJson("POST", "/api/config/tray-autostart", { autostart: true });
   assert.equal(enable.status, 200);
@@ -457,7 +458,7 @@ test("POST /api/config/tray-autostart persists and syncs desktop entry", async (
   }
 });
 
-test("POST /api/config/tray-shell persists cloudflare or thirdflare", async () => {
+test("POST /api/config/tray-shell persists cloudflare or cloudflare-one-warp", async () => {
   const bad = await httpJson("POST", "/api/config/tray-shell", { shell: "nope" });
   assert.equal(bad.status, 400);
 
@@ -469,7 +470,7 @@ test("POST /api/config/tray-shell persists cloudflare or thirdflare", async () =
   assert.equal(cloudflare.json.ok, true);
   assert.equal(cloudflare.json.config?.tray?.shell, "cloudflare");
   assert.equal(typeof cloudflare.json.config?.tray?.cloudflareAvailable, "boolean");
-  assert.ok(cloudflare.json.config?.tray?.active === "cloudflare" || cloudflare.json.config?.tray?.active === "thirdflare");
+  assert.ok(cloudflare.json.config?.tray?.active === "cloudflare" || cloudflare.json.config?.tray?.active === "cloudflare-one-warp");
   assert.ok(cloudflare.json.sync);
   assert.ok(cloudflare.json.liveSwap);
   assert.equal(cloudflare.json.liveSwap.attempted, false);
@@ -480,10 +481,10 @@ test("POST /api/config/tray-shell persists cloudflare or thirdflare", async () =
   assert.equal(typeof got.json.config?.tray?.cloudflareAvailable, "boolean");
   assert.ok(got.json.notes?.persistEndpoints?.includes("POST /api/config/tray-shell"));
 
-  const thirdflare = await httpJson("POST", "/api/config/tray-shell", { shell: "thirdflare" });
-  assert.equal(thirdflare.status, 200);
-  assert.equal(thirdflare.json.config?.tray?.shell, "thirdflare");
-  assert.equal(thirdflare.json.config?.tray?.active, "thirdflare");
+  const cloudflareOneWarp = await httpJson("POST", "/api/config/tray-shell", { shell: "cloudflare-one-warp" });
+  assert.equal(cloudflareOneWarp.status, 200);
+  assert.equal(cloudflareOneWarp.json.config?.tray?.shell, "cloudflare-one-warp");
+  assert.equal(cloudflareOneWarp.json.config?.tray?.active, "cloudflare-one-warp");
 });
 
 test("POST /api/action applyLicense and registerOrganization validate input", async () => {
@@ -509,7 +510,7 @@ test("GET /api/session hands the credential to a local caller", async () => {
   const res = await httpJson("GET", "/api/session");
   assert.equal(res.status, 200);
   assert.match(res.json.session, /^[0-9a-f]{64}$/);
-  assert.equal(res.json.header, "x-thirdflare-session");
+  assert.equal(res.json.header, "x-cloudflare-one-warp-session");
 });
 
 test("API responses carry no-sniff and framing protections", async () => {
@@ -573,7 +574,7 @@ test("a POST with a wrong session credential is refused", async () => {
     "POST",
     "/api/action",
     { action: "connect" },
-    { headers: { "x-thirdflare-session": "0".repeat(64) } }
+    { headers: { "x-cloudflare-one-warp-session": "0".repeat(64) } }
   );
   assert.equal(res.status, 403);
   assert.equal(res.json.reason, "session_required");
@@ -622,18 +623,20 @@ test("cross-site writes are rejected on every mutating route", async () => {
     headers: { "content-type": "text/plain" },
     body: jsonBody
   });
-  assert.equal(formPost.status, 403);
+  assert.equal(formPost.status, 415);
 
   const urlencoded = await httpRaw("POST", "/api/config/tray-shell", {
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: "shell=thirdflare"
+    body: "shell=cloudflare-one-warp"
   });
-  assert.equal(urlencoded.status, 403);
+  assert.equal(urlencoded.status, 415);
 });
 
 test("same-origin and non-browser writes still pass the guard", async () => {
+  const session = (await httpJson("GET", "/api/session")).json.session;
   const sameOrigin = await httpRaw("POST", "/api/action", {
     headers: {
+      "x-cloudflare-one-warp-session": session,
       "content-type": "application/json",
       "sec-fetch-site": "same-origin",
       origin: `http://127.0.0.1:${port}`,
@@ -645,7 +648,7 @@ test("same-origin and non-browser writes still pass the guard", async () => {
 
   // A direct address-bar navigation or a CLI client: sec-fetch-site: none.
   const direct = await httpRaw("POST", "/api/action", {
-    headers: { "content-type": "application/json", "sec-fetch-site": "none" },
+    headers: { "content-type": "application/json", "sec-fetch-site": "none", "x-cloudflare-one-warp-session": session },
     body: JSON.stringify({ action: "disconnect" })
   });
   assert.equal(direct.status, 200);

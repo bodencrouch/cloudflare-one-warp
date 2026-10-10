@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ThirdFlare One StatusNotifierItem tray (KDE Plasma / Wayland compatible)."""
+"""Cloudflare One WARP StatusNotifierItem tray (KDE Plasma / Wayland compatible)."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ import os
 import subprocess
 import sys
 
-ICON_NAME = "thirdflare-one"
+ICON_NAME = "cloudflare-one-warp"
 TRAY_ICON_SIZES = (16, 22, 24, 32, 48)
-SNI_OBJECT_PATH = "/org/ayatana/NotificationItem/thirdflare_one"
+SNI_OBJECT_PATH = "/org/ayatana/NotificationItem/cloudflare_one_warp"
 
 
 def _require_gi():
@@ -29,21 +29,21 @@ def _require_gi():
 
 
 def app_dir() -> str:
-  env = os.environ.get("THIRDFLARE_APP_DIR")
+  env = os.environ.get("CLOUDFLARE_ONE_WARP_APP_DIR")
   if env:
     return env
   return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 def launcher_path(root: str) -> str:
-  return os.path.join(root, "bin", "thirdflare")
+  return os.path.join(root, "bin", "cloudflare-one-warp")
 
 
 def icon_source_path(root: str) -> str:
-  tray_icon = os.path.join(root, "assets", "thirdflare-tray.svg")
+  tray_icon = os.path.join(root, "assets", "cloudflare-one-warp-tray.svg")
   if os.path.isfile(tray_icon):
     return tray_icon
-  return os.path.join(root, "assets", "thirdflare.svg")
+  return os.path.join(root, "assets", "cloudflare-one-warp.svg")
 
 
 def icon_theme_root() -> str:
@@ -220,7 +220,7 @@ def ensure_daemon(launcher: str) -> None:
 
 
 def status_text(launcher: str) -> str:
-  return capture_text([launcher, "--warp-status"]) or "ThirdFlare One"
+  return capture_text([launcher, "--warp-status"]) or "Cloudflare One WARP"
 
 
 def notify_status(root: str, launcher: str) -> None:
@@ -229,7 +229,7 @@ def notify_status(root: str, launcher: str) -> None:
   icon = tray_icon_png(48) if os.path.isfile(tray_icon_png(48)) else icon_source_path(root)
   try:
     subprocess.run(
-      ["notify-send", "ThirdFlare One", text, f"--icon={icon}"],
+      ["notify-send", "Cloudflare One WARP", text, f"--icon={icon}"],
       check=False,
       stdout=subprocess.DEVNULL,
       stderr=subprocess.DEVNULL,
@@ -259,18 +259,18 @@ def main() -> int:
   root = app_dir()
   launcher = launcher_path(root)
   icon_name = ensure_tray_icon(root)
-  tray_script = os.path.join(root, "bin", "thirdflare-tray")
+  tray_script = os.path.join(root, "bin", "cloudflare-one-warp-tray")
 
   ensure_daemon(launcher)
 
   indicator = AppIndicator3.Indicator.new(
-    "thirdflare-one",
+    "cloudflare-one-warp",
     icon_name,
     AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
   )
   indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
   configure_indicator_icon(indicator, icon_name)
-  indicator.set_title(f"ThirdFlare One - {status_text(launcher)}")
+  indicator.set_title(f"Cloudflare One WARP - {status_text(launcher)}")
 
   menu = Gtk.Menu()
   menu.set_reserve_toggle_size(False)
@@ -280,8 +280,8 @@ def main() -> int:
   add_menu_item(
     menu,
     Gtk,
-    "Show ThirdFlare One",
-    lambda: run_cmd([os.path.join(root, "bin", "thirdflare-tray"), "--panel"]),
+    "Show Cloudflare One WARP",
+    lambda: run_cmd([os.path.join(root, "bin", "cloudflare-one-warp-tray"), "--panel"]),
   )
 
   connection_item = Gtk.MenuItem.new_with_label("Connect")
@@ -289,10 +289,10 @@ def main() -> int:
 
   def refresh_connection_item() -> bool:
     try:
-      from tray_api import ThirdFlareClient, connection_control, ensure_daemon
+      from tray_api import CloudflareOneWarpClient, connection_control, ensure_daemon
 
       ensure_daemon(launcher)
-      ctrl = connection_control(ThirdFlareClient().snapshot())
+      ctrl = connection_control(CloudflareOneWarpClient().snapshot())
       connection_item.set_label(str(ctrl["label"]))
       connection_item.set_sensitive(bool(ctrl["enabled"]))
     except Exception:
@@ -301,7 +301,7 @@ def main() -> int:
     return True
 
   def on_connection(_item) -> None:
-    run_cmd([sys.executable, "-u", warp_script], env={"THIRDFLARE_APP_DIR": root})
+    run_cmd([sys.executable, "-u", warp_script], env={"CLOUDFLARE_ONE_WARP_APP_DIR": root})
 
   connection_item.connect("activate", on_connection)
   menu.connect("show", lambda *_args: refresh_connection_item())
@@ -318,7 +318,7 @@ def main() -> int:
   indicator.set_menu(menu)
 
   def refresh_title() -> bool:
-    indicator.set_title(f"ThirdFlare One - {status_text(launcher)}")
+    indicator.set_title(f"Cloudflare One WARP - {status_text(launcher)}")
     refresh_connection_item()
     return True
 
@@ -330,12 +330,12 @@ def main() -> int:
   GLib.timeout_add(500, push_pixmap)
 
   print(
-    "ThirdFlare One tray started (StatusNotifierItem). "
+    "Cloudflare One WARP tray started (StatusNotifierItem). "
     "Look for the icon in your KDE system tray.",
     file=sys.stderr,
   )
   print(
-    "If hidden, open System Settings → Plasma → System Tray → Entries and enable ThirdFlare One.",
+    "If hidden, open System Settings → Plasma → System Tray → Entries and enable Cloudflare One WARP.",
     file=sys.stderr,
   )
 

@@ -60,7 +60,7 @@ test("stage-payload.sh installs every lib/ module the daemon imports", () => {
 });
 
 test("stage-payload.sh installs every script the launchers invoke", () => {
-  const launchers = ["bin/thirdflare", "bin/thirdflare-tray"];
+  const launchers = ["bin/cloudflare-one-warp", "bin/cloudflare-one-warp-tray"];
   const referenced = new Set();
   for (const launcher of launchers) {
     const source = readFileSync(join(root, launcher), "utf8");

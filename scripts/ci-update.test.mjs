@@ -59,17 +59,17 @@ test("pickChannelRelease prefers stable non-prerelease", () => {
 test("pickAsset matches naming conventions", () => {
   const release = {
     assets: [
-      { name: "thirdflare_1.2.0_all.deb", url: "https://github.com/o/r/releases/download/v1.2.0/thirdflare_1.2.0_all.deb" },
-      { name: "thirdflare-1.2.0-x86_64.AppImage", url: "https://github.com/o/r/releases/download/v1.2.0/thirdflare-1.2.0-x86_64.AppImage" }
+      { name: "cloudflare-one-warp_1.2.0_all.deb", url: "https://github.com/o/r/releases/download/v1.2.0/cloudflare-one-warp_1.2.0_all.deb" },
+      { name: "cloudflare-one-warp-1.2.0-x86_64.AppImage", url: "https://github.com/o/r/releases/download/v1.2.0/cloudflare-one-warp-1.2.0-x86_64.AppImage" }
     ]
   };
-  assert.equal(pickAsset(release, "appimage").url, "https://github.com/o/r/releases/download/v1.2.0/thirdflare-1.2.0-x86_64.AppImage");
-  assert.equal(pickAsset(release, "deb").url, "https://github.com/o/r/releases/download/v1.2.0/thirdflare_1.2.0_all.deb");
+  assert.equal(pickAsset(release, "appimage").url, "https://github.com/o/r/releases/download/v1.2.0/cloudflare-one-warp-1.2.0-x86_64.AppImage");
+  assert.equal(pickAsset(release, "deb").url, "https://github.com/o/r/releases/download/v1.2.0/cloudflare-one-warp_1.2.0_all.deb");
   assert.equal(findReleaseByTag([{ tag: "v1.2.0" }], "1.2.0").tag, "v1.2.0");
 });
 
 test("detectInstallFormat honors override and APPIMAGE", () => {
-  assert.equal(detectInstallFormat({ THIRDFLARE_INSTALL_FORMAT: "rpm" }), "rpm");
+  assert.equal(detectInstallFormat({ CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "rpm" }), "rpm");
   assert.equal(detectInstallFormat({ APPIMAGE: "/tmp/x.AppImage" }), "appimage");
 });
 
@@ -78,7 +78,7 @@ test("guidedCommands for deb include dpkg", () => {
     version: "1.2.0",
     tag: "v1.2.0",
     owner: "bodencrouch",
-    repo: "thirdflare-one"
+    repo: "cloudflare-one-warp"
   });
   assert.ok(cmds.some((c) => c.includes("dpkg -i")));
 });
@@ -116,8 +116,8 @@ test("checkForUpdate with mocked GitHub", async () => {
             html_url: "https://github.com/example/releases/tag/v9.9.9",
             assets: [
               {
-                name: "thirdflare-9.9.9-x86_64.AppImage",
-                browser_download_url: "https://github.com/bodencrouch/thirdflare-one/releases/download/v9.9.9/thirdflare-9.9.9-x86_64.AppImage",
+                name: "cloudflare-one-warp-9.9.9-x86_64.AppImage",
+                browser_download_url: "https://github.com/bodencrouch/cloudflare-one-warp/releases/download/v9.9.9/cloudflare-one-warp-9.9.9-x86_64.AppImage",
                 size: 10,
                 content_type: "application/octet-stream"
               }
@@ -134,14 +134,14 @@ test("checkForUpdate with mocked GitHub", async () => {
       {
         updates: {
           channel: "stable",
-          source: { owner: "bodencrouch", repo: "thirdflare-one" }
+          source: { owner: "bodencrouch", repo: "cloudflare-one-warp" }
         }
       },
-      { env: { THIRDFLARE_INSTALL_FORMAT: "appimage" } }
+      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } }
     );
     assert.equal(result.latest, "9.9.9");
     assert.equal(result.updateAvailable, gt("9.9.9", getVersion()));
-    assert.equal(result.recommendedAsset.url, "https://github.com/bodencrouch/thirdflare-one/releases/download/v9.9.9/thirdflare-9.9.9-x86_64.AppImage");
+    assert.equal(result.recommendedAsset.url, "https://github.com/bodencrouch/cloudflare-one-warp/releases/download/v9.9.9/cloudflare-one-warp-9.9.9-x86_64.AppImage");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -168,7 +168,7 @@ test("checkForUpdate empty releases is graceful", async () => {
   try {
     const result = await checkForUpdate(
       { updates: { channel: "stable", source: { owner: "nobody", repo: "empty" } } },
-      { env: { THIRDFLARE_INSTALL_FORMAT: "deb" } }
+      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "deb" } }
     );
     assert.equal(result.updateAvailable, false);
     assert.equal(result.releasesError || result.errors?.releases || null, null);
@@ -177,7 +177,7 @@ test("checkForUpdate empty releases is graceful", async () => {
   }
 });
 
-const ASSET_NAME = "thirdflare-1.0.0-x86_64.AppImage";
+const ASSET_NAME = "cloudflare-one-warp-1.0.0-x86_64.AppImage";
 const ASSET_URL = `https://github.com/o/r/releases/download/v1.0.0/${ASSET_NAME}`;
 const SIG_URL = `${ASSET_URL}.sig`;
 
@@ -205,8 +205,8 @@ function signedRelease(payload, { privateKey, assetName = ASSET_NAME, assetUrl =
 }
 
 test("applyAppImageUpdate replaces target when the signature verifies", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "thirdflare-upd-"));
-  const target = join(dir, "ThirdFlare-One.AppImage");
+  const dir = mkdtempSync(join(tmpdir(), "cloudflare-one-warp-upd-"));
+  const target = join(dir, "Cloudflare-One-WARP.AppImage");
   writeFileSync(target, "old-binary");
   chmodSync(target, 0o755);
 
@@ -237,8 +237,8 @@ test("applyAppImageUpdate replaces target when the signature verifies", async ()
 });
 
 test("applyAppImageUpdate refuses a release with no signature asset", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "thirdflare-nosig-"));
-  const target = join(dir, "ThirdFlare-One.AppImage");
+  const dir = mkdtempSync(join(tmpdir(), "cloudflare-one-warp-nosig-"));
+  const target = join(dir, "Cloudflare-One-WARP.AppImage");
   writeFileSync(target, "old-binary");
 
   const payload = Buffer.from("unsigned-bytes");
@@ -271,8 +271,8 @@ test("applyAppImageUpdate refuses a release with no signature asset", async () =
 });
 
 test("applyAppImageUpdate refuses a signature from an untrusted key", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "thirdflare-badkey-"));
-  const target = join(dir, "ThirdFlare-One.AppImage");
+  const dir = mkdtempSync(join(tmpdir(), "cloudflare-one-warp-badkey-"));
+  const target = join(dir, "Cloudflare-One-WARP.AppImage");
   writeFileSync(target, "old-binary");
 
   const payload = Buffer.from("attacker-bytes");
@@ -305,8 +305,8 @@ test("applyAppImageUpdate refuses a signature from an untrusted key", async () =
 });
 
 test("applyAppImageUpdate refuses when bytes were swapped after signing", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "thirdflare-swap-"));
-  const target = join(dir, "ThirdFlare-One.AppImage");
+  const dir = mkdtempSync(join(tmpdir(), "cloudflare-one-warp-swap-"));
+  const target = join(dir, "Cloudflare-One-WARP.AppImage");
   writeFileSync(target, "old-binary");
 
   const signed = Buffer.from("signed-bytes");
@@ -342,8 +342,8 @@ test("applyAppImageUpdate refuses when bytes were swapped after signing", async 
 });
 
 test("applyAppImageUpdate fails closed when no keys are pinned", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "thirdflare-nokeys-"));
-  const target = join(dir, "ThirdFlare-One.AppImage");
+  const dir = mkdtempSync(join(tmpdir(), "cloudflare-one-warp-nokeys-"));
+  const target = join(dir, "Cloudflare-One-WARP.AppImage");
   writeFileSync(target, "old-binary");
 
   const payload = Buffer.from("bytes");
@@ -404,9 +404,9 @@ test("findSignatureAsset only accepts a GitHub-hosted sidecar", () => {
 test("applyUpdate rejects client-supplied assetUrl", async () => {
   const { applyUpdate } = await import("../lib/update/index.mjs");
   const result = await applyUpdate(
-    { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "thirdflare-one" } } },
-    { assetUrl: "https://evil.example/x.AppImage", assetName: "thirdflare.AppImage" },
-    { env: { THIRDFLARE_INSTALL_FORMAT: "appimage" } }
+    { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } },
+    { assetUrl: "https://evil.example/x.AppImage", assetName: "cloudflare-one-warp.AppImage" },
+    { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } }
   );
   assert.equal(result.ok, false);
   assert.match(result.error, /not allowed/i);
@@ -415,7 +415,7 @@ test("applyUpdate rejects client-supplied assetUrl", async () => {
 test("applyUpdate requires confirmation token for AppImage", async () => {
   clearGithubCache();
   const originalFetch = globalThis.fetch;
-  const assetUrl = "https://github.com/bodencrouch/thirdflare-one/releases/download/v9.9.9/thirdflare-9.9.9-x86_64.AppImage";
+  const assetUrl = "https://github.com/bodencrouch/cloudflare-one-warp/releases/download/v9.9.9/cloudflare-one-warp-9.9.9-x86_64.AppImage";
   globalThis.fetch = async (url) => {
     const href = String(url);
     if (href.includes("update-manifest.json")) {
@@ -436,7 +436,7 @@ test("applyUpdate requires confirmation token for AppImage", async () => {
           body: "",
           html_url: "https://github.com/example/releases/tag/v9.9.9",
           assets: [{
-            name: "thirdflare-9.9.9-x86_64.AppImage",
+            name: "cloudflare-one-warp-9.9.9-x86_64.AppImage",
             browser_download_url: assetUrl,
             size: 10,
             content_type: "application/octet-stream"
@@ -450,24 +450,24 @@ test("applyUpdate requires confirmation token for AppImage", async () => {
     const { applyUpdate, prepareApply, clearApplyConfirmTokens } = await import("../lib/update/index.mjs");
     clearApplyConfirmTokens();
     const denied = await applyUpdate(
-      { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "thirdflare-one" } } },
+      { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } },
       {},
-      { env: { THIRDFLARE_INSTALL_FORMAT: "appimage" }, bindHost: "127.0.0.1" }
+      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, bindHost: "127.0.0.1" }
     );
     assert.equal(denied.ok, false);
     assert.match(denied.error, /confirmation token/i);
 
     const prep = await prepareApply(
-      { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "thirdflare-one" } } },
+      { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } },
       {},
-      { env: { THIRDFLARE_INSTALL_FORMAT: "appimage" } }
+      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } }
     );
     assert.ok(prep.applyConfirmToken);
 
     const remoteDenied = await applyUpdate(
-      { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "thirdflare-one" } } },
+      { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } },
       { confirmToken: prep.applyConfirmToken },
-      { env: { THIRDFLARE_INSTALL_FORMAT: "appimage" }, bindHost: "0.0.0.0" }
+      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, bindHost: "0.0.0.0" }
     );
     assert.equal(remoteDenied.ok, false);
     assert.match(remoteDenied.error, /loopback/i);
@@ -479,7 +479,7 @@ test("applyUpdate requires confirmation token for AppImage", async () => {
 test("applyUpdate refuses to install an older version", async () => {
   clearGithubCache();
   const originalFetch = globalThis.fetch;
-  const assetUrl = "https://github.com/bodencrouch/thirdflare-one/releases/download/v0.0.1/thirdflare-0.0.1-x86_64.AppImage";
+  const assetUrl = "https://github.com/bodencrouch/cloudflare-one-warp/releases/download/v0.0.1/cloudflare-one-warp-0.0.1-x86_64.AppImage";
   globalThis.fetch = async (url) => {
     const href = String(url);
     if (href.includes("update-manifest.json")) {
@@ -500,8 +500,8 @@ test("applyUpdate refuses to install an older version", async () => {
           body: "",
           html_url: "https://github.com/example/releases/tag/v0.0.1",
           assets: [
-            { name: "thirdflare-0.0.1-x86_64.AppImage", browser_download_url: assetUrl, size: 10, content_type: "application/octet-stream" },
-            { name: "thirdflare-0.0.1-x86_64.AppImage.sig", browser_download_url: `${assetUrl}.sig`, size: 88, content_type: "text/plain" }
+            { name: "cloudflare-one-warp-0.0.1-x86_64.AppImage", browser_download_url: assetUrl, size: 10, content_type: "application/octet-stream" },
+            { name: "cloudflare-one-warp-0.0.1-x86_64.AppImage.sig", browser_download_url: `${assetUrl}.sig`, size: 88, content_type: "text/plain" }
           ]
         }])
       };
@@ -512,14 +512,14 @@ test("applyUpdate refuses to install an older version", async () => {
   try {
     const { applyUpdate, prepareApply, clearApplyConfirmTokens } = await import("../lib/update/index.mjs");
     clearApplyConfirmTokens();
-    const config = { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "thirdflare-one" } } };
-    const prep = await prepareApply(config, {}, { env: { THIRDFLARE_INSTALL_FORMAT: "appimage" } });
+    const config = { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } };
+    const prep = await prepareApply(config, {}, { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } });
     assert.equal(prep.signatureAvailable, true);
 
     const result = await applyUpdate(
       config,
       { confirmToken: prep.applyConfirmToken },
-      { env: { THIRDFLARE_INSTALL_FORMAT: "appimage" }, bindHost: "127.0.0.1" }
+      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, bindHost: "127.0.0.1" }
     );
     assert.equal(result.ok, false);
     assert.match(result.error, /older than the version you have installed/i);
@@ -549,15 +549,15 @@ test("setSessionUpdateSource accepts explicit owner/repo", async () => {
   const { setSessionUpdateSource, clearSessionOverrides, getConfig, reloadConfig } = await import("../lib/config.mjs");
   clearSessionOverrides();
   reloadConfig();
-  setSessionUpdateSource({ owner: "bodencrouch", repo: "thirdflare-one" });
-  assert.equal(getConfig().updates.source.repo, "thirdflare-one");
+  setSessionUpdateSource({ owner: "bodencrouch", repo: "cloudflare-one-warp" });
+  assert.equal(getConfig().updates.source.repo, "cloudflare-one-warp");
   clearSessionOverrides();
 });
 
 test("parseSha256Sums and untrusted redirect hop", async () => {
   const { parseSha256Sums, fetchTrustedAsset } = await import("../lib/update/apply-appimage.mjs");
-  const sums = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  thirdflare-1.0.0-x86_64.AppImage\n";
-  assert.equal(parseSha256Sums(sums, "thirdflare-1.0.0-x86_64.AppImage"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  const sums = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  cloudflare-one-warp-1.0.0-x86_64.AppImage\n";
+  assert.equal(parseSha256Sums(sums, "cloudflare-one-warp-1.0.0-x86_64.AppImage"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
   let hops = 0;
   const fetchImpl = async () => {
@@ -606,9 +606,9 @@ test("applyUpdate returns guided mode for deb installs", async () => {
   try {
     const { applyUpdate } = await import("../lib/update/index.mjs");
     const result = await applyUpdate(
-      { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "thirdflare-one" } } },
+      { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } },
       {},
-      { env: { THIRDFLARE_INSTALL_FORMAT: "deb" } }
+      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "deb" } }
     );
     assert.equal(result.ok, true);
     assert.equal(result.mode, "guided");
@@ -624,7 +624,7 @@ test("guidedCommands rejects unsafe owner", () => {
     version: "1.0.0",
     tag: "v1.0.0",
     owner: 'foo";rm -rf /;echo "',
-    repo: "thirdflare-one"
+    repo: "cloudflare-one-warp"
   });
   assert.ok(cmds[0].startsWith("# Invalid"));
 });

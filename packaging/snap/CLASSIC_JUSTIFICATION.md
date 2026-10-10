@@ -1,11 +1,11 @@
-# Classic confinement justification — thirdflare-one
+# Classic confinement justification — cloudflare-one-warp
 
-**Snap name:** `thirdflare-one`  
+**Snap name:** `cloudflare-one-warp`
 **Confinement:** classic
 
 ## Why classic is required
 
-ThirdFlare One is a **control plane** for the host Cloudflare WARP client. It must:
+Cloudflare One WARP is a **control plane** for the host Cloudflare WARP client. It must:
 
 1. Execute **`warp-cli`** on the host filesystem (not inside the snap sandbox)
 2. Communicate with the **CloudflareWARP** system daemon
@@ -21,6 +21,6 @@ Strict confinement prevents reliable access to the host `warp-cli` binary and WA
 
 ## User documentation
 
-Install Cloudflare WARP before using ThirdFlare One:
+Install Cloudflare WARP before using Cloudflare One WARP:
 
 https://developers.cloudflare.com/warp-client/get-started/linux/

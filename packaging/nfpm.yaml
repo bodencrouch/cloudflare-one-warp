@@ -1,63 +1,59 @@
 # yaml-language-server: $schema=https://nfpm.goreleaser.com/static/schema.json
-name: thirdflare
+name: cloudflare-one-warp
 arch: all
 platform: linux
 version: ${VERSION}
 section: net
 priority: optional
-maintainer: ThirdFlare One contributors
+maintainer: Cloudflare One WARP contributors
 description: |-
-  ThirdFlare One — unofficial third-party Cloudflare One client for Linux.
+  Cloudflare One WARP — unofficial third-party Cloudflare One client for Linux.
   Drop-in warp-cli GUI parity with the Windows Cloudflare One app.
   Requires Cloudflare WARP (warp-cli) on the host.
-vendor: ThirdFlare One
-homepage: https://github.com/bodencrouch/thirdflare-one
+vendor: Cloudflare One WARP
+homepage: https://github.com/bodencrouch/cloudflare-one-warp
 license: MIT
 contents:
-  - src: ./dist/payload/usr/lib/thirdflare
-    dst: /usr/lib/thirdflare
-  - src: ./dist/payload/usr/bin/thirdflare
-    dst: /usr/bin/thirdflare
+  - src: ./dist/payload/usr/lib/cloudflare-one-warp
+    dst: /usr/lib/cloudflare-one-warp
+  - src: ./dist/payload/usr/bin/cloudflare-one-warp
+    dst: /usr/bin/cloudflare-one-warp
     file_info:
       mode: 0755
-  - src: ./dist/payload/usr/bin/thirdflare-one
-    dst: /usr/bin/thirdflare-one
+  - src: ./dist/payload/usr/bin/cloudflare-one-warp-gui
+    dst: /usr/bin/cloudflare-one-warp-gui
     file_info:
       mode: 0755
-  - src: ./dist/payload/usr/bin/thirdflare-one-gui
-    dst: /usr/bin/thirdflare-one-gui
+  - src: ./dist/payload/usr/bin/cloudflare-one-warp-tray
+    dst: /usr/bin/cloudflare-one-warp-tray
     file_info:
       mode: 0755
-  - src: ./dist/payload/usr/bin/thirdflare-one-tray
-    dst: /usr/bin/thirdflare-one-tray
+  - src: ./dist/payload/usr/share/polkit-1/actions/com.cloudflare.one.warp.policy
+    dst: /usr/share/polkit-1/actions/com.cloudflare.one.warp.policy
+  - src: ./dist/payload/usr/share/applications/cloudflare-one-warp.desktop
+    dst: /usr/share/applications/cloudflare-one-warp.desktop
+  - src: ./dist/payload/usr/share/icons/hicolor/scalable/apps/cloudflare-one-warp.svg
+    dst: /usr/share/icons/hicolor/scalable/apps/cloudflare-one-warp.svg
+  - src: ./dist/payload/usr/lib/systemd/user/cloudflare-one-warp.service
+    dst: /usr/lib/systemd/user/cloudflare-one-warp.service
+  - src: ./dist/payload/etc/default/cloudflare-one-warp
+    dst: /etc/default/cloudflare-one-warp
+  - src: ./dist/payload/etc/cloudflare-one-warp/config.json.example
+    dst: /etc/cloudflare-one-warp/config.json.example
+  - src: ./dist/payload/usr/share/doc/cloudflare-one-warp
+    dst: /usr/share/doc/cloudflare-one-warp
+  - src: ./dist/payload/usr/share/licenses/cloudflare-one-warp
+    dst: /usr/share/licenses/cloudflare-one-warp
+  - src: ./dist/payload/etc/NetworkManager/dispatcher.d/99-cloudflare-one-warp
+    dst: /etc/NetworkManager/dispatcher.d/99-cloudflare-one-warp
     file_info:
       mode: 0755
-  - src: ./dist/payload/usr/share/polkit-1/actions/com.thirdflare.one.policy
-    dst: /usr/share/polkit-1/actions/com.thirdflare.one.policy
-  - src: ./dist/payload/usr/share/applications/thirdflare-one.desktop
-    dst: /usr/share/applications/thirdflare-one.desktop
-  - src: ./dist/payload/usr/share/icons/hicolor/scalable/apps/thirdflare.svg
-    dst: /usr/share/icons/hicolor/scalable/apps/thirdflare.svg
-  - src: ./dist/payload/usr/lib/systemd/user/thirdflare-one.service
-    dst: /usr/lib/systemd/user/thirdflare-one.service
-  - src: ./dist/payload/etc/default/thirdflare
-    dst: /etc/default/thirdflare
-  - src: ./dist/payload/etc/thirdflare/config.json.example
-    dst: /etc/thirdflare/config.json.example
-  - src: ./dist/payload/usr/share/doc/thirdflare
-    dst: /usr/share/doc/thirdflare
-  - src: ./dist/payload/usr/share/licenses/thirdflare
-    dst: /usr/share/licenses/thirdflare
-  - src: ./dist/payload/etc/NetworkManager/dispatcher.d/99-thirdflare-warp
-    dst: /etc/NetworkManager/dispatcher.d/99-thirdflare-warp
-    file_info:
-      mode: 0755
-  - src: ./dist/payload/etc/sysctl.d/99-thirdflare-warp.conf
-    dst: /etc/sysctl.d/99-thirdflare-warp.conf
-  - src: ./dist/payload/usr/lib/NetworkManager/VPN/nm-thirdflare-warp-service.name
-    dst: /usr/lib/NetworkManager/VPN/nm-thirdflare-warp-service.name
-  - src: ./dist/payload/usr/share/thirdflare-one/networkmanager/profiles
-    dst: /usr/share/thirdflare-one/networkmanager/profiles
+  - src: ./dist/payload/etc/sysctl.d/99-cloudflare-one-warp.conf
+    dst: /etc/sysctl.d/99-cloudflare-one-warp.conf
+  - src: ./dist/payload/usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name
+    dst: /usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name
+  - src: ./dist/payload/usr/share/cloudflare-one-warp/networkmanager/profiles
+    dst: /usr/share/cloudflare-one-warp/networkmanager/profiles
 depends:
   - nodejs
 recommends:

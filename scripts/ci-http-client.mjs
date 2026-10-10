@@ -55,17 +55,17 @@ export function createHttpJson(baseUrl) {
   return async function httpJson(method, path, body, options = {}) {
     const upper = String(method).toUpperCase();
     const headers = { ...(options.headers || {}) };
-    const callerSuppliedToken = "x-thirdflare-session" in headers;
+    const callerSuppliedToken = "x-cloudflare-one-warp-session" in headers;
     const wantSession = options.session !== false && MUTATIONS.has(upper) && !callerSuppliedToken;
     if (wantSession) {
       const value = await session();
-      if (value) headers["x-thirdflare-session"] = value;
+      if (value) headers["x-cloudflare-one-warp-session"] = value;
     }
     let result = await send(baseUrl, upper, path, body, headers);
     if (result.status === 403 && wantSession && result.json?.reason === "session_required") {
       const value = await session(true);
       if (value) {
-        headers["x-thirdflare-session"] = value;
+        headers["x-cloudflare-one-warp-session"] = value;
         result = await send(baseUrl, upper, path, body, headers);
       }
     }

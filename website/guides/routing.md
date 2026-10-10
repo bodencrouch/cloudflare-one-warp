@@ -1,6 +1,6 @@
 # Split tunnel & app routing
 
-ThirdFlare One exposes warp-cli split tunnel reads/actions via API and UI, plus **desktop app shortcuts** for local proxy routing.
+Cloudflare One WARP exposes warp-cli split tunnel reads/actions via API and UI, plus **desktop app shortcuts** for local proxy routing.
 
 ## Split tunnel API
 
@@ -9,7 +9,7 @@ curl -s http://127.0.0.1:4173/api/snapshot | jq '.commands.splitTunnelDump'
 curl -s http://127.0.0.1:4173/api/snapshot | jq '.commands.splitTunnelIps'
 curl -X POST http://127.0.0.1:4173/api/action \
   -H 'Content-Type: application/json' \
-  -H "x-thirdflare-session: $(cat ~/.config/thirdflare/session-4173.token)" \
+  -H "x-cloudflare-one-warp-session: $(cat ~/.config/cloudflare-one-warp/session-4173.token)" \
   -d '{"action":"resetSplitIps"}'
 ```
 

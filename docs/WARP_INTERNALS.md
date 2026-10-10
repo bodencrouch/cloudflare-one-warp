@@ -1,29 +1,29 @@
 # WARP internals (reference)
 
-Notes from [cmj2002/warp-docker](https://github.com/cmj2002/warp-docker) and live `warp-cli` on Linux. ThirdFlare One wraps the host install — it does not replace `warp-svc`.
+Notes from [cmj2002/warp-docker](https://github.com/cmj2002/warp-docker) and live `warp-cli` on Linux. Cloudflare One WARP wraps the host install — it does not replace `warp-svc`.
 
 ## Architecture
 
 | Component | Role |
 |-----------|------|
 | **warp-svc** | Cloudflare WARP system daemon |
-| **warp-cli** | CLI control plane (what ThirdFlare executes) |
+| **warp-cli** | CLI control plane (what Cloudflare One WARP executes) |
 | **CloudflareWARP** | Tunnel interface (full-tunnel modes) |
 | **127.0.0.1:40000** | Default local proxy listen (proxy mode) |
 
-ThirdFlare One adds a Node HTTP API, optional Web UI, PyQt6 tray, and Linux NM companion profiles. See [ARCHITECTURE.md](./ARCHITECTURE.md).
+Cloudflare One WARP adds a Node HTTP API, optional Web UI, PyQt6 tray, and Linux NM companion profiles. See [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Operating modes (warp-cli)
 
 `warp-cli settings list` uses human-readable **Mode** lines, not always the short slug passed to `warp-cli mode <value>`:
 
-| warp-cli command | Typical settings list value | ThirdFlare UI slug |
+| warp-cli command | Typical settings list value | Cloudflare One WARP UI slug |
 |------------------|----------------------------|--------------------|
 | `mode warp` | `Mode: Warp` / `WarpWithDnsOverHttps` | `warp` |
 | `mode proxy` | **`Mode: WarpProxy on port 40000`** | `proxy` |
 | `mode doh` | `Mode: DnsOverHttps` | `doh` |
 
-ThirdFlare normalizes these in `lib/warp/settings.mjs` (`normalizeOperatingMode`, `deriveProxyPort`). The Web UI must not compare raw Mode strings to `"proxy"` only.
+Cloudflare One WARP normalizes these in `lib/warp/settings.mjs` (`normalizeOperatingMode`, `deriveProxyPort`). The Web UI must not compare raw Mode strings to `"proxy"` only.
 
 ## Tunnel protocol
 
@@ -42,7 +42,7 @@ warp-cli proxy port 40000
 
 - Only apps configured to use the SOCKS/HTTP proxy at `127.0.0.1:<port>` send traffic through WARP.
 - **UDP is not supported** in WARP proxy mode.
-- ThirdFlare **app routing** enables MASQUE + proxy mode, then creates `.desktop` shortcuts that launch apps through the proxy (`lib/apps/proxy-launcher.mjs`).
+- Cloudflare One WARP **app routing** enables MASQUE + proxy mode, then creates `.desktop` shortcuts that launch apps through the proxy (`lib/apps/proxy-launcher.mjs`).
 
 ## warp-docker container model
 
@@ -53,7 +53,7 @@ warp-cli proxy port 40000
 - Persistent state under `/var/lib/cloudflare-warp` (maps to host `./data`).
 - Health check: `curl --socks5-hostname 127.0.0.1:1080 https://cloudflare.com/cdn-cgi/trace` → `warp=on` or `warp=plus`.
 
-Useful for understanding proxy chaining; ThirdFlare on a desktop talks to the host `warp-cli` directly instead.
+Useful for understanding proxy chaining; Cloudflare One WARP on a desktop talks to the host `warp-cli` directly instead.
 
 ## Split tunnel
 
@@ -61,7 +61,7 @@ warp-cli exposes exclude/include lists (`tunnel ip list`, `tunnel host list`, `t
 
 ## NetworkManager / KDE
 
-WARP does not expose a standard WireGuard peer config like a manual VPN. ThirdFlare NM profiles are **companion** connections for Plasma integration; the tunnel still comes from `warp-svc`. See [NETWORKING.md](./NETWORKING.md).
+WARP does not expose a standard WireGuard peer config like a manual VPN. Cloudflare One WARP NM profiles are **companion** connections for Plasma integration; the tunnel still comes from `warp-svc`. See [NETWORKING.md](./NETWORKING.md).
 
 ## Related warp-docker docs
 
@@ -72,7 +72,7 @@ WARP does not expose a standard WireGuard peer config like a manual VPN. ThirdFl
 | [host-connectivity.md](https://github.com/cmj2002/warp-docker/blob/main/docs/host-connectivity.md) | Host connectivity fixes |
 | [tun-not-permitted.md](https://github.com/cmj2002/warp-docker/blob/main/docs/tun-not-permitted.md) | TUN permission errors |
 
-## ThirdFlare mapping
+## Cloudflare One WARP mapping
 
 | User action | warp-cli / API |
 |-------------|----------------|

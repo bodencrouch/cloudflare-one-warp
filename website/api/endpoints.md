@@ -11,8 +11,8 @@
 | GET | `/api/snapshot` | Aggregated warp-cli reads (see keys below) |
 | GET | `/api/config` | Effective layered config + sources |
 | POST | `/api/config/session` | Session overrides (until daemon restart) |
-| POST | `/api/config/tray-autostart` | ThirdFlare One tray autostart preference |
-| POST | `/api/config/tray-shell` | Desktop app: `cloudflare` or `thirdflare` |
+| POST | `/api/config/tray-autostart` | Cloudflare One WARP tray autostart preference |
+| POST | `/api/config/tray-shell` | Desktop app: `cloudflare` or `cloudflare-one-warp` |
 | POST | `/api/config/webui` | Persist Web UI enablement (restart required) |
 | POST | `/api/config/server` | Persist HTTP port/bind (restart required) |
 | POST | `/api/config/ui` | Persist UI preferences (notifications) |
@@ -38,15 +38,15 @@ Every `POST` (and any other write method) must:
 1. come from this computer,
 2. be addressed to `127.0.0.1`, `localhost`, or `[::1]` on the daemon's port,
 3. send `content-type: application/json`, and
-4. carry the local session credential in `x-thirdflare-session`.
+4. carry the local session credential in `x-cloudflare-one-warp-session`.
 
-Read the credential from `GET /api/session` or from `~/.config/thirdflare/session-<port>.token` (mode `0600`, replaced each time the daemon starts).
+Read the credential from `GET /api/session` or from `~/.config/cloudflare-one-warp/session-<port>.token` (mode `0600`, replaced each time the daemon starts).
 
 ```bash
-SESSION=$(cat ~/.config/thirdflare/session-4173.token)
+SESSION=$(cat ~/.config/cloudflare-one-warp/session-4173.token)
 curl -s -X POST http://127.0.0.1:4173/api/action \
   -H 'content-type: application/json' \
-  -H "x-thirdflare-session: $SESSION" \
+  -H "x-cloudflare-one-warp-session: $SESSION" \
   -d '{"action":"connect"}'
 ```
 

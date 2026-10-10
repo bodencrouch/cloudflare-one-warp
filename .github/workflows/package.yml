@@ -257,7 +257,7 @@ jobs:
         run: |
           mkdir -p dist/packages
           VERSION="${{ needs.resolve-version.outputs.version }}"
-          DEST="dist/packages/thirdflare_${VERSION}_amd64.snap"
+          DEST="dist/packages/cloudflare-one-warp_${VERSION}_amd64.snap"
           SNAP_FILE="${{ steps.snapcraft.outputs.snap }}"
           if [[ -n "$SNAP_FILE" && -f "$SNAP_FILE" ]]; then
             cp "$SNAP_FILE" "$DEST"
@@ -340,7 +340,7 @@ jobs:
       - name: Generate Homebrew formula
         run: |
           bash packaging/scripts/generate-homebrew-formula.sh "${{ needs.resolve-version.outputs.version }}"
-          test -f homebrew-tap/Formula/thirdflare-one.rb
+          test -f homebrew-tap/Formula/cloudflare-one-warp.rb
 
       - uses: actions/upload-artifact@v4
         with:
@@ -351,10 +351,10 @@ jobs:
       - name: Update homebrew-tap branch
         if: github.event_name == 'release' || (inputs.publish_release && inputs.update_homebrew_tap)
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "bodencrouch"
+          git config user.email "221775936+bodencrouch@users.noreply.github.com"
           FORMULA_TMP="$(mktemp)"
-          cp homebrew-tap/Formula/thirdflare-one.rb "$FORMULA_TMP"
+          cp homebrew-tap/Formula/cloudflare-one-warp.rb "$FORMULA_TMP"
           # Generated Formula lives under ./homebrew-tap/; remove it so the
           # branch name is not ambiguous with that directory (git exit 128).
           rm -rf homebrew-tap
@@ -367,10 +367,10 @@ jobs:
             git rm -rf . 2>/dev/null || true
           fi
           mkdir -p Formula
-          cp "$FORMULA_TMP" Formula/thirdflare-one.rb
+          cp "$FORMULA_TMP" Formula/cloudflare-one-warp.rb
           rm -f "$FORMULA_TMP"
-          git add Formula/thirdflare-one.rb
-          git commit -m "chore(homebrew): thirdflare-one ${{ needs.resolve-version.outputs.version }}" || true
+          git add Formula/cloudflare-one-warp.rb
+          git commit -m "chore(homebrew): cloudflare-one-warp ${{ needs.resolve-version.outputs.version }}" || true
           git push origin HEAD:homebrew-tap --force
 
   publish:
@@ -439,8 +439,8 @@ jobs:
             ARGS+=(--prerelease)
           fi
           node scripts/generate-update-manifest.mjs "${ARGS[@]}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "bodencrouch"
+          git config user.email "221775936+bodencrouch@users.noreply.github.com"
           git add config/update-manifest.json
           if git diff --cached --quiet; then
             echo "Manifest unchanged"

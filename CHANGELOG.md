@@ -1,3 +1,9 @@
+# 0.3.0 (2026-10-10)
+
+* Rename the client, commands, configuration, services, app IDs, and distribution packages to Cloudflare One WARP.
+* Fix documentation asset paths and configure GitHub Pages before deployment.
+* Rebuild all release formats under the new package names.
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -9,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Local API mutations now require a loopback Host and peer, a same-origin request, a JSON body, and this daemon's session credential (`X-Thirdflare-Session`), so a web page cannot drive WARP or change settings. Read-only endpoints stay open for diagnostics
+- Local API mutations now require a loopback Host and peer, a same-origin request, a JSON body, and this daemon's session credential (`X-Cloudflare-One-Warp-Session`), so a web page cannot drive WARP or change settings. Read-only endpoints stay open for diagnostics
 - Serve `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a Content-Security-Policy on API and Web UI responses
 - AppImage self-update installs only after a detached Ed25519 signature from a pinned release key verifies; missing, malformed, and unknown-key signatures fail closed and leave the installed binary untouched
 - Refuse to install a release older than the installed version
@@ -35,21 +41,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Report `active` and `effective` from `POST /api/config/tray-autostart` rather than a bare `ok` for a preference that changes nothing today
 - Re-evaluate notification ownership when the desktop app or `ui.notifications` changes, instead of freezing it at daemon startup
 - Stop a scripted or piped re-install from resetting the user's desktop-app choice (`sync-tray-autostart --if-unset`)
-- Close the ThirdFlare tray and panel before restarting the daemon they talk to, so switching to Cloudflare One Client no longer leaves an open panel showing a connection error
+- Close the Cloudflare One WARP tray and panel before restarting the daemon they talk to, so switching to Cloudflare One Client no longer leaves an open panel showing a connection error
 - Do not swap the running shell twice when saving from the native settings dialog — the daemon already does it, and the second pass could leave two Cloudflare tray icons
-- Skip the live shell swap on non-Linux instead of falling through to the ThirdFlare branch and running `pkill`/`spawn` there
+- Skip the live shell swap on non-Linux instead of falling through to the Cloudflare One WARP branch and running `pkill`/`spawn` there
 
-- Keep the ThirdFlare Web UI off while Cloudflare One Client is the desktop app — the daemon now starts API-only on that path
-- Turn the Web UI back off when switching from the ThirdFlare One tray to Cloudflare One Client, unless `webui.enabled` is set
+- Keep the Cloudflare One WARP Web UI off while Cloudflare One Client is the desktop app — the daemon now starts API-only on that path
+- Turn the Web UI back off when switching from the Cloudflare One WARP tray to Cloudflare One Client, unless `webui.enabled` is set
 - Leave `warp-desktop-svc` unit management to the host under Flatpak instead of writing a unit systemd never reads
 - Let Cloudflare One Client own status notifications while it is active, so one WARP transition no longer notifies twice
 - Detect a running `warp-desktop-svc` by command line — `pgrep -x` never matched its 16-character process name, so the fallback could start a second copy
-- Report WARP status from the active desktop app in `thirdflare-one-tray --status`
-- Start `warp-taskbar` from the user's home so its `.sentry-native/` cache no longer lands in the ThirdFlare install tree
-- Sandbox `HOME` and `XDG_CONFIG_HOME` in the suites that spawn the daemon — `npm run test:all` was rewriting the developer's real `~/.config/thirdflare/config.json` and deleting their real tray autostart entry
+- Report WARP status from the active desktop app in `cloudflare-one-warp-tray --status`
+- Start `warp-taskbar` from the user's home so its `.sentry-native/` cache no longer lands in the Cloudflare One WARP install tree
+- Sandbox `HOME` and `XDG_CONFIG_HOME` in the suites that spawn the daemon — `npm run test:all` was rewriting the developer's real `~/.config/cloudflare-one-warp/config.json` and deleting their real tray autostart entry
 - Thread `env` through `describeTrayShell` into `detectCloudflareGui`, so Flatpak detection reads the caller's environment instead of the sandbox
-- Re-enable `warp-desktop-svc.service` on uninstall when ThirdFlare had taken over the desktop app, so Cloudflare One Client keeps its background service
-- Scope `--force-thirdflare` to the session: stop only the Cloudflare tray icon, leave `warp-desktop-svc` running, and put the icon back if the ThirdFlare tray fails to start
+- Re-enable `warp-desktop-svc.service` on uninstall when Cloudflare One WARP had taken over the desktop app, so Cloudflare One Client keeps its background service
+- Scope `--force-cloudflare-one-warp` to the session: stop only the Cloudflare tray icon, leave `warp-desktop-svc` running, and put the icon back if the Cloudflare One WARP tray fails to start
 
 ### Documentation
 
@@ -62,17 +68,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
-- Document every mutating route in `openapi/thirdflare-api.json`, including `POST /api/config/tray-autostart` and the shared `403` cross-site response
-- Desktop app switch: default to host Cloudflare One Client tray, or ThirdFlare One’s PyQt6 tray (`tray.shell`, `POST /api/config/tray-shell`, install `--shell`)
-- Run `warp-desktop-svc` from a ThirdFlare-managed systemd user unit when the WARP package ships none (`~/.config/systemd/user/thirdflare-warp-desktop-svc.service`)
-- Launch `warp-taskbar` and `warp-desktop-svc` on the host through `flatpak-spawn --host` when ThirdFlare One runs under Flatpak
-- Report `warp-taskbar` and `warp-desktop-svc` state in `thirdflare-one-tray --check`
+- Document every mutating route in `openapi/cloudflare-one-warp-api.json`, including `POST /api/config/tray-autostart` and the shared `403` cross-site response
+- Desktop app switch: default to host Cloudflare One Client tray, or Cloudflare One WARP’s PyQt6 tray (`tray.shell`, `POST /api/config/tray-shell`, install `--shell`)
+- Run `warp-desktop-svc` from a Cloudflare One WARP-managed systemd user unit when the WARP package ships none (`~/.config/systemd/user/cloudflare-one-warp-desktop-svc.service`)
+- Launch `warp-taskbar` and `warp-desktop-svc` on the host through `flatpak-spawn --host` when Cloudflare One WARP runs under Flatpak
+- Report `warp-taskbar` and `warp-desktop-svc` state in `cloudflare-one-warp-tray --check`
 - Linux native shell: PyQt6 tray + embedded Web UI with Cloudflare One Client–style simple layout (`/?shell=1`) and expert-mode toggle
-- Native PyQt6 system settings (`thirdflare-one-tray --settings`) for Web UI enable, HTTP port, desktop app, tray autostart, and notifications
+- Native PyQt6 system settings (`cloudflare-one-warp-tray --settings`) for Web UI enable, HTTP port, desktop app, tray autostart, and notifications
 - Web UI startup modes: API-only by default (`--no-open`, systemd); `--daemon` serves full static UI with no runtime disable toggle
 - Persist Web UI and server settings via `POST /api/config/webui`, `POST /api/config/server`, and `POST /api/config/ui`
-- First-class tray packaging: stage tray Python modules, `/usr/bin/thirdflare-one-tray`, PyQt6 recommends in deb/rpm/Fedora spec
-- Polkit-scoped kill switch: `thirdflare-nft-apply` helper + `com.thirdflare.one.policy`; GET `/api/killswitch` stays unprivileged
+- First-class tray packaging: stage tray Python modules, `/usr/bin/cloudflare-one-warp-tray`, PyQt6 recommends in deb/rpm/Fedora spec
+- Polkit-scoped kill switch: `cloudflare-one-warp-nft-apply` helper + `com.cloudflare.one.warp.policy`; GET `/api/killswitch` stays unprivileged
 - Opt-in tray autostart (`tray.autostart` config + `POST /api/config/tray-autostart`)
 - Always On (Linux) UX: kill switch labeled as Windows Always On equivalent in UI and docs
 - Recognize warp-cli `WarpProxy on port …` Mode string for app routing UI (see docs/WARP_INTERNALS.md)
@@ -88,53 +94,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - KDE launcher: single app menu entry launches native PyQt6 tray (not Firefox); removed Desktop Actions that Plasma indexed as duplicates
 - Stale daemon detection: restart API server after install or when `apiRevision`/version mismatch (fixes “Unknown API route” on Settings toggles)
 
-## [0.2.7](https://github.com/bodencrouch/thirdflare-one/compare/v0.2.6...v0.2.7) (2026-07-18)
+## [0.2.7](https://github.com/bodencrouch/cloudflare-one-warp/compare/v0.2.6...v0.2.7) (2026-07-18)
 
 
 ### Bug Fixes
 
-* **ci:** gate publish-stores jobs via check-secrets job ([e27a3db](https://github.com/bodencrouch/thirdflare-one/commit/e27a3db97b06f828d6a88ef7e47ab979845aa71d))
-* **ci:** trigger publish-stores on workflow file push ([963f156](https://github.com/bodencrouch/thirdflare-one/commit/963f15667a7878867811662fc03bef809858df96))
-* stabilize killswitch tests under sudo and enrollment pause ([d2837b2](https://github.com/bodencrouch/thirdflare-one/commit/d2837b20d2414fa71ef3d7b1e78bd6bb2213fb2c))
+* **ci:** gate publish-stores jobs via check-secrets job ([e27a3db](https://github.com/bodencrouch/cloudflare-one-warp/commit/e27a3db97b06f828d6a88ef7e47ab979845aa71d))
+* **ci:** trigger publish-stores on workflow file push ([963f156](https://github.com/bodencrouch/cloudflare-one-warp/commit/963f15667a7878867811662fc03bef809858df96))
+* stabilize killswitch tests under sudo and enrollment pause ([d2837b2](https://github.com/bodencrouch/cloudflare-one-warp/commit/d2837b20d2414fa71ef3d7b1e78bd6bb2213fb2c))
 
-## [0.2.6](https://github.com/bodencrouch/thirdflare-one/compare/v0.2.5...v0.2.6) (2026-07-18)
+## [0.2.6](https://github.com/bodencrouch/cloudflare-one-warp/compare/v0.2.5...v0.2.6) (2026-07-18)
 
 
 ### Features
 
 * add Linux store discoverability and publish automation
-* rename Flatpak app-id to `io.github.bodencrouch.ThirdFlareOne`
+* rename Flatpak app-id to `io.github.bodencrouch.CloudflareOneWarp`
 * add Flathub, Snap, Fedora COPR (Packit), AUR, and AppImageHub packaging scaffolding
 * add `publish-stores.yml` workflow and publish helper scripts
 * add [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) install matrix per channel
 
-## [0.2.4](https://github.com/bodencrouch/thirdflare-one/compare/v0.2.3...v0.2.4) (2026-07-18)
+## [0.2.4](https://github.com/bodencrouch/cloudflare-one-warp/compare/v0.2.3...v0.2.4) (2026-07-18)
 
 
 ### Bug Fixes
 
-* **ci:** disambiguate homebrew-tap branch vs Formula dir ([#13](https://github.com/bodencrouch/thirdflare-one/issues/13)) ([597b637](https://github.com/bodencrouch/thirdflare-one/commit/597b637e9796a3139f08b357fdb1ea027961829b))
+* **ci:** disambiguate homebrew-tap branch vs Formula dir ([#13](https://github.com/bodencrouch/cloudflare-one-warp/issues/13)) ([597b637](https://github.com/bodencrouch/cloudflare-one-warp/commit/597b637e9796a3139f08b357fdb1ea027961829b))
 
-## [0.2.3](https://github.com/bodencrouch/thirdflare-one/compare/v0.2.2...v0.2.3) (2026-07-18)
+## [0.2.3](https://github.com/bodencrouch/cloudflare-one-warp/compare/v0.2.2...v0.2.3) (2026-07-18)
 
 
 ### Features
 
-* **ci:** Cross-OS CI confidence + basic Account ([#12](https://github.com/bodencrouch/thirdflare-one/issues/12)) ([352a4dc](https://github.com/bodencrouch/thirdflare-one/commit/352a4dcf9e2c518a9708ec299e202deb4547add3))
-* **config:** persist kill switch desired state to user config ([#10](https://github.com/bodencrouch/thirdflare-one/issues/10)) ([8b3a6c2](https://github.com/bodencrouch/thirdflare-one/commit/8b3a6c2f6014cf7896f72df886a8a715336c2e82))
-* **killswitch:** pause nft rules during Zero Trust enrollment ([#11](https://github.com/bodencrouch/thirdflare-one/issues/11)) ([51096a7](https://github.com/bodencrouch/thirdflare-one/commit/51096a7e9b11793729db42c8784751c6cb355132))
+* **ci:** Cross-OS CI confidence + basic Account ([#12](https://github.com/bodencrouch/cloudflare-one-warp/issues/12)) ([352a4dc](https://github.com/bodencrouch/cloudflare-one-warp/commit/352a4dcf9e2c518a9708ec299e202deb4547add3))
+* **config:** persist kill switch desired state to user config ([#10](https://github.com/bodencrouch/cloudflare-one-warp/issues/10)) ([8b3a6c2](https://github.com/bodencrouch/cloudflare-one-warp/commit/8b3a6c2f6014cf7896f72df886a8a715336c2e82))
+* **killswitch:** pause nft rules during Zero Trust enrollment ([#11](https://github.com/bodencrouch/cloudflare-one-warp/issues/11)) ([51096a7](https://github.com/bodencrouch/cloudflare-one-warp/commit/51096a7e9b11793729db42c8784751c6cb355132))
 
 
 ### Bug Fixes
 
-* **ci:** chain Package from Release Please via workflow_call ([#8](https://github.com/bodencrouch/thirdflare-one/issues/8)) ([20c7a8b](https://github.com/bodencrouch/thirdflare-one/commit/20c7a8b95a876a3807cadd679bd00e88ca43fb34))
+* **ci:** chain Package from Release Please via workflow_call ([#8](https://github.com/bodencrouch/cloudflare-one-warp/issues/8)) ([20c7a8b](https://github.com/bodencrouch/cloudflare-one-warp/commit/20c7a8b95a876a3807cadd679bd00e88ca43fb34))
 
-## [0.2.2](https://github.com/bodencrouch/thirdflare-one/compare/v0.2.1...v0.2.2) (2026-07-18)
+## [0.2.2](https://github.com/bodencrouch/cloudflare-one-warp/compare/v0.2.1...v0.2.2) (2026-07-18)
 
 
 ### Features
 
-* Account enrollment, kill switch, tips, and update comboboxes ([#6](https://github.com/bodencrouch/thirdflare-one/issues/6)) ([79f0886](https://github.com/bodencrouch/thirdflare-one/commit/79f0886b0d8c9cafe30ae0985897f3dbf123d5d5))
+* Account enrollment, kill switch, tips, and update comboboxes ([#6](https://github.com/bodencrouch/cloudflare-one-warp/issues/6)) ([79f0886](https://github.com/bodencrouch/cloudflare-one-warp/commit/79f0886b0d8c9cafe30ae0985897f3dbf123d5d5))
 
 ## [0.2.1](https://github.com/bodencrouch/cloudflare-one-gui-linux/compare/v0.2.0...v0.2.1) (2026-07-17)
 
@@ -149,14 +155,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ⚠ BREAKING CHANGES
 
-* rebrand project to ThirdFlare
+* rebrand project to Cloudflare One WARP
 
 ### Features
 
 * add CI/CD, WARP tests, packaging, GHCR, and Homebrew tap ([ba07197](https://github.com/bodencrouch/cloudflare-one-gui-linux/commit/ba071971c68c1f1ac44b446bb2111f7de481d2b4))
 * add i18n, tooltips, and release-synced updates ([163ff94](https://github.com/bodencrouch/cloudflare-one-gui-linux/commit/163ff94e472733ac543a152533a0a7293026d5bc))
-* rebrand project to ThirdFlare ([3ac222d](https://github.com/bodencrouch/cloudflare-one-gui-linux/commit/3ac222d2385c73478322ee1175a8336fa25ae362))
-* ThirdFlare One rebrand, i18n, and release-synced updates ([54076a7](https://github.com/bodencrouch/cloudflare-one-gui-linux/commit/54076a79c34e861877a844cb59baea6b3e646585))
+* rebrand project to Cloudflare One WARP ([3ac222d](https://github.com/bodencrouch/cloudflare-one-gui-linux/commit/3ac222d2385c73478322ee1175a8336fa25ae362))
+* Cloudflare One WARP rebrand, i18n, and release-synced updates ([54076a7](https://github.com/bodencrouch/cloudflare-one-gui-linux/commit/54076a79c34e861877a844cb59baea6b3e646585))
 
 
 ### Bug Fixes

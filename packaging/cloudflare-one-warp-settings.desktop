@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Cloudflare One WARP Settings
+Comment=Configure Cloudflare One WARP Web UI, port, and tray preferences
+Exec=cloudflare-one-warp-tray --settings
+Icon=cloudflare-one-warp
+Terminal=false
+Categories=Settings;Network;
+Keywords=Cloudflare;WARP;Cloudflare One WARP;Settings;Preferences;
+StartupNotify=true
+NoDisplay=false

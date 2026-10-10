@@ -29,13 +29,13 @@ sign_appimages() {
     return 0
   fi
 
-  if [[ -n "${THIRDFLARE_SIGNING_KEY_PEM:-}" ]]; then
+  if [[ -n "${CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM:-}" ]]; then
     key_file="$(mktemp)"
     chmod 600 "$key_file"
-    printf '%s\n' "$THIRDFLARE_SIGNING_KEY_PEM" > "$key_file"
+    printf '%s\n' "$CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM" > "$key_file"
     cleanup_key=1
-  elif [[ -n "${THIRDFLARE_SIGNING_KEY:-}" ]]; then
-    key_file="${THIRDFLARE_SIGNING_KEY}"
+  elif [[ -n "${CLOUDFLARE_ONE_WARP_SIGNING_KEY:-}" ]]; then
+    key_file="${CLOUDFLARE_ONE_WARP_SIGNING_KEY}"
   fi
 
   if [[ -n "$key_file" ]]; then
@@ -49,11 +49,11 @@ sign_appimages() {
   done
 
   if (( ${#missing[@]} )); then
-    if [[ "${THIRDFLARE_ALLOW_UNSIGNED:-0}" == "1" ]]; then
+    if [[ "${CLOUDFLARE_ONE_WARP_ALLOW_UNSIGNED:-0}" == "1" ]]; then
       echo "WARNING: unsigned AppImage(s): ${missing[*]} — clients will refuse to self-update from this build." >&2
     else
       echo "ERROR: no release signature for: ${missing[*]}" >&2
-      echo "Set THIRDFLARE_SIGNING_KEY(_PEM) to sign, or THIRDFLARE_ALLOW_UNSIGNED=1 for a local build." >&2
+      echo "Set CLOUDFLARE_ONE_WARP_SIGNING_KEY(_PEM) to sign, or CLOUDFLARE_ONE_WARP_ALLOW_UNSIGNED=1 for a local build." >&2
       return 1
     fi
   fi

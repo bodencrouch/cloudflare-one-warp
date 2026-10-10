@@ -1,17 +1,17 @@
-# Packit — build thirdflare-one RPMs in COPR on release.
+# Packit — build cloudflare-one-warp RPMs in COPR on release.
 # https://packit.dev/docs/configuration/
 #
 # One-time: enable Packit on the GitHub repo and create COPR project
-# bodencrouch/thirdflare-one
+# bodencrouch/cloudflare-one-warp
 
-upstream_project_url: https://github.com/bodencrouch/thirdflare-one
-upstream_package_name: thirdflare-one
-downstream_package_name: thirdflare-one
-specfile_path: packaging/fedora/thirdflare-one.spec
+upstream_project_url: https://github.com/bodencrouch/cloudflare-one-warp
+upstream_package_name: cloudflare-one-warp
+downstream_package_name: cloudflare-one-warp
+specfile_path: packaging/fedora/cloudflare-one-warp.spec
 
 actions:
   create-archive:
-    - bash -c 'export PACKAGE_VERSION=$(node -p "require(\"./package.json\").version"); bash packaging/scripts/build-source.sh; cp dist/packages/thirdflare-one-${PACKAGE_VERSION}-src.tar.gz ./thirdflare-one-${PACKAGE_VERSION}.tar.gz'
+    - bash -c 'export PACKAGE_VERSION=$(node -p "require(\"./package.json\").version"); bash packaging/scripts/build-source.sh; cp dist/packages/cloudflare-one-warp-${PACKAGE_VERSION}-src.tar.gz ./cloudflare-one-warp-${PACKAGE_VERSION}.tar.gz'
   get-current-version:
     - node -p "require('./package.json').version"
 
@@ -22,4 +22,4 @@ jobs:
       targets:
         - fedora-all
       owner: bodencrouch
-      project: thirdflare-one
+      project: cloudflare-one-warp

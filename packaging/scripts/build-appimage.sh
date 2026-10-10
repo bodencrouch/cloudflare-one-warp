@@ -24,15 +24,15 @@ tmpdir="$(mktemp -d)"
 curl --connect-timeout 30 --max-time 600 -fsSL "$node_url" -o "${tmpdir}/${node_tarball}"
 echo "${node_sha256}  ${node_tarball}" | (cd "$tmpdir" && sha256sum -c -)
 tar -xJf "${tmpdir}/${node_tarball}" -C "$tmpdir"
-mkdir -p "${APPDIR}/usr/lib/thirdflare/runtime"
-mv "${tmpdir}/node-v${NODE_VERSION}-linux-x64" "${APPDIR}/usr/lib/thirdflare/runtime/node"
+mkdir -p "${APPDIR}/usr/lib/cloudflare-one-warp/runtime"
+mv "${tmpdir}/node-v${NODE_VERSION}-linux-x64" "${APPDIR}/usr/lib/cloudflare-one-warp/runtime/node"
 rm -rf "$tmpdir"
 
 install -m 0755 "${ROOT}/packaging/appimage/AppRun" "${APPDIR}/AppRun"
-install -m 0644 "${ROOT}/packaging/thirdflare-one.desktop" "${APPDIR}/thirdflare-one.desktop"
-sed -i 's|^Exec=.*|Exec=thirdflare-one-tray|' "${APPDIR}/thirdflare-one.desktop"
-install -m 0644 "${ROOT}/assets/thirdflare.svg" "${APPDIR}/thirdflare.svg"
-ln -sf thirdflare.svg "${APPDIR}/.DirIcon"
+install -m 0644 "${ROOT}/packaging/cloudflare-one-warp.desktop" "${APPDIR}/cloudflare-one-warp.desktop"
+sed -i 's|^Exec=.*|Exec=cloudflare-one-warp-tray|' "${APPDIR}/cloudflare-one-warp.desktop"
+install -m 0644 "${ROOT}/assets/cloudflare-one-warp.svg" "${APPDIR}/cloudflare-one-warp.svg"
+ln -sf cloudflare-one-warp.svg "${APPDIR}/.DirIcon"
 
 tool_dir="$(mktemp -d)"
   curl --connect-timeout 30 --max-time 300 -fsSL -o "${tool_dir}/appimagetool" \
@@ -50,8 +50,8 @@ fi
 
 export ARCH
 export VERSION
-rm -f "${OUT}/thirdflare-${VERSION}-${ARCH}.AppImage"
-"$APPIMAGETOOL" "$APPDIR" "${OUT}/thirdflare-${VERSION}-${ARCH}.AppImage"
-chmod +x "${OUT}/thirdflare-${VERSION}-${ARCH}.AppImage"
+rm -f "${OUT}/cloudflare-one-warp-${VERSION}-${ARCH}.AppImage"
+"$APPIMAGETOOL" "$APPDIR" "${OUT}/cloudflare-one-warp-${VERSION}-${ARCH}.AppImage"
+chmod +x "${OUT}/cloudflare-one-warp-${VERSION}-${ARCH}.AppImage"
 rm -rf "$tool_dir"
-echo "Built ${OUT}/thirdflare-${VERSION}-${ARCH}.AppImage"
+echo "Built ${OUT}/cloudflare-one-warp-${VERSION}-${ARCH}.AppImage"

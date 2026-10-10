@@ -1,9 +1,9 @@
 import { apiFetch } from "./api-client.js";
 import { t } from "./i18n.js";
 
-export const LOG_WIDGET_HEIGHT_KEY = "thirdflare-log-height";
-export const LOG_WIDGET_COLLAPSED_KEY = "thirdflare-log-collapsed";
-export const LOG_WIDGET_TAB_KEY = "thirdflare-log-tab";
+export const LOG_WIDGET_HEIGHT_KEY = "cloudflare-one-warp-log-height";
+export const LOG_WIDGET_COLLAPSED_KEY = "cloudflare-one-warp-log-collapsed";
+export const LOG_WIDGET_TAB_KEY = "cloudflare-one-warp-log-tab";
 export const STATUS_LINES_CAP = 1000;
 
 export function createDefaultLogWidgetState() {

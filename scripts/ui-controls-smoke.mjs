@@ -18,7 +18,7 @@ const systemChrome = ["/usr/bin/chromium-browser", "/usr/bin/chromium", "/usr/bi
   (p) => existsSync(p)
 );
 
-const xdgRoot = await mkdtemp(join(tmpdir(), "tf-ui-xdg-"));
+const xdgRoot = await mkdtemp(join(tmpdir(), "cf-one-warp-ui-xdg-"));
 const appsDir = join(xdgRoot, "applications");
 await mkdir(appsDir, { recursive: true });
 await writeFile(
@@ -40,11 +40,11 @@ const child = spawn(process.execPath, ["server.js"], {
     ...process.env,
     PORT: String(port),
     WARP_CLI: mockWarp,
-    THIRDFLARE_WEBUI: "1",
-    THIRDFLARE_NOTIFICATIONS: "0",
-    THIRDFLARE_NFT_NO_PKEXEC: "1",
-    THIRDFLARE_TRAY_SKIP_SYSTEMD: "1",
-    THIRDFLARE_TRAY_LIVE: "0",
+    CLOUDFLARE_ONE_WARP_WEBUI: "1",
+    CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0",
+    CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1",
+    CLOUDFLARE_ONE_WARP_TRAY_SKIP_SYSTEMD: "1",
+    CLOUDFLARE_ONE_WARP_TRAY_LIVE: "0",
     XDG_DATA_DIRS: xdgRoot,
     HOME: xdgRoot,
     MOCK_WARP_STATE: join(root, ".tmp-mock-warp-ui-controls.json")
@@ -69,7 +69,7 @@ async function bootExpertPage(browser) {
   const page = await browser.newPage();
   page.on("dialog", (dialog) => dialog.accept());
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await page.evaluate(() => localStorage.setItem("thirdflare-ui-expert", "1"));
+  await page.evaluate(() => localStorage.setItem("cloudflare-one-warp-ui-expert", "1"));
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator("[data-testid='log-dock']").waitFor({ timeout: 20000 });
   return page;

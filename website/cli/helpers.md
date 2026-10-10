@@ -6,7 +6,7 @@ Scripts shipped under `scripts/` and `packaging/`. Invoked directly or via npm.
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/install-local.sh` | User install (called by `thirdflare-one install`) |
+| `scripts/install-local.sh` | User install (called by `cloudflare-one-warp install`) |
 | `scripts/verify-local-install.sh` | Post-install smoke |
 | `scripts/daemon-ready.mjs` | Wait for `/api/health` |
 | `scripts/mock-warp-cli.mjs` | Stateful mock for CI |
@@ -15,17 +15,17 @@ Scripts shipped under `scripts/` and `packaging/`. Invoked directly or via npm.
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/thirdflare-nm` | List/import/connect NM profiles |
-| `scripts/thirdflare-warp-connect` | Connect via NM profile name |
-| `scripts/thirdflare-kde-proxy-sync` | Sync system proxy from local proxy settings |
+| `scripts/cloudflare-one-warp-nm` | List/import/connect NM profiles |
+| `scripts/cloudflare-one-warp-connect` | Connect via NM profile name |
+| `scripts/cloudflare-one-warp-kde-proxy-sync` | Sync system proxy from local proxy settings |
 | `scripts/sync-nm-profiles.mjs` | Regenerate profiles from daemon config |
 
 Example:
 
 ```bash
-thirdflare-nm list
-thirdflare-nm import masque
-thirdflare-warp-connect masque
+cloudflare-one-warp-nm list
+cloudflare-one-warp-nm import masque
+cloudflare-one-warp-connect masque
 ```
 
 ## Tray

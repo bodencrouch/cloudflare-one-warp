@@ -3,8 +3,8 @@
 Install with systemd user unit:
 
 ```bash
-./thirdflare-one install --service
-systemctl --user enable --now thirdflare-one.service
+./cloudflare-one-warp install --service
+systemctl --user enable --now cloudflare-one-warp.service
 ```
 
 ## Default posture
@@ -13,15 +13,15 @@ The packaged unit runs **API-only** (Web UI off). Enable UI via config file or d
 
 ```ini
 [Service]
-Environment=THIRDFLARE_WEBUI=1
+Environment=CLOUDFLARE_ONE_WARP_WEBUI=1
 ```
 
 ## Commands
 
 ```bash
-systemctl --user status thirdflare-one.service
-journalctl --user -u thirdflare-one.service -f
-systemctl --user restart thirdflare-one.service
+systemctl --user status cloudflare-one-warp.service
+journalctl --user -u cloudflare-one-warp.service -f
+systemctl --user restart cloudflare-one-warp.service
 ```
 
 ## Health

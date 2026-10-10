@@ -5,7 +5,7 @@ From repository root (`package.json`):
 ## Development
 
 ```bash
-npm run dev              # server with THIRDFLARE_WEBUI=1
+npm run dev              # server with CLOUDFLARE_ONE_WARP_WEBUI=1
 npm run check            # syntax check all modules + UI
 ```
 
@@ -33,4 +33,4 @@ npm run package:deb
 # see docs/PACKAGING.md in repo for full matrix
 ```
 
-Prefer `./thirdflare-one test all` as the operator-facing alias for contributors.
+Prefer `./cloudflare-one-warp test all` as the operator-facing alias for contributors.

@@ -15,23 +15,23 @@ If unregistered:
 warp-cli registration new
 ```
 
-## 2. Install ThirdFlare One
+## 2. Install Cloudflare One WARP
 
 ```bash
-./thirdflare-one install
-thirdflare --version
+./cloudflare-one-warp install
+cloudflare-one-warp --version
 ```
 
 ## 3. Start the client
 
 ```bash
-thirdflare
+cloudflare-one-warp
 ```
 
 Or API-only:
 
 ```bash
-thirdflare --no-open
+cloudflare-one-warp --no-open
 ```
 
 ## 4. Connect
@@ -39,7 +39,7 @@ thirdflare --no-open
 From CLI:
 
 ```bash
-thirdflare --connect
+cloudflare-one-warp --connect
 ```
 
 From API:
@@ -47,7 +47,7 @@ From API:
 ```bash
 curl -X POST http://127.0.0.1:4173/api/action \
   -H 'Content-Type: application/json' \
-  -H "x-thirdflare-session: $(cat ~/.config/thirdflare/session-4173.token)" \
+  -H "x-cloudflare-one-warp-session: $(cat ~/.config/cloudflare-one-warp/session-4173.token)" \
   -d '{"action":"connect"}'
 ```
 
@@ -56,7 +56,7 @@ From UI: use the connect toggle in the native panel or Web UI.
 ## 5. Confirm
 
 ```bash
-thirdflare --warp-status
+cloudflare-one-warp --warp-status
 curl -s http://127.0.0.1:4173/api/snapshot | jq '.status'
 ```
 

@@ -1,16 +1,16 @@
 # Distribution channels
 
-ThirdFlare One ships through several channels. See [DISTRIBUTION](https://github.com/bodencrouch/thirdflare-one/blob/main/docs/DISTRIBUTION.md) in the repo for maintainer details.
+Cloudflare One WARP ships through several channels. See [DISTRIBUTION](https://github.com/bodencrouch/cloudflare-one-warp/blob/main/docs/DISTRIBUTION.md) in the repo for maintainer details.
 
 ## Build from source
 
 ```bash
-./thirdflare-one build appimage   # single-file Linux binary
-./thirdflare-one build deb
-./thirdflare-one build rpm
-./thirdflare-one build flatpak
-./thirdflare-one build snap
-./thirdflare-one build all          # staged artifacts under packaging/dist/
+./cloudflare-one-warp build appimage   # single-file Linux binary
+./cloudflare-one-warp build deb
+./cloudflare-one-warp build rpm
+./cloudflare-one-warp build flatpak
+./cloudflare-one-warp build snap
+./cloudflare-one-warp build all          # staged artifacts under packaging/dist/
 ```
 
 ## Channels
@@ -27,8 +27,8 @@ ThirdFlare One ships through several channels. See [DISTRIBUTION](https://github
 
 ## npm package
 
-The repo publishes the `thirdflare` npm package name for programmatic installs; primary UX remains the native CLI launchers above.
+The repo publishes the `cloudflare-one-warp` npm package name for programmatic installs; primary UX remains the native CLI launchers above.
 
 ## WARP prerequisite
 
-Every channel assumes **warp-cli** is installed and registered on the host. ThirdFlare One does not bundle the Cloudflare daemon.
+Every channel assumes **warp-cli** is installed and registered on the host. Cloudflare One WARP does not bundle the Cloudflare daemon.

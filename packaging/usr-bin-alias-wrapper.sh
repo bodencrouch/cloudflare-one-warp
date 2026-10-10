@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec /usr/lib/thirdflare/bin/thirdflare "$@"
+exec /usr/lib/cloudflare-one-warp/bin/cloudflare-one-warp "$@"

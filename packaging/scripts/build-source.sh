@@ -9,7 +9,7 @@ mkdir -p "$OUT"
 export PACKAGE_VERSION="$VERSION"
 bash "${ROOT}/packaging/scripts/stage-payload.sh"
 
-tar -C "${ROOT}/dist/payload" -czf "${OUT}/thirdflare-one-${VERSION}.tar.gz" .
+tar -C "${ROOT}/dist/payload" -czf "${OUT}/cloudflare-one-warp-${VERSION}.tar.gz" .
 # Source tree for AUR / manual builds.
 tar -C "$ROOT" \
   --exclude='.git' \
@@ -20,8 +20,8 @@ tar -C "$ROOT" \
   --exclude='packaging/flatpak/repo' \
   --exclude='packaging/flatpak/build' \
   --exclude='*.AppImage' \
-  -czf "${OUT}/thirdflare-one-${VERSION}-src.tar.gz" \
+  -czf "${OUT}/cloudflare-one-warp-${VERSION}-src.tar.gz" \
   server.js package.json LICENSE README.md CHANGELOG.md AGENTS.md \
-  lib config public assets bin scripts packaging docs thirdflare-one
+  lib config public assets bin scripts packaging docs cloudflare-one-warp
 
 echo "Built source archives in ${OUT}"

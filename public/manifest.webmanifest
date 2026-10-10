@@ -1,5 +1,5 @@
 {
-  "name": "ThirdFlare One",
+  "name": "Cloudflare One WARP",
   "short_name": "TF One",
   "description": "Unofficial cross-platform Cloudflare One client backed by warp-cli.",
   "start_url": "/",

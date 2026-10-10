@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-const packagedPath = fileURLToPath(new URL("../packaging/thirdflare-one.service", import.meta.url));
+const packagedPath = fileURLToPath(new URL("../packaging/cloudflare-one-warp.service", import.meta.url));
 const installScriptPath = fileURLToPath(new URL("../scripts/install-local.sh", import.meta.url));
 
 function parseUnit(text) {
@@ -44,9 +44,9 @@ const units = {
 
 const requiredService = {
   ProtectSystem: "strict",
-  ConfigurationDirectory: "thirdflare",
+  ConfigurationDirectory: "cloudflare-one-warp",
   ConfigurationDirectoryMode: "0700",
-  CacheDirectory: "thirdflare",
+  CacheDirectory: "cloudflare-one-warp",
   CacheDirectoryMode: "0700",
   RestrictSUIDSGID: "true",
   RestrictNamespaces: "true",

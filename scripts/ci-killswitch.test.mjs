@@ -54,11 +54,11 @@ test("disable script destroys or deletes the table", () => {
 });
 
 test("persistUserKillSwitch writes user config and survives reload via HOME", () => {
-  const root = mkdtempSync(join(tmpdir(), "tf-ks-persist-"));
-  const userPath = join(root, ".config", "thirdflare", "config.json");
-  mkdirSync(join(root, ".config", "thirdflare"), { recursive: true });
+  const root = mkdtempSync(join(tmpdir(), "cf-one-warp-ks-persist-"));
+  const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
+  mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ ui: { locale: "en" } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root, THIRDFLARE_NOTIFICATIONS: "0" };
+  const env = { ...process.env, HOME: root, CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0" };
 
   try {
     clearSessionOverrides();
@@ -104,7 +104,7 @@ test("probeKillSwitchActive is read-only and does not escalate to pkexec", async
 });
 
 test("beginEnrollmentPause is no-op when kill switch not desired", async () => {
-  const env = { ...process.env, THIRDFLARE_NFT_NO_PKEXEC: "1" };
+  const env = { ...process.env, CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1" };
 
   try {
     clearSessionOverrides();

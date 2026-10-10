@@ -19,9 +19,9 @@ const python =
     ? "python3"
     : null;
 
-// The tray resolves the credential from $HOME/.config/thirdflare, so give the
+// The tray resolves the credential from $HOME/.config/cloudflare-one-warp, so give the
 // daemon and the client a throwaway home instead of the developer's own config.
-const home = mkdtempSync(join(tmpdir(), "tf-tray-home-"));
+const home = mkdtempSync(join(tmpdir(), "cf-one-warp-tray-home-"));
 
 function startDaemon() {
   return spawn(process.execPath, ["server.js"], {
@@ -30,11 +30,11 @@ function startDaemon() {
       ...process.env,
       HOME: home,
       PORT: String(port),
-      THIRDFLARE_PORT: String(port),
+      CLOUDFLARE_ONE_WARP_PORT: String(port),
       WARP_CLI: join(root, "scripts/mock-warp-cli.mjs"),
-      THIRDFLARE_WEBUI: "0",
-      THIRDFLARE_NOTIFICATIONS: "0",
-      THIRDFLARE_NFT_NO_PKEXEC: "1",
+      CLOUDFLARE_ONE_WARP_WEBUI: "0",
+      CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0",
+      CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1",
       MOCK_WARP_STATE: join(home, "mock-warp.json")
     },
     stdio: "ignore"
@@ -57,9 +57,9 @@ async function waitHealth() {
 const trayScript = `
 import json, sys
 sys.path.insert(0, ${JSON.stringify(join(root, "scripts"))})
-from tray_api import ThirdFlareClient, session_token_path
+from tray_api import CloudflareOneWarpClient, session_token_path
 
-client = ThirdFlareClient()
+client = CloudflareOneWarpClient()
 out = {"port": client.base_port, "token_file": session_token_path(client.base_port)}
 out["session"] = bool(client.load_session())
 out["action"] = client.action("disconnect").get("ok")
@@ -93,13 +93,13 @@ test("tray client authenticates mutations and recovers from a stale credential",
   const result = spawnSync(python, ["-c", trayScript], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, HOME: home, THIRDFLARE_PORT: String(port) }
+    env: { ...process.env, HOME: home, CLOUDFLARE_ONE_WARP_PORT: String(port) }
   });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   const payload = JSON.parse(result.stdout.trim().split("\n").pop());
 
   assert.equal(payload.port, port);
-  assert.equal(payload.token_file, join(home, ".config/thirdflare", `session-${port}.token`));
+  assert.equal(payload.token_file, join(home, ".config/cloudflare-one-warp", `session-${port}.token`));
   assert.equal(payload.session, true, "tray could not read the session credential");
   assert.equal(payload.action, true, "tray mutation was refused");
   assert.notEqual(payload.bodyless, "json_required", "tray sent a mutation the daemon rejected as non-JSON");

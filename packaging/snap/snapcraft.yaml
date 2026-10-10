@@ -1,27 +1,27 @@
-name: thirdflare-one
+name: cloudflare-one-warp
 base: core24
 version: '0.1.0'
-summary: ThirdFlare One — unofficial Cloudflare One client
+summary: Cloudflare One WARP — unofficial Cloudflare One client
 description: |
-  ThirdFlare One wraps the host Cloudflare WARP client (warp-cli) with a local API
+  Cloudflare One WARP wraps the host Cloudflare WARP client (warp-cli) with a local API
   and optional browser UI. Classic confinement is required so the snap can reach
   host warp-cli and the WARP daemon. Install Cloudflare WARP separately:
   https://developers.cloudflare.com/warp-client/get-started/linux/
 grade: stable
 confinement: classic
 license: MIT
-website: https://github.com/bodencrouch/thirdflare-one
-source-code: https://github.com/bodencrouch/thirdflare-one
-contact: https://github.com/bodencrouch/thirdflare-one/issues
+website: https://github.com/bodencrouch/cloudflare-one-warp
+source-code: https://github.com/bodencrouch/cloudflare-one-warp
+contact: https://github.com/bodencrouch/cloudflare-one-warp/issues
 
 apps:
-  thirdflare-one:
-    command: bin/thirdflare-one
-    desktop: share/applications/thirdflare-one.desktop
-    common-id: thirdflare-one
+  cloudflare-one-warp:
+    command: bin/cloudflare-one-warp
+    desktop: share/applications/cloudflare-one-warp.desktop
+    common-id: cloudflare-one-warp
 
 parts:
-  thirdflare-one:
+  cloudflare-one-warp:
     plugin: nil
     source: .
     source-type: local
@@ -29,40 +29,40 @@ parts:
       - rsync
     override-build: |
       set -euo pipefail
-      install -d "$CRAFT_PART_INSTALL/usr/lib/thirdflare"
+      install -d "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp"
       rsync -a \
         --exclude '.git' \
         --exclude 'dist' \
         --exclude 'node_modules' \
         --exclude 'agentdecompile_projects' \
         --exclude 'packaging/flatpak' \
-        "$CRAFT_PART_SRC/" "$CRAFT_PART_INSTALL/usr/lib/thirdflare/"
+        "$CRAFT_PART_SRC/" "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/"
       rm -rf \
-        "$CRAFT_PART_INSTALL/usr/lib/thirdflare/packaging" \
-        "$CRAFT_PART_INSTALL/usr/lib/thirdflare/docs" \
-        "$CRAFT_PART_INSTALL/usr/lib/thirdflare/.github" \
-        "$CRAFT_PART_INSTALL/usr/lib/thirdflare/AGENTS.md"
+        "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/packaging" \
+        "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/docs" \
+        "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/.github" \
+        "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/AGENTS.md"
       install -d "$CRAFT_PART_INSTALL/bin" "$CRAFT_PART_INSTALL/share/applications" \
         "$CRAFT_PART_INSTALL/share/icons/hicolor/scalable/apps"
-      cat > "$CRAFT_PART_INSTALL/bin/thirdflare-one" <<'EOF'
+      cat > "$CRAFT_PART_INSTALL/bin/cloudflare-one-warp" <<'EOF'
       #!/bin/bash
-      exec "$SNAP/usr/lib/thirdflare/bin/thirdflare" "$@"
+      exec "$SNAP/usr/lib/cloudflare-one-warp/bin/cloudflare-one-warp" "$@"
       EOF
-      chmod 0755 "$CRAFT_PART_INSTALL/bin/thirdflare-one"
-      chmod 0755 "$CRAFT_PART_INSTALL/usr/lib/thirdflare/bin/"*
-      chmod 0755 "$CRAFT_PART_INSTALL/usr/lib/thirdflare/scripts/"*.py 2>/dev/null || true
-      chmod 0755 "$CRAFT_PART_INSTALL/usr/lib/thirdflare/scripts/thirdflare-nft-apply" 2>/dev/null || true
-      cat > "$CRAFT_PART_INSTALL/bin/thirdflare-one-tray" <<'EOF'
+      chmod 0755 "$CRAFT_PART_INSTALL/bin/cloudflare-one-warp"
+      chmod 0755 "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/bin/"*
+      chmod 0755 "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/scripts/"*.py 2>/dev/null || true
+      chmod 0755 "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/scripts/cloudflare-one-warp-nft-apply" 2>/dev/null || true
+      cat > "$CRAFT_PART_INSTALL/bin/cloudflare-one-warp-tray" <<'EOF'
       #!/bin/bash
-      exec "$SNAP/usr/lib/thirdflare/bin/thirdflare-tray" "$@"
+      exec "$SNAP/usr/lib/cloudflare-one-warp/bin/cloudflare-one-warp-tray" "$@"
       EOF
-      chmod 0755 "$CRAFT_PART_INSTALL/bin/thirdflare-one-tray"
-      install -Dm644 "$CRAFT_PART_SRC/packaging/polkit/com.thirdflare.one.policy" \
-        "$CRAFT_PART_INSTALL/share/polkit-1/actions/com.thirdflare.one.policy"
-      install -m 0644 "$CRAFT_PART_SRC/packaging/thirdflare-one.desktop" \
-        "$CRAFT_PART_INSTALL/share/applications/thirdflare-one.desktop"
-      install -m 0644 "$CRAFT_PART_SRC/assets/thirdflare.svg" \
-        "$CRAFT_PART_INSTALL/share/icons/hicolor/scalable/apps/thirdflare.svg"
+      chmod 0755 "$CRAFT_PART_INSTALL/bin/cloudflare-one-warp-tray"
+      install -Dm644 "$CRAFT_PART_SRC/packaging/polkit/com.cloudflare.one.warp.policy" \
+        "$CRAFT_PART_INSTALL/share/polkit-1/actions/com.cloudflare.one.warp.policy"
+      install -m 0644 "$CRAFT_PART_SRC/packaging/cloudflare-one-warp.desktop" \
+        "$CRAFT_PART_INSTALL/share/applications/cloudflare-one-warp.desktop"
+      install -m 0644 "$CRAFT_PART_SRC/assets/cloudflare-one-warp.svg" \
+        "$CRAFT_PART_INSTALL/share/icons/hicolor/scalable/apps/cloudflare-one-warp.svg"
     stage-packages:
       - nodejs
       - python3-pyqt6

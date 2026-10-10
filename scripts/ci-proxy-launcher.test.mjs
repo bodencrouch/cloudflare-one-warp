@@ -23,7 +23,7 @@ test("sanitizeExec strips desktop field codes", () => {
 });
 
 test("listDesktopApps reads XDG applications", xdgOnly, async () => {
-  const root = await mkdtemp(join(tmpdir(), "tf-apps-"));
+  const root = await mkdtemp(join(tmpdir(), "cf-one-warp-apps-"));
   const appsDir = join(root, "applications");
   await mkdir(appsDir, { recursive: true });
   await writeFile(
@@ -44,7 +44,7 @@ Icon=demo
 });
 
 test("createProxyLauncher writes script and desktop entry", xdgOnly, async () => {
-  const root = await mkdtemp(join(tmpdir(), "tf-launch-"));
+  const root = await mkdtemp(join(tmpdir(), "cf-one-warp-launch-"));
   const appsDir = join(root, "share", "applications");
   await mkdir(appsDir, { recursive: true });
   await writeFile(

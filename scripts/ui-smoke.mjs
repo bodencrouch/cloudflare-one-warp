@@ -24,11 +24,11 @@ const child = spawn(process.execPath, ["server.js"], {
     ...process.env,
     PORT: String(port),
     WARP_CLI: mockWarp,
-    THIRDFLARE_WEBUI: "1",
-    THIRDFLARE_NOTIFICATIONS: "0",
-    THIRDFLARE_NFT_NO_PKEXEC: "1",
-    THIRDFLARE_TRAY_SKIP_SYSTEMD: "1",
-    THIRDFLARE_TRAY_LIVE: "0",
+    CLOUDFLARE_ONE_WARP_WEBUI: "1",
+    CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0",
+    CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1",
+    CLOUDFLARE_ONE_WARP_TRAY_SKIP_SYSTEMD: "1",
+    CLOUDFLARE_ONE_WARP_TRAY_LIVE: "0",
     MOCK_WARP_STATE: join(root, ".tmp-mock-warp-ui.json")
   },
   stdio: "ignore"
@@ -66,7 +66,7 @@ try {
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.locator("[data-testid='log-dock']").waitFor({ timeout: 20000 });
   await page.goto(`http://127.0.0.1:${port}/?shell=1`, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await page.evaluate(() => localStorage.setItem("thirdflare-ui-expert", "1"));
+  await page.evaluate(() => localStorage.setItem("cloudflare-one-warp-ui-expert", "1"));
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator("[data-testid='log-dock']").waitFor({ timeout: 20000 });
   const dockPinned = await page.evaluate(() => {

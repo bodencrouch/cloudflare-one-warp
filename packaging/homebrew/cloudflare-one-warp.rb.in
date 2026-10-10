@@ -1,0 +1,30 @@
+class CloudflareOneWarp < Formula
+  desc "Cloudflare One WARP — unofficial Cloudflare One client via warp-cli"
+  homepage "https://github.com/bodencrouch/cloudflare-one-warp"
+  url "__URL__"
+  sha256 "__SHA256__"
+  license "MIT"
+
+  depends_on "node@20"
+
+  def install
+    libexec.install "server.js", "package.json", "lib", "config", "public", "assets", "scripts", "bin", "LICENSE", "README.md"
+    (bin/"cloudflare-one-warp").write <<~EOS
+      #!/bin/bash
+      export PATH="#{Formula["node@20"].bin}:$PATH"
+      exec "#{libexec}/bin/cloudflare-one-warp" "$@"
+    EOS
+    chmod 0755, bin/"cloudflare-one-warp"
+  end
+
+  def caveats
+    <<~EOS
+      Requires Cloudflare WARP (warp-cli) installed separately on macOS.
+      Launch with: cloudflare-one-warp --no-open
+    EOS
+  end
+
+  test do
+    assert_match "Cloudflare One WARP", shell_output("#{bin}/cloudflare-one-warp --help")
+  end
+end

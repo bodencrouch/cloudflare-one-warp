@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 
-LABEL org.opencontainers.image.source="https://github.com/bodencrouch/thirdflare-one"
-LABEL org.opencontainers.image.description="CI builder image for ThirdFlare One packaging"
+LABEL org.opencontainers.image.source="https://github.com/bodencrouch/cloudflare-one-warp"
+LABEL org.opencontainers.image.description="CI builder image for Cloudflare One WARP packaging"
 
 ENV DEBIAN_FRONTEND=noninteractive
 

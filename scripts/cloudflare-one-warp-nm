@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Install ThirdFlare WARP NetworkManager profiles for KDE Plasma / NM integration.
+# Install Cloudflare One WARP NetworkManager profiles for KDE Plasma / NM integration.
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "${ROOT}/scripts/lib/common.sh"
 
-INSTALL_DIR="${THIRDFLARE_ONE_HOME:-$(thirdflare_default_install_dir)}"
+INSTALL_DIR="${CLOUDFLARE_ONE_WARP_HOME:-$(cloudflare_one_warp_default_install_dir)}"
 SCOPE="user"
 RELOAD_NM=1
 
@@ -23,7 +23,7 @@ Usage:
 Options:
   --user          Install to ~/.config/NetworkManager (default)
   --system        Install dispatcher + sysctl via pkexec (requires admin)
-  --install-dir   ThirdFlare app root (default: local install dir)
+  --install-dir   Cloudflare One WARP app root (default: local install dir)
   --no-reload     Skip nmcli reload
   -h, --help      Show help
 USAGE
@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-thirdflare_require_command node
+cloudflare_one_warp_require_command node
 if ! command -v nmcli >/dev/null 2>&1; then
   echo "NetworkManager (nmcli) is required for KDE/Plasma network integration." >&2
   exit 1
@@ -48,19 +48,19 @@ fi
 
 NM_USER_DIR="${HOME}/.config/NetworkManager/system-connections"
 NM_SHARE_DIR="${INSTALL_DIR}/packaging/networkmanager/profiles"
-DISPATCHER_SRC="${INSTALL_DIR}/packaging/networkmanager/99-thirdflare-warp"
-DISPATCHER_DST="/etc/NetworkManager/dispatcher.d/99-thirdflare-warp"
-SYSCTL_SRC="${INSTALL_DIR}/packaging/sysctl/99-thirdflare-warp.conf"
-SYSCTL_DST="/etc/sysctl.d/99-thirdflare-warp.conf"
-VPN_NAME_SRC="${INSTALL_DIR}/packaging/networkmanager/nm-thirdflare-warp-service.name"
-VPN_NAME_DST="/usr/lib/NetworkManager/VPN/nm-thirdflare-warp-service.name"
+DISPATCHER_SRC="${INSTALL_DIR}/packaging/networkmanager/99-cloudflare-one-warp"
+DISPATCHER_DST="/etc/NetworkManager/dispatcher.d/99-cloudflare-one-warp"
+SYSCTL_SRC="${INSTALL_DIR}/packaging/sysctl/99-cloudflare-one-warp.conf"
+SYSCTL_DST="/etc/sysctl.d/99-cloudflare-one-warp.conf"
+VPN_NAME_SRC="${INSTALL_DIR}/packaging/networkmanager/nm-cloudflare-one-warp-service.name"
+VPN_NAME_DST="/usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name"
 
-chmod +x "${INSTALL_DIR}/scripts/thirdflare-warp-connect" 2>/dev/null || true
-chmod +x "${INSTALL_DIR}/scripts/thirdflare-kde-proxy-sync" 2>/dev/null || true
+chmod +x "${INSTALL_DIR}/scripts/cloudflare-one-warp-connect" 2>/dev/null || true
+chmod +x "${INSTALL_DIR}/scripts/cloudflare-one-warp-kde-proxy-sync" 2>/dev/null || true
 
 echo "Generating NetworkManager profiles..."
 mkdir -p "$NM_SHARE_DIR" "$NM_USER_DIR"
-THIRDFLARE_NM_SHARE="$NM_SHARE_DIR" THIRDFLARE_NM_USER="$NM_USER_DIR" \
+CLOUDFLARE_ONE_WARP_NM_SHARE="$NM_SHARE_DIR" CLOUDFLARE_ONE_WARP_NM_USER="$NM_USER_DIR" \
   node "${INSTALL_DIR}/scripts/sync-nm-profiles.mjs"
 
 if [[ "$SCOPE" == "system" ]]; then
@@ -68,9 +68,9 @@ if [[ "$SCOPE" == "system" ]]; then
     echo "pkexec required for --system install" >&2
     exit 1
   fi
-  pkexec env THIRDFLARE_ONE_HOME="$INSTALL_DIR" bash -c "
+  pkexec env CLOUDFLARE_ONE_WARP_HOME="$INSTALL_DIR" bash -c "
     set -euo pipefail
-    install -D -m 0755 '${INSTALL_DIR}/scripts/thirdflare-warp-connect' '/usr/local/bin/thirdflare-warp-connect'
+    install -D -m 0755 '${INSTALL_DIR}/scripts/cloudflare-one-warp-connect' '/usr/local/bin/cloudflare-one-warp-connect'
     install -D -m 0755 '${DISPATCHER_SRC}' '${DISPATCHER_DST}'
     install -D -m 0644 '${SYSCTL_SRC}' '${SYSCTL_DST}'
     install -D -m 0644 '${VPN_NAME_SRC}' '${VPN_NAME_DST}'
@@ -82,14 +82,14 @@ else
 fi
 
 if [[ "$RELOAD_NM" -eq 1 ]]; then
-  for profile in "${NM_USER_DIR}"/ThirdFlare-WARP-*.nmconnection; do
+  for profile in "${NM_USER_DIR}"/Cloudflare One WARP-WARP-*.nmconnection; do
     [[ -f "$profile" ]] || continue
     nmcli connection load "$profile" >/dev/null 2>&1 || true
   done
   nmcli connection reload >/dev/null 2>&1 || true
 fi
 
-echo "ThirdFlare WARP network profiles ready."
+echo "Cloudflare One WARP network profiles ready."
 echo "  Import: System Settings → Network → + → Import VPN connection…"
-echo "  Or pick: ThirdFlare WARP (MASQUE | WireGuard | Local proxy) in the connection list."
+echo "  Or pick: Cloudflare One WARP (MASQUE | WireGuard | Local proxy) in the connection list."
 echo "  Docs: ${INSTALL_DIR}/docs/NETWORKING.md"

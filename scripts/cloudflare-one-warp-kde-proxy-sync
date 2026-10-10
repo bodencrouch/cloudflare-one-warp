@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync KDE / Plasma system proxy with ThirdFlare WARP local proxy mode.
+# Sync KDE / Plasma system proxy with Cloudflare One WARP local proxy mode.
 set -euo pipefail
 
 MODE="${1:-}"

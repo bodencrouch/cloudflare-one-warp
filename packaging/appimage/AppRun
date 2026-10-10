@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 HERE="$(dirname "$(readlink -f "$0")")"
-export PATH="${HERE}/usr/lib/thirdflare/runtime/node/bin:${PATH}"
-export THIRDFLARE_NODE="${HERE}/usr/lib/thirdflare/runtime/node/bin/node"
-exec "${HERE}/usr/bin/thirdflare" "$@"
+export PATH="${HERE}/usr/lib/cloudflare-one-warp/runtime/node/bin:${PATH}"
+export CLOUDFLARE_ONE_WARP_NODE="${HERE}/usr/lib/cloudflare-one-warp/runtime/node/bin/node"
+exec "${HERE}/usr/bin/cloudflare-one-warp" "$@"

@@ -2,7 +2,7 @@
 
 ## Project
 
-**ThirdFlare One** — unofficial third-party Cloudflare One client (`thirdflare` npm package). Wraps host `warp-cli` through a Node daemon and optional Web UI. GitHub repository: `bodencrouch/thirdflare-one`.
+**Cloudflare One WARP** — unofficial third-party Cloudflare One client (`cloudflare-one-warp` npm package). Wraps host `warp-cli` through a Node daemon and optional Web UI. GitHub repository: `bodencrouch/cloudflare-one-warp`.
 
 ## Project Structure
 
@@ -10,26 +10,26 @@
 - `lib/config.mjs` — layered configuration (system, user, env, session).
 - `lib/version.mjs` — installed semver from `package.json`.
 - `lib/update/` — GitHub/manifest update engine and AppImage apply.
-- `lib/killswitch/` — nftables kill-switch rules and privileged apply (`thirdflare-nft-apply` / polkit).
-- `lib/tray/` — XDG autostart and desktop-shell swap (`tray.autostart`, `tray.shell`: Cloudflare One Client vs ThirdFlare One tray). Default is Cloudflare One Client — host `warp-taskbar` plus `warp-desktop-svc`. On that path the daemon runs API-only and leaves notifications to Cloudflare's tray; ThirdFlare's own tray and Web UI are opt-in.
-- `scripts/tray-qt.py`, `scripts/thirdflare-nft-apply` — native shell and polkit helper.
+- `lib/killswitch/` — nftables kill-switch rules and privileged apply (`cloudflare-one-warp-nft-apply` / polkit).
+- `lib/tray/` — XDG autostart and desktop-shell swap (`tray.autostart`, `tray.shell`: Cloudflare One Client vs Cloudflare One WARP tray). Default is Cloudflare One Client — host `warp-taskbar` plus `warp-desktop-svc`. On that path the daemon runs API-only and leaves notifications to Cloudflare's tray; Cloudflare One WARP's own tray and Web UI are opt-in.
+- `scripts/tray-qt.py`, `scripts/cloudflare-one-warp-nft-apply` — native shell and polkit helper.
 - `config/config.example.json` — documented defaults.
 - `config/update-manifest.json` — stable/beta pointers for client update checks.
 - `public/` — optional Web UI (off by default for systemd daemon); `i18n.js` + `locales/`.
-- `thirdflare-one` — operator entrypoint (install, build, run, test).
-- `bin/thirdflare` — primary launcher (`bin/thirdflare-one-gui` alias).
-- `scripts/install-local.sh` — idempotent user install to `~/.local/share/thirdflare-one`.
+- `cloudflare-one-warp` — operator entrypoint (install, build, run, test).
+- `bin/cloudflare-one-warp` — primary launcher (`bin/cloudflare-one-warp-gui` alias).
+- `scripts/install-local.sh` — idempotent user install to `~/.local/share/cloudflare-one-warp`.
 - `packaging/` — FHS staging, nfpm, AppImage, Flatpak, Snap, systemd units.
 - `docs/GETTING_STARTED.md`, `docs/CONTRIBUTING.md` — user setup and contributor guides.
 - `docs/DISTRIBUTION.md` — Flathub, Snap, COPR, AUR, AppImageHub channels.
 - `docs/CONFIGURATION.md`, `docs/ARCHITECTURE.md`, `docs/PACKAGING.md`, `docs/UPDATES.md`, `docs/CI.md`.
 - `docs/STRATEGY.md` — product strategy (control-plane CI, consumer-basic Account).
 - `scripts/mock-warp-cli.mjs` — portable stateful mock for Plane M CI.
-- `openapi/thirdflare-api.json` — HTTP contract for OpenAPI checks.
+- `openapi/cloudflare-one-warp-api.json` — HTTP contract for OpenAPI checks.
 
 ## Commands
 
-- `npm run dev` — server with `THIRDFLARE_WEBUI=1`.
+- `npm run dev` — server with `CLOUDFLARE_ONE_WARP_WEBUI=1`.
 - `npm run check` — syntax including config, update modules, and UI.
 - `npm run test:integration` — mock warp-cli integration tests.
 - `npm run test:mock-warp` — stateful mock CLI unit tests.
@@ -47,13 +47,13 @@
 - `npm run test:ui` — Playwright UI smoke (mock daemon).
 - `npm run test:all` — all Plane M Node test suites (not Playwright).
 - `npm run test:warp:real` — Plane R real WARP smoke (Linux; soft-skip unless required).
-- `./thirdflare-one install` / `./thirdflare-one build appimage` — user install and packaging entrypoints.
-- `./bin/thirdflare` / `./bin/thirdflare --version` — launcher.
+- `./cloudflare-one-warp install` / `./cloudflare-one-warp build appimage` — user install and packaging entrypoints.
+- `./bin/cloudflare-one-warp` / `./bin/cloudflare-one-warp --version` — launcher.
 - `npm run package:*` — see `docs/PACKAGING.md`.
 
 ## Conventions
 
-2-space indent; `camelCase` in JS; `kebab-case` for filenames. Conventional Commits for release-please.
+2-space indent; `camelCase` in JS; `kebab-case` for filenames. Conventional Commits for clear changelogs.
 
 ## Testing
 
@@ -61,19 +61,19 @@ Run `npm run check` and `npm run test:all` before handoff. See **[docs/CI.md](do
 
 ## Learned User Preferences
 
-- Use the product name **ThirdFlare One** in user-facing docs and UI (not bare "ThirdFlare").
+- Use the product name **Cloudflare One WARP** in user-facing docs and UI (not bare "Cloudflare One WARP").
 - When asked to pick the next Compound Engineering step or continue, choose a skill/command/subagent and proceed autonomously without waiting for interactive confirmation.
 - Update-source controls should use comboboxes for the official repo and forks, not free-text fields.
 - Prefer a single state-revealing toggle for connect/disconnect-style actions over separate On/Off buttons.
 - Align tooltips and account UX with Cloudflare One documentation; avoid placeholder account UI.
 - UI polling/refreshes must preserve scroll position (do not jump the page to the top).
-- User-facing copy must use plain language; never paste prompt/planning text or “Cloudflare does not support…” lectures into the UI. Prefer ThirdFlare workarounds (e.g. app routing shortcuts) over explaining platform gaps.
+- User-facing copy must use plain language; never paste prompt/planning text or “Cloudflare does not support…” lectures into the UI. Prefer Cloudflare One WARP workarounds (e.g. app routing shortcuts) over explaining platform gaps.
 
 ## Learned Workspace Facts
 
-- GitHub repository: `bodencrouch/thirdflare-one`.
+- GitHub repository: `bodencrouch/cloudflare-one-warp`.
 - Optional Web UI is off by default; settings are layered (systemd/system defaults with provisional session and in-app overrides).
 - Packaging/CI targets include AppImage, deb, rpm, Flatpak, Snap, GHCR Docker images, and Homebrew. Required CI is Plane M (mock) on Linux/macOS/Windows; Plane R real WARP smoke is Ubuntu-only and optional — see `docs/CI.md`.
 - Native nftables kill-switch lives under `lib/killswitch/` and is exposed via `/api/killswitch`.
-- KDE Plasma / NetworkManager integration: prebuilt WARP profiles (MASQUE, WireGuard, local proxy), dispatcher hooks, and optional KDE proxy sync — see `docs/NETWORKING.md` and `scripts/thirdflare-nm`.
+- KDE Plasma / NetworkManager integration: prebuilt WARP profiles (MASQUE, WireGuard, local proxy), dispatcher hooks, and optional KDE proxy sync — see `docs/NETWORKING.md` and `scripts/cloudflare-one-warp-nm`.
 - Outstanding native gaps often tracked: self-contained native shell (Tauri/Electron or bundled Qt in AppImage), and Windows visual parity. Tray packaging and polkit kill-switch helper ship in deb/rpm/AppImage payloads as of 0.2.x.

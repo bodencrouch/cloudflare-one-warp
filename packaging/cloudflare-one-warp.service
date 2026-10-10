@@ -1,14 +1,14 @@
 [Unit]
-Description=ThirdFlare One daemon
-Documentation=https://github.com/bodencrouch/thirdflare-one
+Description=Cloudflare One WARP daemon
+Documentation=https://github.com/bodencrouch/cloudflare-one-warp
 After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/usr/lib/thirdflare
-EnvironmentFile=-/etc/default/thirdflare
-Environment=THIRDFLARE_WEBUI=0
-ExecStart=/usr/bin/env node /usr/lib/thirdflare/server.js
+WorkingDirectory=/usr/lib/cloudflare-one-warp
+EnvironmentFile=-/etc/default/cloudflare-one-warp
+Environment=CLOUDFLARE_ONE_WARP_WEBUI=0
+ExecStart=/usr/bin/env node /usr/lib/cloudflare-one-warp/server.js
 Restart=on-failure
 RestartSec=3
 
@@ -17,9 +17,9 @@ RestartSec=3
 # See docs/PACKAGING.md for why NoNewPrivileges, PrivateTmp, and
 # MemoryDenyWriteExecute are deliberately absent.
 ProtectSystem=strict
-ConfigurationDirectory=thirdflare
+ConfigurationDirectory=cloudflare-one-warp
 ConfigurationDirectoryMode=0700
-CacheDirectory=thirdflare
+CacheDirectory=cloudflare-one-warp
 CacheDirectoryMode=0700
 ReadWritePaths=-%h/.config/autostart -%h/.local/share/applications
 ReadWritePaths=-%t -/run/cloudflare-warp

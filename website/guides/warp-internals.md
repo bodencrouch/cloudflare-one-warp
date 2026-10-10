@@ -1,17 +1,17 @@
 # WARP internals
 
-How Cloudflare WARP behaves on the host and how ThirdFlare One maps it. Full maintainer notes also live in the repository as [WARP_INTERNALS.md](https://github.com/bodencrouch/thirdflare-one/blob/main/docs/WARP_INTERNALS.md).
+How Cloudflare WARP behaves on the host and how Cloudflare One WARP maps it. Full maintainer notes also live in the repository as [WARP_INTERNALS.md](https://github.com/bodencrouch/cloudflare-one-warp/blob/main/docs/WARP_INTERNALS.md).
 
 ## Components on your machine
 
 | Piece | What it does |
 |-------|----------------|
 | **warp-svc** | Cloudflare system daemon |
-| **warp-cli** | CLI that ThirdFlare executes (guarded) |
+| **warp-cli** | CLI that Cloudflare One WARP executes (guarded) |
 | **CloudflareWARP** | Tunnel interface in full-tunnel modes |
 | **127.0.0.1:40000** | Default local proxy listen in proxy mode |
 
-ThirdFlare adds a Node HTTP API, optional Web UI, PyQt6 tray, and optional NetworkManager companion profiles. It does **not** bundle or replace `warp-svc`.
+Cloudflare One WARP adds a Node HTTP API, optional Web UI, PyQt6 tray, and optional NetworkManager companion profiles. It does **not** bundle or replace `warp-svc`.
 
 ## Mode strings matter
 
@@ -23,7 +23,7 @@ ThirdFlare adds a Node HTTP API, optional Web UI, PyQt6 tray, and optional Netwo
 | `mode proxy` | **`Mode: WarpProxy on port 40000`** | `proxy` |
 | `mode doh` | `Mode: DnsOverHttps` | `doh` |
 
-ThirdFlare normalizes these in `lib/warp/settings.mjs`. If app routing stays on “Not set up yet” after enabling, the Mode line is the first thing to inspect in `/api/snapshot`.
+Cloudflare One WARP normalizes these in `lib/warp/settings.mjs`. If app routing stays on “Not set up yet” after enabling, the Mode line is the first thing to inspect in `/api/snapshot`.
 
 ## Local proxy / app routing
 
@@ -34,7 +34,7 @@ warp-cli mode proxy
 warp-cli proxy port 40000   # default
 ```
 
-ThirdFlare’s **Turn on app routing** runs MASQUE + proxy mode, then offers desktop shortcuts so you do not configure each app by hand.
+Cloudflare One WARP’s **Turn on app routing** runs MASQUE + proxy mode, then offers desktop shortcuts so you do not configure each app by hand.
 
 - MASQUE is required for proxy mode (not WireGuard).
 - UDP is not carried in WARP proxy mode.
@@ -51,9 +51,9 @@ Both appear on the Split Tunnel page; they solve different problems.
 
 ## Reference: warp-docker
 
-The [warp-docker](https://github.com/cmj2002/warp-docker) project documents running WARP in containers (GOST front-end, `NET_ADMIN`, persistent `/var/lib/cloudflare-warp`). Useful background for MASQUE and proxy chaining — ThirdFlare on a desktop uses host `warp-cli` directly instead.
+The [warp-docker](https://github.com/cmj2002/warp-docker) project documents running WARP in containers (GOST front-end, `NET_ADMIN`, persistent `/var/lib/cloudflare-warp`). Useful background for MASQUE and proxy chaining — Cloudflare One WARP on a desktop uses host `warp-cli` directly instead.
 
-## ThirdFlare command map
+## Cloudflare One WARP command map
 
 | User action | warp-cli / API |
 |-------------|----------------|

@@ -1,6 +1,6 @@
 # Install
 
-ThirdFlare One wraps the host **warp-cli** binary. Install Cloudflare WARP first, then ThirdFlare One.
+Cloudflare One WARP wraps the host **warp-cli** binary. Install Cloudflare WARP first, then Cloudflare One WARP.
 
 ## Requirements
 
@@ -13,17 +13,17 @@ ThirdFlare One wraps the host **warp-cli** binary. Install Cloudflare WARP first
 
 | Path | Best for |
 |------|----------|
-| [Quick install](/install/quick) | Clone repo and run `./thirdflare-one install` |
-| [User install](/install/local) | Idempotent install to `~/.local/share/thirdflare-one` |
+| [Quick install](/install/quick) | Clone repo and run `./cloudflare-one-warp install` |
+| [User install](/install/local) | Idempotent install to `~/.local/share/cloudflare-one-warp` |
 | [Distribution channels](/install/channels) | AppImage, deb, Flatpak, Snap, Homebrew |
 | [Verify install](/install/verify) | Smoke script after reinstall |
 
 ## After install
 
 ```bash
-thirdflare              # tray + native panel (default)
-thirdflare --no-open    # daemon only, no browser/shell
-thirdflare --status     # is the daemon running?
+cloudflare-one-warp              # tray + native panel (default)
+cloudflare-one-warp --no-open    # daemon only, no browser/shell
+cloudflare-one-warp --status     # is the daemon running?
 ```
 
-User-facing product name is always **ThirdFlare One** (not bare "ThirdFlare").
+User-facing product name is always **Cloudflare One WARP** (not bare "Cloudflare One WARP").

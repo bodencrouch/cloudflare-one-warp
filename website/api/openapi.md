@@ -1,6 +1,6 @@
 # OpenAPI
 
-Machine-readable contract: [`openapi/thirdflare-api.json`](https://github.com/bodencrouch/thirdflare-one/blob/main/openapi/thirdflare-api.json).
+Machine-readable contract: [`openapi/cloudflare-one-warp-api.json`](https://github.com/bodencrouch/cloudflare-one-warp/blob/main/openapi/cloudflare-one-warp-api.json).
 
 ## Validation
 
@@ -19,7 +19,7 @@ Example config lists port `4173`. The launcher uses the same default and may bin
 When adding routes:
 
 1. Implement handler in `server.js`
-2. Extend `openapi/thirdflare-api.json`
+2. Extend `openapi/cloudflare-one-warp-api.json`
 3. Add cases to `scripts/ci-openapi.test.mjs`
 
 ## External tools

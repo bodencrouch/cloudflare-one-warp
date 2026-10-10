@@ -9,8 +9,8 @@ while [[ -L "$_script" ]]; do
 done
 APP_DIR="$(cd -- "$(dirname -- "$_script")/.." && pwd)"
 unset _script _dir
-APP_NAME="thirdflare"
-BASE_PORT="${THIRDFLARE_PORT:-${CLOUDFLARE_ONE_GUI_PORT:-4173}}"
+APP_NAME="cloudflare-one-warp"
+BASE_PORT="${CLOUDFLARE_ONE_WARP_PORT:-${CLOUDFLARE_ONE_GUI_PORT:-4173}}"
 PORT="$BASE_PORT"
 HOST="127.0.0.1"
 URL="http://${HOST}:${PORT}"
@@ -24,14 +24,14 @@ mkdir -p "$RUNTIME_DIR" "$CACHE_DIR"
 # Prefer a bundled Node (AppImage) when present.
 if [[ -x "${APP_DIR}/runtime/node/bin/node" ]]; then
   NODE_BIN="${APP_DIR}/runtime/node/bin/node"
-elif [[ -n "${THIRDFLARE_NODE:-${CLOUDFLARE_ONE_GUI_NODE:-}}" ]]; then
-  NODE_BIN="${THIRDFLARE_NODE:-$CLOUDFLARE_ONE_GUI_NODE}"
+elif [[ -n "${CLOUDFLARE_ONE_WARP_NODE:-${CLOUDFLARE_ONE_GUI_NODE:-}}" ]]; then
+  NODE_BIN="${CLOUDFLARE_ONE_WARP_NODE:-$CLOUDFLARE_ONE_GUI_NODE}"
 else
   NODE_BIN="node"
 fi
 
 run_warp_cli() {
-  local bin="${THIRDFLARE_WARP_CLI:-${WARP_CLI:-warp-cli}}"
+  local bin="${CLOUDFLARE_ONE_WARP_WARP_CLI:-${WARP_CLI:-warp-cli}}"
   if [[ -n "${FLATPAK_ID:-}" && "$bin" == "warp-cli" ]] && command -v flatpak-spawn >/dev/null 2>&1; then
     flatpak-spawn --host -- warp-cli "$@"
   else
@@ -41,26 +41,26 @@ run_warp_cli() {
 
 usage() {
   cat <<USAGE
-ThirdFlare One — unofficial third-party Cloudflare One client
+Cloudflare One WARP — unofficial third-party Cloudflare One client
 
 Usage:
-  thirdflare                    Start the selected desktop app (Cloudflare One Client by default)
-  thirdflare --no-open          Start/reuse the daemon (API-only by default)
-  thirdflare --daemon           Start/reuse the daemon with Web UI enabled
-  thirdflare --status           Print daemon status
-  thirdflare --stop             Stop the managed daemon
-  thirdflare --warp-action       Connect or disconnect WARP via daemon API (no browser)
-  thirdflare --connect          Run warp-cli connect and open the Web UI
-  thirdflare --disconnect       Run warp-cli disconnect and open the Web UI
-  thirdflare --toggle           Connect if disconnected, otherwise disconnect (opens Web UI)
-  thirdflare --warp-status      Print warp-cli status
-  thirdflare --tray             Start the ThirdFlare One tray (PyQt6 native shell)
-  thirdflare --panel            Show the ThirdFlare One window (starts tray if needed)
-  thirdflare --version          Print ThirdFlare One version
-  thirdflare --help             Show this help
+  cloudflare-one-warp                    Start the selected desktop app (Cloudflare One Client by default)
+  cloudflare-one-warp --no-open          Start/reuse the daemon (API-only by default)
+  cloudflare-one-warp --daemon           Start/reuse the daemon with Web UI enabled
+  cloudflare-one-warp --status           Print daemon status
+  cloudflare-one-warp --stop             Stop the managed daemon
+  cloudflare-one-warp --warp-action       Connect or disconnect WARP via daemon API (no browser)
+  cloudflare-one-warp --connect          Run warp-cli connect and open the Web UI
+  cloudflare-one-warp --disconnect       Run warp-cli disconnect and open the Web UI
+  cloudflare-one-warp --toggle           Connect if disconnected, otherwise disconnect (opens Web UI)
+  cloudflare-one-warp --warp-status      Print warp-cli status
+  cloudflare-one-warp --tray             Start the Cloudflare One WARP tray (PyQt6 native shell)
+  cloudflare-one-warp --panel            Show the Cloudflare One WARP window (starts tray if needed)
+  cloudflare-one-warp --version          Print Cloudflare One WARP version
+  cloudflare-one-warp --help             Show this help
 
-Aliases: thirdflare-one, thirdflare-one-gui (same binary)
-Tray CLI: thirdflare-one-tray
+Aliases: cloudflare-one-warp, cloudflare-one-warp-gui (same binary)
+Tray CLI: cloudflare-one-warp-tray
 USAGE
 }
 
@@ -81,7 +81,7 @@ webui_health_ok() {
 }
 
 needs_webui() {
-  [[ "${THIRDFLARE_WEBUI:-0}" == "1" || "${THIRDFLARE_WEBUI:-0}" == "true" ]]
+  [[ "${CLOUDFLARE_ONE_WARP_WEBUI:-0}" == "1" || "${CLOUDFLARE_ONE_WARP_WEBUI:-0}" == "true" ]]
 }
 
 daemon_ready() {
@@ -149,8 +149,8 @@ start_server() {
     cd "$APP_DIR"
     local server_env=(
       "PORT=$PORT"
-      "THIRDFLARE_PORT=$PORT"
-      "THIRDFLARE_WEBUI=${THIRDFLARE_WEBUI:-0}"
+      "CLOUDFLARE_ONE_WARP_PORT=$PORT"
+      "CLOUDFLARE_ONE_WARP_WEBUI=${CLOUDFLARE_ONE_WARP_WEBUI:-0}"
     )
     if command -v setsid >/dev/null 2>&1; then
       nohup setsid env "${server_env[@]}" "$NODE_BIN" "$APP_DIR/server.js" >>"$LOG_FILE" 2>&1 &
@@ -167,7 +167,7 @@ start_server() {
     sleep 0.1
   done
 
-  echo "ThirdFlare One daemon did not become healthy. Log: $LOG_FILE" >&2
+  echo "Cloudflare One WARP daemon did not become healthy. Log: $LOG_FILE" >&2
   if is_running; then
     kill "$(cat "$PID_FILE")" 2>/dev/null || true
     rm -f "$PID_FILE"
@@ -179,9 +179,9 @@ stop_server() {
   if is_running; then
     kill "$(cat "$PID_FILE")"
     rm -f "$PID_FILE"
-    echo "Stopped ThirdFlare One daemon."
+    echo "Stopped Cloudflare One WARP daemon."
   else
-    echo "ThirdFlare One daemon is not running."
+    echo "Cloudflare One WARP daemon is not running."
   fi
 }
 
@@ -197,7 +197,7 @@ notify() {
   local title="$1"
   local body="$2"
   if command -v notify-send >/dev/null 2>&1; then
-    notify-send "$title" "$body" --icon="$APP_DIR/assets/thirdflare.svg" >/dev/null 2>&1 || true
+    notify-send "$title" "$body" --icon="$APP_DIR/assets/cloudflare-one-warp.svg" >/dev/null 2>&1 || true
   fi
 }
 
@@ -209,10 +209,10 @@ run_warp_action() {
   local verb="$1"
   local output
   if output="$(run_warp_cli --no-ansi --no-paginate "$verb" 2>&1)"; then
-    notify "ThirdFlare One" "warp-cli $verb completed"
+    notify "Cloudflare One WARP" "warp-cli $verb completed"
     printf '%s\n' "$output"
   else
-    notify "ThirdFlare One" "warp-cli $verb failed"
+    notify "Cloudflare One WARP" "warp-cli $verb failed"
     printf '%s\n' "$output" >&2
     return 1
   fi
@@ -237,9 +237,9 @@ case "${1:-}" in
     ;;
   --status)
     if is_running && health_ok; then
-      echo "ThirdFlare One is running at $URL"
+      echo "Cloudflare One WARP is running at $URL"
     else
-      echo "ThirdFlare One is not running."
+      echo "Cloudflare One WARP is not running."
       exit 1
     fi
     ;;
@@ -248,23 +248,23 @@ case "${1:-}" in
     ;;
   --warp-action)
     start_server >/dev/null
-    THIRDFLARE_APP_DIR="$APP_DIR" exec python3 "$APP_DIR/scripts/tray-warp-action.py"
+    CLOUDFLARE_ONE_WARP_APP_DIR="$APP_DIR" exec python3 "$APP_DIR/scripts/tray-warp-action.py"
     ;;
   --connect)
     run_warp_action connect
-    export THIRDFLARE_WEBUI=1
+    export CLOUDFLARE_ONE_WARP_WEBUI=1
     start_server
     open_gui
     ;;
   --disconnect)
     run_warp_action disconnect
-    export THIRDFLARE_WEBUI=1
+    export CLOUDFLARE_ONE_WARP_WEBUI=1
     start_server
     open_gui
     ;;
   --toggle)
     toggle_warp
-    export THIRDFLARE_WEBUI=1
+    export CLOUDFLARE_ONE_WARP_WEBUI=1
     start_server
     open_gui
     ;;
@@ -272,22 +272,22 @@ case "${1:-}" in
     warp_status
     ;;
   --tray)
-    exec "$APP_DIR/bin/thirdflare-tray" --force-thirdflare
+    exec "$APP_DIR/bin/cloudflare-one-warp-tray" --force-cloudflare-one-warp
     ;;
   --panel)
-    exec "$APP_DIR/bin/thirdflare-tray" --panel
+    exec "$APP_DIR/bin/cloudflare-one-warp-tray" --panel
     ;;
   --no-open)
     start_server
     echo "$URL"
     ;;
   --daemon)
-    export THIRDFLARE_WEBUI=1
+    export CLOUDFLARE_ONE_WARP_WEBUI=1
     start_server
     echo "$URL"
     ;;
   "")
-    exec "$APP_DIR/bin/thirdflare-tray"
+    exec "$APP_DIR/bin/cloudflare-one-warp-tray"
     ;;
   *)
     usage >&2

@@ -22,7 +22,7 @@
     "channel": "stable",
     "source": {
       "owner": "bodencrouch",
-      "repo": "thirdflare-one"
+      "repo": "cloudflare-one-warp"
     },
     "checkOnStartup": true
   },

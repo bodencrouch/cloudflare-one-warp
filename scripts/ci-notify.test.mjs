@@ -61,7 +61,7 @@ test("sendDesktopNotification spawns notify-send with argv only", async () => {
   const { mkdtempSync, writeFileSync, chmodSync, rmSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
-  const dir = mkdtempSync(join(tmpdir(), "tf-notify-"));
+  const dir = mkdtempSync(join(tmpdir(), "cf-one-warp-notify-"));
   const bin = join(dir, "notify-send");
   writeFileSync(bin, "#!/bin/sh\nexit 0\n");
   chmodSync(bin, 0o755);
@@ -73,7 +73,7 @@ test("sendDesktopNotification spawns notify-send with argv only", async () => {
   };
   try {
     const result = sendDesktopNotification(
-      { title: "ThirdFlare One", body: "Connected" },
+      { title: "Cloudflare One WARP", body: "Connected" },
       {
         env: { PATH: dir, DISPLAY: ":0" },
         spawnImpl: fakeSpawn,
@@ -83,7 +83,7 @@ test("sendDesktopNotification spawns notify-send with argv only", async () => {
     assert.equal(result.ok, true);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].path, bin);
-    assert.ok(calls[0].args.includes("ThirdFlare One"));
+    assert.ok(calls[0].args.includes("Cloudflare One WARP"));
     assert.ok(calls[0].args.includes("Connected"));
   } finally {
     rmSync(dir, { recursive: true, force: true });

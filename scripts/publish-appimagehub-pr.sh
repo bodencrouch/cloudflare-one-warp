@@ -5,8 +5,8 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="${1:-$(node -p "require('${ROOT}/package.json').version")}"
 TAG="v${VERSION}"
-APPIMAGE="thirdflare-${VERSION}-x86_64.AppImage"
-BASE="https://github.com/bodencrouch/thirdflare-one/releases/download/${TAG}/${APPIMAGE}"
+APPIMAGE="cloudflare-one-warp-${VERSION}-x86_64.AppImage"
+BASE="https://github.com/bodencrouch/cloudflare-one-warp/releases/download/${TAG}/${APPIMAGE}"
 OUT="${ROOT}/dist/appimagehub-${VERSION}.yml"
 
 SHA=""
@@ -21,7 +21,7 @@ fi
 
 mkdir -p "${ROOT}/dist"
 cat > "$OUT" <<YAML
-name: ThirdFlare One
+name: Cloudflare One WARP
 categories:
   - Network
   - Utility
@@ -41,18 +41,18 @@ if [[ -z "${GH_PAT:-}" ]]; then
 fi
 
 HUB_FORK="${APPIMAGEHUB_FORK:-bodencrouch/appimage.github.io}"
-BRANCH="thirdflare-one-${VERSION}"
+BRANCH="cloudflare-one-warp-${VERSION}"
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
 git clone "https://x-access-token:${GH_PAT}@github.com/${HUB_FORK}.git" "$WORKDIR/hub"
 git -C "$WORKDIR/hub" checkout -B "$BRANCH"
 mkdir -p "$WORKDIR/hub/data"
-cp "$OUT" "$WORKDIR/hub/data/thirdflare-one.yml"
-git -C "$WORKDIR/hub" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-git -C "$WORKDIR/hub" config user.name "github-actions[bot]"
-git -C "$WORKDIR/hub" add "data/thirdflare-one.yml"
-git -C "$WORKDIR/hub" commit -m "Add ThirdFlare One ${VERSION}" || exit 0
+cp "$OUT" "$WORKDIR/hub/data/cloudflare-one-warp.yml"
+git -C "$WORKDIR/hub" config user.email "221775936+bodencrouch@users.noreply.github.com"
+git -C "$WORKDIR/hub" config user.name "bodencrouch"
+git -C "$WORKDIR/hub" add "data/cloudflare-one-warp.yml"
+git -C "$WORKDIR/hub" commit -m "Add Cloudflare One WARP ${VERSION}" || exit 0
 git -C "$WORKDIR/hub" push -f origin "$BRANCH"
 
 if command -v gh >/dev/null 2>&1; then
@@ -60,7 +60,7 @@ if command -v gh >/dev/null 2>&1; then
     --repo AppImage/appimage.github.io \
     --head "${HUB_FORK%%/*}:${BRANCH}" \
     --base master \
-    --title "Add ThirdFlare One ${VERSION}" \
+    --title "Add Cloudflare One WARP ${VERSION}" \
     --body "Listing for ${BASE}" \
     || echo "PR may already exist."
 fi

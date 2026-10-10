@@ -204,7 +204,7 @@ test("session bootstrap requires a same-origin loopback caller", () => {
 });
 
 test("session token file is per-port, private, and removable", () => {
-  const home = mkdtempSync(join(tmpdir(), "tf-session-"));
+  const home = mkdtempSync(join(tmpdir(), "cf-one-warp-session-"));
   const env = { HOME: home };
   try {
     const created = createSessionToken(4173, env);

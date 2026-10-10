@@ -1,0 +1,11 @@
+# Cloudflare One WARP — systemd EnvironmentFile (Debian/RHEL idiomatic)
+# Install to /etc/default/cloudflare-one-warp or reference from a systemd drop-in.
+#
+# Precedence (low → high): defaults → /etc/cloudflare-one-warp/config.json → this file →
+# ~/.config/cloudflare-one-warp/config.json → in-app session overrides.
+
+CLOUDFLARE_ONE_WARP_PORT=4173
+CLOUDFLARE_ONE_WARP_BIND=127.0.0.1
+CLOUDFLARE_ONE_WARP_WEBUI=0
+CLOUDFLARE_ONE_WARP_WEBUI_ALLOW_REMOTE=0
+# CLOUDFLARE_ONE_WARP_WARP_CLI=/usr/bin/warp-cli

@@ -3,8 +3,8 @@
 ## Daemon won't start
 
 ```bash
-thirdflare --status
-thirdflare --stop && thirdflare --no-open
+cloudflare-one-warp --status
+cloudflare-one-warp --stop && cloudflare-one-warp --no-open
 ```
 
 Check warp-cli daemon:
@@ -18,9 +18,9 @@ warp-cli status
 The daemon may be in **API-only** mode (`webui.enabled=false`). Enable Web UI and restart:
 
 ```bash
-thirdflare-one-tray --settings
+cloudflare-one-warp-tray --settings
 # or
-THIRDFLARE_WEBUI=1 thirdflare --daemon
+CLOUDFLARE_ONE_WARP_WEBUI=1 cloudflare-one-warp --daemon
 ```
 
 When Web UI is enabled, static assets are always served. API-only mode returns 404 for `/app.js` and other UI paths.
@@ -29,7 +29,7 @@ When Web UI is enabled, static assets are always served. API-only mode returns 4
 
 ```bash
 pip install PyQt6 PyQt6-WebEngine
-thirdflare-one-tray --check
+cloudflare-one-warp-tray --check
 ```
 
 Log out/in after first `.desktop` install. Confirm StatusNotifierItem is enabled in Plasma.
@@ -39,8 +39,8 @@ Log out/in after first `.desktop` install. Confirm StatusNotifierItem is enabled
 Purge reinstall:
 
 ```bash
-./thirdflare-one uninstall --purge
-./thirdflare-one install
+./cloudflare-one-warp uninstall --purge
+./cloudflare-one-warp install
 npm run verify:install
 ```
 
@@ -65,4 +65,4 @@ npm run check
 npm run test:all
 ```
 
-Report issues: [GitHub Issues](https://github.com/bodencrouch/thirdflare-one/issues).
+Report issues: [GitHub Issues](https://github.com/bodencrouch/cloudflare-one-warp/issues).

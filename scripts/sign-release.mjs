@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Release signing helper for ThirdFlare One AppImages.
+ * Release signing helper for Cloudflare One WARP AppImages.
  *
  * Uses Node's built-in crypto only — no extra dependencies, so it runs anywhere
  * the repo does. See docs/UPDATES.md for the full release procedure.
  *
- *   node scripts/sign-release.mjs keygen --out ~/.thirdflare-signing/release.pem
- *   node scripts/sign-release.mjs sign --key ~/.thirdflare-signing/release.pem dist/*.AppImage
+ *   node scripts/sign-release.mjs keygen --out ~/.cloudflare-one-warp-signing/release.pem
+ *   node scripts/sign-release.mjs sign --key ~/.cloudflare-one-warp-signing/release.pem dist/*.AppImage
  *   node scripts/sign-release.mjs verify --key-b64 <base64> dist/x.AppImage
  *   node scripts/sign-release.mjs verify dist/x.AppImage          # against pinned keys
  */

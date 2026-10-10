@@ -29,7 +29,7 @@ if ((${#snaps[@]} == 0)); then
 fi
 
 for snap in "${snaps[@]}"; do
-  dest="${OUT}/thirdflare_${VERSION}_amd64.snap"
+  dest="${OUT}/cloudflare-one-warp_${VERSION}_amd64.snap"
   mv -f "$snap" "$dest"
   echo "Built $dest"
 done

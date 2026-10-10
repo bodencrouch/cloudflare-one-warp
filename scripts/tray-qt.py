@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ThirdFlare One — native KDE/Plasma tray + embedded Web UI shell (PyQt6)."""
+"""Cloudflare One WARP — native KDE/Plasma tray + embedded Web UI shell (PyQt6)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 from tray_api import (
-  ThirdFlareClient,
+  CloudflareOneWarpClient,
   connection_control,
   ensure_daemon,
   launcher_path,
@@ -21,22 +21,22 @@ from tray_api import (
 WINDOW_WIDTH = 1120
 WINDOW_HEIGHT = 780
 
-ICON_NAME = "thirdflare-one"
+ICON_NAME = "cloudflare-one-warp"
 TRAY_ICON_SIZES = (16, 22, 24, 32, 48)
 
 
 def app_dir() -> str:
-  env = os.environ.get("THIRDFLARE_APP_DIR")
+  env = os.environ.get("CLOUDFLARE_ONE_WARP_APP_DIR")
   if env:
     return env
   return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 def icon_source_path(root: str) -> str:
-  tray_icon = os.path.join(root, "assets", "thirdflare-tray.svg")
+  tray_icon = os.path.join(root, "assets", "cloudflare-one-warp-tray.svg")
   if os.path.isfile(tray_icon):
     return tray_icon
-  return os.path.join(root, "assets", "thirdflare.svg")
+  return os.path.join(root, "assets", "cloudflare-one-warp.svg")
 
 
 def tray_state_icon_path(root: str, state: str) -> str:
@@ -140,11 +140,11 @@ def capture_text(command: list[str]) -> str:
 
 
 def status_text(launcher: str) -> str:
-  return capture_text([launcher, "--warp-status"]) or "ThirdFlare One"
+  return capture_text([launcher, "--warp-status"]) or "Cloudflare One WARP"
 
 
 def tray_tooltip(status: str) -> str:
-  return f"ThirdFlare One\nStatus: {status}\nLeft-click: panel · Right-click: menu"
+  return f"Cloudflare One WARP\nStatus: {status}\nLeft-click: panel · Right-click: menu"
 
 
 def notify_status(root: str, launcher: str) -> None:
@@ -153,7 +153,7 @@ def notify_status(root: str, launcher: str) -> None:
   icon = ensure_tray_icon(root)
   try:
     subprocess.run(
-      ["notify-send", "ThirdFlare One", text, f"--icon={icon}"],
+      ["notify-send", "Cloudflare One WARP", text, f"--icon={icon}"],
       check=False,
       stdout=subprocess.DEVNULL,
       stderr=subprocess.DEVNULL,
@@ -175,22 +175,22 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
   icon_path = ensure_tray_icon(root)
 
   ensure_daemon(launcher)
-  client = ThirdFlareClient()
+  client = CloudflareOneWarpClient()
 
   app = QApplication(sys.argv)
-  app.setApplicationName("ThirdFlare One")
-  app.setApplicationDisplayName("ThirdFlare One")
-  app.setDesktopFileName("thirdflare-one")
+  app.setApplicationName("Cloudflare One WARP")
+  app.setApplicationDisplayName("Cloudflare One WARP")
+  app.setDesktopFileName("cloudflare-one-warp")
   app.setQuitOnLastWindowClosed(False)
 
   class NativeShellWindow(QMainWindow):
-    """Native KDE window embedding the full ThirdFlare One Web UI."""
+    """Native KDE window embedding the full Cloudflare One WARP Web UI."""
 
     def __init__(self, tray_icon: QSystemTrayIcon, on_open_settings) -> None:
       super().__init__()
       self._tray = tray_icon
       self._loaded = False
-      self.setWindowTitle("ThirdFlare One")
+      self.setWindowTitle("Cloudflare One WARP")
       self.setWindowIcon(QIcon(icon_path))
       self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
 
@@ -211,7 +211,7 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
 
       channel = QWebChannel(self)
       self._bridge = ShellBridge(on_open_settings)
-      channel.registerObject("thirdflare", self._bridge)
+      channel.registerObject("cloudflareOneWarp", self._bridge)
       self._view.page().setWebChannel(channel)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
@@ -231,7 +231,7 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
         self._view.reload()
 
   if not QSystemTrayIcon.isSystemTrayAvailable():
-    print("ThirdFlare One tray: system tray unavailable.", file=sys.stderr)
+    print("Cloudflare One WARP tray: system tray unavailable.", file=sys.stderr)
     return 1
 
   tray = QSystemTrayIcon(QIcon(icon_path))
@@ -267,7 +267,7 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
     try:
       client.run_connection_action()
     except Exception as exc:
-      print(f"ThirdFlare One action failed: {exc}", file=sys.stderr)
+      print(f"Cloudflare One WARP action failed: {exc}", file=sys.stderr)
     QTimer.singleShot(900, refresh_tray_state)
 
   def refresh_connection_action() -> None:
@@ -294,7 +294,7 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
     refresh_tray_state()
 
   menu = QMenu()
-  menu.addAction("Show ThirdFlare One", show_window)
+  menu.addAction("Show Cloudflare One WARP", show_window)
   menu.addSeparator()
   connection_action = QAction("Connect", menu)
   connection_action.triggered.connect(run_connection_action)
@@ -332,7 +332,7 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
     show_window()
 
   print(
-    "ThirdFlare One tray started (PyQt6 native shell). "
+    "Cloudflare One WARP tray started (PyQt6 native shell). "
     "Left-click the tray icon for the full app.",
     file=sys.stderr,
   )
@@ -347,10 +347,10 @@ def main() -> int:
     return 0
   if args and args[0] == "--settings":
     script = os.path.join(app_dir(), "scripts", "tray-settings.py")
-    tray_active = "--tray-active" in args or os.environ.get("THIRDFLARE_TRAY_ACTIVE") == "1"
+    tray_active = "--tray-active" in args or os.environ.get("CLOUDFLARE_ONE_WARP_TRAY_ACTIVE") == "1"
     extra = ["--tray-active"] if tray_active else []
     return subprocess.call([sys.executable, script, *extra])
-  show_window = "--panel" in args or os.environ.get("THIRDFLARE_SHOW_PANEL") == "1"
+  show_window = "--panel" in args or os.environ.get("CLOUDFLARE_ONE_WARP_SHOW_PANEL") == "1"
   return run_tray_app(show_window_on_start=show_window)
 
 

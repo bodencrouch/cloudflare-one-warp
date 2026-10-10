@@ -106,7 +106,7 @@ const state = {
   }
 };
 
-const EXPERT_UI_STORAGE_KEY = "thirdflare-ui-expert";
+const EXPERT_UI_STORAGE_KEY = "cloudflare-one-warp-ui-expert";
 
 const simpleNavItems = [
   ["home", "simple.nav.home", "⌂"],
@@ -123,7 +123,7 @@ function isNativeShell() {
 }
 
 function initNativeBridge() {
-  if (!isNativeShell() || window.thirdflare) return;
+  if (!isNativeShell() || window.cloudflareOneWarp) return;
   if (typeof qt === "undefined") return;
   const script = document.createElement("script");
   script.src = "qrc:///qtwebchannel/qwebchannel.js";
@@ -131,15 +131,15 @@ function initNativeBridge() {
     if (typeof QWebChannel === "undefined" || typeof qt === "undefined") return;
     // eslint-disable-next-line no-undef
     new QWebChannel(qt.webChannelTransport, (channel) => {
-      window.thirdflare = channel.objects.thirdflare;
+      window.cloudflareOneWarp = channel.objects.cloudflareOneWarp;
     });
   };
   document.head.appendChild(script);
 }
 
 function openSystemSettings() {
-  if (window.thirdflare?.openSettings) {
-    window.thirdflare.openSettings();
+  if (window.cloudflareOneWarp?.openSettings) {
+    window.cloudflareOneWarp.openSettings();
     return;
   }
   state.toast = t("app.openSettingsUnavailable");
@@ -928,7 +928,7 @@ function simpleAboutView() {
   view.append(cfCard(t("app.about"), [
     [t("app.currentVersion"), escapeHtml(version)],
     [t("app.installFormat"), escapeHtml(format)],
-    [t("brand.title"), "ThirdFlare One"]
+    [t("brand.title"), "Cloudflare One WARP"]
   ]));
   view.append(el("p", "simple-about-copy", t("simple.aboutCopy")));
   return view;
@@ -1956,7 +1956,7 @@ function appView() {
   const version = state.version?.version || "…";
   const format = state.version?.installFormat || "…";
   about.innerHTML = `
-    <div class="panel-heading"><h3${tipMarkup("pageApp")}>${t("app.about")}</h3><span>ThirdFlare One</span></div>
+    <div class="panel-heading"><h3${tipMarkup("pageApp")}>${t("app.about")}</h3><span>Cloudflare One WARP</span></div>
     <div class="state-grid">
       <div class="state-datum"><span>${t("app.currentVersion")}</span><strong>${escapeHtml(version)}</strong></div>
       <div class="state-datum"><span>${t("app.installFormat")}</span><strong>${escapeHtml(format)}</strong></div>
@@ -1970,7 +1970,7 @@ function appView() {
 function updatesPanel() {
   const panel = el("section", "panel updates-panel");
   const channel = state.appConfig?.updates?.channel || "stable";
-  const source = state.appConfig?.updates?.source || { owner: "bodencrouch", repo: "thirdflare-one" };
+  const source = state.appConfig?.updates?.source || { owner: "bodencrouch", repo: "cloudflare-one-warp" };
   const owner = state.update.selectedOwner || source.owner;
   const repo = state.update.selectedRepo || source.repo;
   const result = state.update.result;
@@ -2240,7 +2240,7 @@ async function setTrayShell(shell) {
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || response.statusText);
     state.appConfig = body.config;
-    state.toast = shell === "cloudflare" ? t("app.desktopAppCloudflareOn") : t("app.desktopAppThirdflareOn");
+    state.toast = shell === "cloudflare" ? t("app.desktopAppCloudflareOn") : t("app.desktopAppCloudflareOneWarpOn");
     if (body.liveSwap && body.liveSwap.attempted === false) {
       state.toast = `${state.toast} ${t("app.desktopAppRestartHint")}`;
     }
@@ -2253,7 +2253,7 @@ async function setTrayShell(shell) {
 
 function desktopAppPanel({ withTips = false } = {}) {
   const tray = state.appConfig?.tray || {};
-  const shell = tray.shell === "thirdflare" ? "thirdflare" : "cloudflare";
+  const shell = tray.shell === "cloudflare-one-warp" ? "cloudflare-one-warp" : "cloudflare";
   const available = tray.cloudflareAvailable === true;
   const panel = el("section", "panel");
 
@@ -2276,11 +2276,11 @@ function desktopAppPanel({ withTips = false } = {}) {
   if (shell === "cloudflare") cloudflare.selected = true;
   select.append(cloudflare);
 
-  const thirdflare = document.createElement("option");
-  thirdflare.value = "thirdflare";
-  thirdflare.textContent = t("app.desktopAppThirdflare");
-  if (shell === "thirdflare" || !available) thirdflare.selected = true;
-  select.append(thirdflare);
+  const cloudflareOneWarp = document.createElement("option");
+  cloudflareOneWarp.value = "cloudflare-one-warp";
+  cloudflareOneWarp.textContent = t("app.desktopAppCloudflareOneWarp");
+  if (shell === "cloudflare-one-warp" || !available) cloudflareOneWarp.selected = true;
+  select.append(cloudflareOneWarp);
 
   select.onchange = () => setTrayShell(select.value);
   field.append(select);
@@ -2290,7 +2290,7 @@ function desktopAppPanel({ withTips = false } = {}) {
     panel.append(el("p", "panel-hint", t("app.desktopAppMissing")));
   }
 
-  if ((tray.active || shell) === "thirdflare") {
+  if ((tray.active || shell) === "cloudflare-one-warp") {
     const trayAutostart = Boolean(tray.autostart);
     const trayRow = el("div", "switch-row");
     const autostartLabel = withTips

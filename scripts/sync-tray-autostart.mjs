@@ -28,14 +28,14 @@ function userShellAlreadyChosen(env = process.env) {
 
 if (persistShell != null) {
   if (!isValidTrayShell(persistShell)) {
-    console.error("tray shell must be cloudflare or thirdflare");
+    console.error("tray shell must be cloudflare or cloudflare-one-warp");
     process.exit(2);
   }
   // --if-unset is the re-install path: seed a default, never overwrite a choice.
   if (ifUnset && userShellAlreadyChosen()) {
     console.log("Keeping the existing desktop app choice.");
   } else {
-    const autostart = persistShell === "thirdflare" ? true : undefined;
+    const autostart = persistShell === "cloudflare-one-warp" ? true : undefined;
     persistUserTrayShell({ shell: persistShell, autostart });
   }
 }
@@ -49,9 +49,9 @@ if (result.skipped) {
   process.exit(0);
 }
 if (result.tray?.written) {
-  console.log(`ThirdFlare One tray autostart enabled (${result.tray.path})`);
+  console.log(`Cloudflare One WARP tray autostart enabled (${result.tray.path})`);
 } else if (result.tray?.removed) {
-  console.log(`ThirdFlare One tray autostart disabled (removed ${result.tray.path})`);
+  console.log(`Cloudflare One WARP tray autostart disabled (removed ${result.tray.path})`);
 }
 if (result.cloudflare?.written) {
   console.log(`Cloudflare One Client autostart hidden (${result.cloudflare.path})`);

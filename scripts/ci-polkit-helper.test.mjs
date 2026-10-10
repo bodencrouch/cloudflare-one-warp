@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { buildDisableScript, buildEnableScript } from "../lib/killswitch/rules.mjs";
 import { validateNftScript } from "../lib/killswitch/nft-script-validate.mjs";
 
-const helper = fileURLToPath(new URL("../scripts/thirdflare-nft-apply", import.meta.url));
+const helper = fileURLToPath(new URL("../scripts/cloudflare-one-warp-nft-apply", import.meta.url));
 
 test("validateNftScript accepts enable and disable scripts", () => {
   assert.equal(validateNftScript(buildEnableScript()).ok, true);
@@ -20,8 +20,8 @@ test("validateNftScript rejects foreign tables", () => {
   assert.equal(validateNftScript(bad).ok, false);
 });
 
-test("thirdflare-nft-apply rejects invalid script", () => {
-  const dir = mkdtempSync(join(tmpdir(), "thirdflare-nft-"));
+test("cloudflare-one-warp-nft-apply rejects invalid script", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cloudflare-one-warp-nft-"));
   const file = join(dir, "bad.nft");
   writeFileSync(file, "table inet evil { }\n");
   const result = spawnSync(helper, ["apply", file], { encoding: "utf8" });
@@ -29,8 +29,8 @@ test("thirdflare-nft-apply rejects invalid script", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test("thirdflare-nft-apply accepts kill switch script shape", () => {
-  const dir = mkdtempSync(join(tmpdir(), "thirdflare-nft-"));
+test("cloudflare-one-warp-nft-apply accepts kill switch script shape", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cloudflare-one-warp-nft-"));
   const file = join(dir, "good.nft");
   writeFileSync(file, buildDisableScript());
   const result = spawnSync(helper, ["apply", file], { encoding: "utf8" });

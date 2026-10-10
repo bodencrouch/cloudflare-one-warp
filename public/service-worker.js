@@ -1,4 +1,4 @@
-const CACHE_NAME = "thirdflare-one-shell-v3";
+const CACHE_NAME = "cloudflare-one-warp-shell-v3";
 const SHELL_ASSETS = [
   "/",
   "/index.html",

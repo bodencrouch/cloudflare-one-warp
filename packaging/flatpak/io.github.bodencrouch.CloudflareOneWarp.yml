@@ -1,0 +1,77 @@
+app-id: io.github.bodencrouch.CloudflareOneWarp
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+command: cloudflare-one-warp
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=xdg-run/
+  - --filesystem=xdg-cache/
+  - --filesystem=xdg-config/
+  - --talk-name=org.freedesktop.Flatpak
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.ayatana.Notification
+modules:
+  - name: node
+    buildsystem: simple
+    build-commands:
+      - |
+        install -d /app/lib/node /app/bin
+        tar -xJf node-v20.18.1-linux-x64.tar.xz -C /app/lib/node --strip-components=1
+        ln -s /app/lib/node/bin/node /app/bin/node
+    sources:
+      - type: file
+        url: https://nodejs.org/dist/v20.18.1/node-v20.18.1-linux-x64.tar.xz
+        sha256: c6fa75c841cbffac851678a472f2a5bd612fff8308ef39236190e1f8dbb0e567
+        dest-filename: node-v20.18.1-linux-x64.tar.xz
+
+  - name: cloudflare-one-warp
+    buildsystem: simple
+    build-commands:
+      - |
+        install -d /app/lib/cloudflare-one-warp
+        cp -a server.js package.json public assets scripts bin lib config /app/lib/cloudflare-one-warp/
+        chmod 0755 /app/lib/cloudflare-one-warp/bin/* /app/lib/cloudflare-one-warp/scripts/*.py /app/lib/cloudflare-one-warp/scripts/cloudflare-one-warp-nft-apply 2>/dev/null || true
+        install -d /app/bin
+        cat > /app/bin/cloudflare-one-warp <<'EOF'
+        #!/bin/bash
+        export PATH="/app/lib/node/bin:/app/bin:${PATH}"
+        export CLOUDFLARE_ONE_WARP_NODE="/app/lib/node/bin/node"
+        exec /app/lib/cloudflare-one-warp/bin/cloudflare-one-warp "$@"
+        EOF
+        chmod 0755 /app/bin/cloudflare-one-warp
+        cat > /app/bin/cloudflare-one-warp-tray <<'EOF'
+        #!/bin/bash
+        export PATH="/app/lib/node/bin:/app/bin:${PATH}"
+        exec /app/lib/cloudflare-one-warp/bin/cloudflare-one-warp-tray "$@"
+        EOF
+        chmod 0755 /app/bin/cloudflare-one-warp-tray
+        install -Dm644 packaging/polkit/com.cloudflare.one.warp.policy \
+          /app/share/polkit-1/actions/com.cloudflare.one.warp.policy
+        install -Dm644 packaging/cloudflare-one-warp.desktop \
+          /app/share/applications/io.github.bodencrouch.CloudflareOneWarp.desktop
+        sed -i \
+          -e 's|^Exec=.*|Exec=cloudflare-one-warp-tray|' \
+          -e 's|^Icon=.*|Icon=io.github.bodencrouch.CloudflareOneWarp|' \
+          /app/share/applications/io.github.bodencrouch.CloudflareOneWarp.desktop
+        install -Dm644 assets/cloudflare-one-warp.svg \
+          /app/share/icons/hicolor/scalable/apps/io.github.bodencrouch.CloudflareOneWarp.svg
+        install -Dm644 packaging/flatpak/metainfo.xml \
+          /app/share/metainfo/io.github.bodencrouch.CloudflareOneWarp.metainfo.xml
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - dist
+          - .git
+          - agentdecompile_projects
+          - node_modules
+          - packaging/flatpak/.flatpak-builder
+          - packaging/flatpak/repo
+          - packaging/flatpak/build

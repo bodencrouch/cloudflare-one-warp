@@ -2,12 +2,8 @@ name: Publish to stores
 
 on:
   workflow_run:
-    workflows: [Package]
+    workflows: [Package, Release packages]
     types: [completed]
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/publish-stores.yml
   workflow_dispatch:
     inputs:
       version:
@@ -27,7 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'push' ||
       github.event.workflow_run.conclusion == 'success'
     outputs:
       version: ${{ steps.ver.outputs.version }}
@@ -102,8 +97,8 @@ jobs:
             if gh release download "${{ needs.resolve-version.outputs.tag }}" \
               --repo "${{ github.repository }}" \
               --dir dist/packages \
-              --pattern 'thirdflare_*' \
-              --pattern 'thirdflare-*' \
+              --pattern 'cloudflare-one-warp_*' \
+              --pattern 'cloudflare-one-warp-*' \
               --pattern 'SHA256SUMS' \
               --clobber 2>/dev/null; then
               echo "Downloaded release assets on attempt ${attempt}"
@@ -192,5 +187,5 @@ jobs:
       - name: COPR / Packit note
         run: |
           echo "Fedora COPR builds are triggered by Packit on release when enabled."
-          echo "Enable Packit at https://packit.dev and COPR project bodencrouch/thirdflare-one"
-          echo "Spec: packaging/fedora/thirdflare-one.spec"
+          echo "Enable Packit at https://packit.dev and COPR project bodencrouch/cloudflare-one-warp"
+          echo "Spec: packaging/fedora/cloudflare-one-warp.spec"
