@@ -61,6 +61,9 @@ sign_appimages() {
 
 sign_appimages
 
+# Emit the versioned recipe before hashing it.
+sed "s/__VERSION__/${VERSION}/g" "${ROOT}/packaging/arch/PKGBUILD.in" > "${OUT}/PKGBUILD"
+
 (
   cd "$OUT"
   shopt -s nullglob
@@ -72,6 +75,4 @@ sign_appimages
   sha256sum "${files[@]}" | tee SHA256SUMS
 )
 
-# Emit a versioned PKGBUILD for AUR packagers alongside release artifacts.
-sed "s/__VERSION__/${VERSION}/g" "${ROOT}/packaging/arch/PKGBUILD.in" > "${OUT}/PKGBUILD"
 echo "Wrote ${OUT}/PKGBUILD and ${OUT}/SHA256SUMS"

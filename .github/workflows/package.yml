@@ -394,6 +394,9 @@ jobs:
           bash packaging/scripts/checksums.sh
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM: ${{ secrets.CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM }}
+          # The bootstrap release has no pinned key; manual installation stays available.
+          CLOUDFLARE_ONE_WARP_ALLOW_UNSIGNED: ${{ secrets.CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM == '' && '1' || '0' }}
 
       - uses: actions/upload-artifact@v4
         with:

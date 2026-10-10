@@ -99,7 +99,7 @@ Then:
 
 ### Signing a release
 
-`packaging/scripts/checksums.sh` signs every AppImage in `dist/packages` when `CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM` (contents) or `CLOUDFLARE_ONE_WARP_SIGNING_KEY` (path) is set, and **fails the build** if any AppImage would ship without a `.sig`. Local builds can pass `CLOUDFLARE_ONE_WARP_ALLOW_UNSIGNED=1`; those builds cannot be used for self-update.
+`packaging/scripts/checksums.sh` signs every AppImage in `dist/packages` when `CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM` (contents) or `CLOUDFLARE_ONE_WARP_SIGNING_KEY` (path) is set, and **fails the build** if any AppImage would ship without a `.sig`. Builds can explicitly pass `CLOUDFLARE_ONE_WARP_ALLOW_UNSIGNED=1`; those builds cannot be used for self-update. The bootstrap release workflow permits unsigned downloads when the signing secret is absent. The client still refuses automatic installation until a trusted public key and matching signature are available.
 
 ```bash
 node scripts/sign-release.mjs sign --key ~/.cloudflare-one-warp-signing/release.pem dist/packages/*.AppImage
