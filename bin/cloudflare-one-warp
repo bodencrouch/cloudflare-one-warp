@@ -105,7 +105,11 @@ daemon_pid_matches_install() {
   [[ -f "$PID_FILE" ]] || return 1
   pid="$(cat "$PID_FILE" 2>/dev/null || true)"
   [[ -n "$pid" ]] || return 1
-  cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
+  if [[ -r "/proc/$pid/cmdline" ]]; then
+    cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
+  else
+    cmdline="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  fi
   [[ -n "$cmdline" && "$cmdline" == *"$APP_DIR/server.js"* ]]
 }
 

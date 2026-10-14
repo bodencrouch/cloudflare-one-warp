@@ -173,3 +173,10 @@ test("a retained entry bounds large output and command text", () => {
   assert.ok(entry.stdout.length <= 16384);
   assert.ok(entry.stderr.length <= 16384);
 });
+
+test("override credentials are redacted while harmless override subcommands remain visible", async () => {
+  const {redactWarpArgs} = await import("../lib/warp/command-log.mjs");
+  assert.deepEqual(redactWarpArgs(["override","DUMMY-CODE"]),["override","[redacted]"]);
+  assert.deepEqual(redactWarpArgs(["override","unlock","DUMMY-CODE"]),["override","unlock","[redacted]"]);
+  assert.deepEqual(redactWarpArgs(["override","local-network","show"]),["override","local-network","show"]);
+});
