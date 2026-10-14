@@ -48,7 +48,8 @@ test("daemon sync uses changed proxy port and stays healthy while NM is delayed"
       daemon.kill("SIGTERM");
       await closed;
     }
-    await rm(directory, { recursive: true, force: true });
+    // Fixture subprocesses may finish a final log write after their parent closes.
+    await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   });
   await mkdir(bin);
   const fixture = `#!${process.execPath}\n` + `
