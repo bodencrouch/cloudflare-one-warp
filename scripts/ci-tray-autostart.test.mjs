@@ -84,7 +84,7 @@ test("persistUserTrayAutostart writes user config and survives reload", () => {
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ ui: { locale: "en" } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
@@ -116,7 +116,7 @@ test("resolveTrayExec prefers FHS wrapper when present", () => {
 
 test("default tray.shell is cloudflare", () => {
   const root = mkdtempSync(join(tmpdir(), "cf-one-warp-tray-default-"));
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
   try {
     clearSessionOverrides();
     const cfg = reloadConfig(env);
@@ -134,7 +134,7 @@ test("persistUserTrayShell writes shell and survives reload", () => {
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ ui: { locale: "en" } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
@@ -161,7 +161,7 @@ test("persistUserTrayShell rejects unknown values", () => {
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ ui: { locale: "en" } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
@@ -183,7 +183,7 @@ test("persistUserTrayShell keeps the autostart preference across a shell round t
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ tray: { autostart: true, shell: "cloudflare-one-warp" } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
@@ -214,7 +214,7 @@ test("invalid tray.shell in user JSON falls back to cloudflare", () => {
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ tray: { shell: "nope" } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();

@@ -30,7 +30,7 @@ test("persistUserWebUi writes user config without clobbering other keys", () => 
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ ui: { locale: "en" } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
@@ -51,7 +51,7 @@ test("persistUserServer validates port range via caller", () => {
   const root = mkdtempSync(join(tmpdir(), "cf-one-warp-server-persist-"));
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
@@ -79,7 +79,7 @@ test("CLOUDFLARE_ONE_WARP_WEBUI=1 overrides file enabled:false at process start"
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ webui: { enabled: false } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root, CLOUDFLARE_ONE_WARP_WEBUI: "1" };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config"), CLOUDFLARE_ONE_WARP_WEBUI: "1" };
 
   try {
     clearSessionOverrides();
@@ -96,7 +96,7 @@ test("persistUserUi writes notifications preference", () => {
   const root = mkdtempSync(join(tmpdir(), "cf-one-warp-ui-persist-"));
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
