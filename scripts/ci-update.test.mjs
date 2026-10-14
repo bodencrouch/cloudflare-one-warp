@@ -756,11 +756,12 @@ test("asset selection cannot recommend an incompatible AppImage architecture", (
 });
 
 test("direct bundle upgrade guidance uses release artifacts rather than unpublished stores", () => {
-  const release = { owner: "bodencrouch", repo: "cloudflare-one-warp", version: "1.0.0", tag: "v1.0.0" };
+  const release = { owner: "bodencrouch", repo: "cloudflare-one-warp", version: "1.0.0", tag: "v1.0.0", arch: "x64" };
   assert.match(guidedCommands("flatpak", release).join("\n"), /cloudflare-one-warp-1\.0\.0-x86_64\.flatpak/);
   assert.doesNotMatch(guidedCommands("flatpak", release).join("\n"), /install flathub/);
   assert.match(guidedCommands("snap", release).join("\n"), /refresh --dangerous --classic .*1\.0\.0_amd64\.snap/);
   assert.match(guidedCommands("arch", release).join("\n"), /pacman -U/);
+  assert.match(guidedCommands("flatpak", { ...release, arch: "arm64" }).join("\n"), /No compatible release bundle/);
 });
 
 test("update JSON metadata rejects an oversize body", async () => {
