@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -69,4 +70,35 @@ Icon=demo
   assert.match(script, /exec demo-browser/);
   const desktop = await readFile(result.desktopPath, "utf8");
   assert.match(desktop, /Demo Browser \(through WARP\)/);
+});
+
+test("desktop Exec arguments remain literal shell metacharacters", () => {
+  assert.equal(sanitizeExec('demo "$(touch /tmp/injected)" "a; b" %%'), "demo '$(touch /tmp/injected)' 'a; b' '%'");
+  assert.throws(() => sanitizeExec('demo "unclosed'));
+  assert.throws(() => sanitizeExec('demo --file=%u'));
+});
+
+test("user XDG apps override system apps including Hidden masks", xdgOnly, async () => {
+  const root = await mkdtemp(join(tmpdir(), "warp-xdg-apps-"));
+  const env = { HOME: root, XDG_DATA_HOME: join(root, "user"), XDG_DATA_DIRS: join(root, "system") };
+  for (const dir of [env.XDG_DATA_HOME, env.XDG_DATA_DIRS]) {
+    await mkdir(join(dir, "applications"), { recursive: true });
+    await writeFile(join(dir, "applications", "demo.desktop"), `[Desktop Entry]\nType=Application\nName=Demo\nExec=demo\n${dir === env.XDG_DATA_HOME ? "Hidden=true\n" : ""}`);
+  }
+  assert.deepEqual(await listDesktopApps(env), []);
+});
+
+test("generated proxy script preserves argv without command substitution", xdgOnly, async () => {
+  const root = await mkdtemp(join(tmpdir(), "warp proxy argv "));
+  const env = { HOME: root, XDG_DATA_HOME: join(root, "user data"), XDG_DATA_DIRS: join(root, "system") };
+  const appsDir = join(env.XDG_DATA_HOME, "applications");
+  await mkdir(appsDir, { recursive: true });
+  const recorder = join(root, "argv.mjs");
+  await writeFile(recorder, "console.log(JSON.stringify(process.argv.slice(2)))");
+  await writeFile(join(appsDir, "demo.desktop"), `[Desktop Entry]\nType=Application\nName=Literal Args\nExec="${process.execPath}" "${recorder}" "$(echo injected)" "a; b" "it's literal" %u\n`);
+  const result = await createProxyLauncher({ appId: "demo", env });
+  assert.equal(result.ok, true);
+  const output = execFileSync("sh", [result.scriptPath], { encoding: "utf8" });
+  assert.deepEqual(JSON.parse(output), ["$(echo injected)", "a; b", "it's literal"]);
+  assert.match(await readFile(result.desktopPath, "utf8"), /Exec=".*user data.*"/);
 });

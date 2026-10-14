@@ -60,3 +60,23 @@ test("status listener restarts child after exit when subscribers remain", async 
   unsub();
   listener.stop();
 });
+
+test("late close/data from previous child do not affect a replacement", async () => {
+  const children = [];
+  const listener = createStatusListener({ spawnWarpCli: () => {
+    const proc = new EventEmitter();
+    proc.stdout = new EventEmitter(); proc.stderr = new EventEmitter(); proc.kill = () => {};
+    children.push(proc); return proc;
+  }, restartDelayMs: 5 });
+  const unsubscribe = listener.subscribe(() => {});
+  unsubscribe();
+  const lines = [];
+  listener.subscribe((payload) => lines.push(payload.line));
+  children[0].stdout.emit("data", Buffer.from("stale\n"));
+  children[0].emit("close", 0);
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  assert.equal(children.length, 2);
+  assert.equal(listener.listenerActive, true);
+  assert.deepEqual(lines, []);
+  listener.stop();
+});

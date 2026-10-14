@@ -164,6 +164,7 @@ def notify_status(root: str, launcher: str) -> None:
 
 def run_tray_app(show_window_on_start: bool = False) -> int:
   from PyQt6.QtCore import Qt, QTimer, QUrl
+  from tray_workers import AsyncRunner
   from PyQt6.QtGui import QAction, QCloseEvent, QIcon
   from PyQt6.QtWebEngineWidgets import QWebEngineView
   from PyQt6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon
@@ -182,6 +183,12 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
   app.setApplicationDisplayName("Cloudflare One WARP")
   app.setDesktopFileName("cloudflare-one-warp")
   app.setQuitOnLastWindowClosed(False)
+  runner = AsyncRunner(app)
+  app.aboutToQuit.connect(runner.close)
+  window_loading = False
+  poll_pending = False
+  action_pending = False
+  last_snapshot = None
 
   class NativeShellWindow(QMainWindow):
     """Native KDE window embedding the full Cloudflare One WARP Web UI."""
@@ -219,23 +226,38 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
       self.hide()
 
     def load_app(self, force_reload: bool = False) -> None:
-      if not client.base_url and not client.discover():
-        ensure_daemon(launcher)
-        client.discover()
-      client.ensure_daemon_webui(launcher)
-      target = QUrl(client.app_url())
-      if force_reload or not self._loaded:
-        self._view.setUrl(target)
-        self._loaded = True
-      else:
-        self._view.reload()
+      nonlocal window_loading
+      if window_loading:
+        return
+      window_loading = True
+
+      def prepare():
+        if not client.base_url and not client.discover():
+          ensure_daemon(launcher)
+          client.discover()
+        client.ensure_daemon_webui(launcher)
+        return client.app_url()
+
+      def ready(target, error):
+        nonlocal window_loading
+        window_loading = False
+        if error:
+          print(f"Cloudflare One WARP window failed: {error}", file=sys.stderr)
+          return
+        if force_reload or not self._loaded:
+          self._view.setUrl(QUrl(target))
+          self._loaded = True
+        else:
+          self._view.reload()
+
+      runner.submit(prepare, ready)
 
   if not QSystemTrayIcon.isSystemTrayAvailable():
     print("Cloudflare One WARP tray: system tray unavailable.", file=sys.stderr)
     return 1
 
   tray = QSystemTrayIcon(QIcon(icon_path))
-  tray.setToolTip(tray_tooltip(status_text(launcher)))
+  tray.setToolTip(tray_tooltip("Checking WARP status…"))
 
   def show_settings() -> None:
     script = os.path.join(root, "scripts", "tray-settings.py")
@@ -264,31 +286,46 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
       show_window()
 
   def run_connection_action() -> None:
-    try:
-      client.run_connection_action()
-    except Exception as exc:
-      print(f"Cloudflare One WARP action failed: {exc}", file=sys.stderr)
-    QTimer.singleShot(900, refresh_tray_state)
+    nonlocal action_pending
+    if action_pending:
+      return
+    action_pending = True
+    connection_action.setEnabled(False)
+
+    def finished(_result, error):
+      nonlocal action_pending
+      action_pending = False
+      if error:
+        print(f"Cloudflare One WARP action failed: {error}", file=sys.stderr)
+      refresh_connection_action()
+      refresh_tray_state()
+
+    runner.submit(client.run_connection_action, finished)
 
   def refresh_connection_action() -> None:
-    try:
-      ctrl = connection_control(client.snapshot())
-    except Exception:
-      ctrl = {"label": "Connect", "enabled": False, "action": None}
+    ctrl = connection_control(last_snapshot) if last_snapshot else {"label": "Connect", "enabled": False}
     connection_action.setText(str(ctrl["label"]))
-    connection_action.setEnabled(bool(ctrl["enabled"]))
+    connection_action.setEnabled(bool(ctrl["enabled"]) and not action_pending)
 
   def refresh_tray_state() -> None:
-    snap = None
-    try:
-      snap = client.snapshot()
-      label = snapshot_label(snap)
-      tray.setToolTip(tray_tooltip(label))
-    except Exception:
-      tray.setToolTip(tray_tooltip(status_text(launcher)))
-    state_name = tray_icon_state(snap)
-    tray.setIcon(QIcon(tray_state_icon_path(root, state_name)))
-    refresh_connection_action()
+    nonlocal poll_pending
+    if poll_pending or action_pending:
+      return
+    poll_pending = True
+
+    def finished(snap, error):
+      nonlocal poll_pending, last_snapshot
+      poll_pending = False
+      if error:
+        last_snapshot = None
+        tray.setToolTip(tray_tooltip("WARP status unavailable"))
+      else:
+        last_snapshot = snap
+        tray.setToolTip(tray_tooltip(snapshot_label(snap)))
+      tray.setIcon(QIcon(tray_state_icon_path(root, tray_icon_state(last_snapshot))))
+      refresh_connection_action()
+
+    runner.submit(client.snapshot, finished)
 
   def refresh_tooltip() -> None:
     refresh_tray_state()
@@ -303,7 +340,7 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
   menu.addSeparator()
   menu.addAction("Settings…", show_settings)
   menu.addAction("Reload window", lambda: show_window(force_reload=True))
-  menu.addAction("Show status notification", lambda: notify_status(root, launcher))
+  menu.addAction("Show status notification", lambda: runner.submit(lambda: notify_status(root, launcher), lambda _value, _error: None))
   menu.addSeparator()
   menu.addAction("Quit tray", app.quit)
   tray.setContextMenu(menu)

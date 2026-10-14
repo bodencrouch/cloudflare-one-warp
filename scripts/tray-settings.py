@@ -32,6 +32,7 @@ def _apply_live_shell() -> None:
 
 def run_settings_dialog(*, tray_active: bool = False) -> int:
   from PyQt6.QtCore import Qt
+  from tray_workers import AsyncRunner
   from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -47,14 +48,8 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
   )
 
   launcher = launcher_path()
-  ensure_daemon(launcher, webui=True)
   client = CloudflareOneWarpClient()
-
-  try:
-    config_payload = client.get("/api/config")
-  except Exception as exc:
-    print(f"Cloudflare One WARP settings: could not load config: {exc}", file=sys.stderr)
-    return 1
+  config_payload = {}
 
   config = config_payload.get("config") or {}
   webui = config.get("webui") or {}
@@ -64,6 +59,7 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
 
   app = QApplication.instance() or QApplication(sys.argv)
   app.setApplicationName("Cloudflare One WARP Settings")
+  runner = AsyncRunner(app)
 
   dialog = QDialog()
   dialog.setWindowTitle("Cloudflare One WARP Settings")
@@ -120,10 +116,9 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
   )
   shell_hint.setWordWrap(True)
   session_form.addRow(shell_hint)
-  if not cloudflare_available:
-    missing = QLabel("Install the WARP app to use Cloudflare One Client in the tray.")
-    missing.setWordWrap(True)
-    session_form.addRow(missing)
+  missing = QLabel("Install the WARP app to use Cloudflare One Client in the tray.")
+  missing.setWordWrap(True)
+  session_form.addRow(missing)
 
   autostart_check = QCheckBox("Start tray at login")
   autostart_check.setChecked(bool(tray.get("autostart")))
@@ -139,7 +134,7 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
   session_form.addRow(notify_check)
   root.addWidget(session_group)
 
-  status = QLabel("")
+  status = QLabel("Loading settings…")
   status.setWordWrap(True)
   root.addWidget(status)
 
@@ -163,8 +158,8 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
       )
       return
 
-    restart_needed = False
-    try:
+    def apply_settings():
+      restart_needed = False
       current_webui = bool(webui.get("enabled"))
       current_port = int(server.get("port") or 4173)
       if desired_webui != current_webui:
@@ -175,34 +170,61 @@ def run_settings_dialog(*, tray_active: bool = False) -> int:
         restart_needed = True
       if desired_shell != (tray.get("shell") or "cloudflare"):
         applied = client.post("/api/config/tray-shell", {"shell": desired_shell}) or {}
-        # The daemon swaps the running shell itself whenever it has a display.
-        # Only swap from here when it did not, or the two passes race and
-        # isWarpTaskbarRunning() misses a taskbar that is still exec'ing —
-        # leaving two Cloudflare tray icons.
         if not (applied.get("liveSwap") or {}).get("attempted"):
           _apply_live_shell()
       if desired_autostart != bool(tray.get("autostart")) and desired_shell == "cloudflare-one-warp":
         client.post("/api/config/tray-autostart", {"autostart": desired_autostart})
       if desired_notify != (ui.get("notifications", True) is not False):
         client.post("/api/config/ui", {"notifications": desired_notify})
-    except Exception as exc:
-      status.setText(f"Save failed: {exc}")
-      return
-
-    if restart_needed:
-      try:
+      if restart_needed:
         client.restart_daemon(launcher, webui=desired_webui)
-      except Exception as exc:
-        status.setText(f"Saved, but daemon restart failed: {exc}")
-        return
 
-    status.setText("Settings saved.")
-    dialog.accept()
+    def saved(_result, error):
+      buttons.setEnabled(True)
+      if error:
+        status.setText(f"Save failed (some settings may have been saved): {error}")
+      else:
+        status.setText("Settings saved.")
+        dialog.accept()
+
+    buttons.setEnabled(False)
+    status.setText("Saving settings…")
+    runner.submit(apply_settings, saved)
 
   buttons.accepted.connect(save)
   buttons.rejected.connect(dialog.reject)
 
-  return 0 if dialog.exec() == QDialog.DialogCode.Accepted else 0
+  def load_settings():
+    ensure_daemon(launcher, webui=True)
+    return client.get("/api/config")
+
+  def loaded(payload, error):
+    nonlocal webui, server, ui, tray
+    if error:
+      status.setText(f"Could not load settings: {error}")
+      return
+    config = payload.get("config") or {}
+    webui, server, ui, tray = [config.get(key) or {} for key in ("webui", "server", "ui", "tray")]
+    webui_check.setChecked(bool(webui.get("enabled")))
+    port_spin.setValue(int(server.get("port") or 4173))
+    available = bool(tray.get("cloudflareAvailable"))
+    cloudflare_item = shell_combo.model().item(0)
+    if cloudflare_item is not None:
+      cloudflare_item.setEnabled(available)
+    shell = tray.get("shell") if available else "cloudflare-one-warp"
+    index = shell_combo.findData(shell)
+    shell_combo.setCurrentIndex(index if index >= 0 else (0 if available else 1))
+    missing.setVisible(not available)
+    autostart_check.setChecked(bool(tray.get("autostart")))
+    notify_check.setChecked(ui.get("notifications", True) is not False)
+    status.setText("")
+    buttons.button(QDialogButtonBox.StandardButton.Save).setEnabled(True)
+
+  buttons.button(QDialogButtonBox.StandardButton.Save).setEnabled(False)
+  runner.submit(load_settings, loaded)
+  dialog.exec()
+  runner.close()
+  return 0
 
 
 def main() -> int:

@@ -10,13 +10,14 @@ done
 APP_DIR="$(cd -- "$(dirname -- "$_script")/.." && pwd)"
 unset _script _dir
 APP_NAME="cloudflare-one-warp"
-BASE_PORT="${CLOUDFLARE_ONE_WARP_PORT:-${CLOUDFLARE_ONE_GUI_PORT:-4173}}"
+BASE_PORT=4173
 PORT="$BASE_PORT"
 HOST="127.0.0.1"
 URL="http://${HOST}:${PORT}"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/${APP_NAME}"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/${APP_NAME}"
 PID_FILE="${RUNTIME_DIR}/server.pid"
+PORT_FILE="${RUNTIME_DIR}/server.port"
 LOG_FILE="${CACHE_DIR}/server.log"
 
 mkdir -p "$RUNTIME_DIR" "$CACHE_DIR"
@@ -29,6 +30,17 @@ elif [[ -n "${CLOUDFLARE_ONE_WARP_NODE:-${CLOUDFLARE_ONE_GUI_NODE:-}}" ]]; then
 else
   NODE_BIN="node"
 fi
+
+# Use the daemon's layered settings, including the saved port and XDG home.
+BASE_PORT="$("$NODE_BIN" --input-type=module -e '
+  import { pathToFileURL } from "node:url";
+  const { loadConfig, isValidServerPort } = await import(pathToFileURL(process.argv[1]));
+  const port = loadConfig().server.port;
+  if (!isValidServerPort(port)) process.exit(1);
+  console.log(port);
+' "$APP_DIR/lib/config.mjs")"
+PORT="$BASE_PORT"
+URL="http://${HOST}:${PORT}"
 
 run_warp_cli() {
   local bin="${CLOUDFLARE_ONE_WARP_CLI:-${WARP_CLI:-warp-cli}}"
@@ -100,7 +112,7 @@ daemon_pid_matches_install() {
 restart_stale_daemon() {
   if is_running; then
     kill "$(cat "$PID_FILE")" 2>/dev/null || true
-    rm -f "$PID_FILE"
+    rm -f "$PID_FILE" "$PORT_FILE"
   fi
 }
 
@@ -113,9 +125,26 @@ port_open() {
   "$NODE_BIN" "$APP_DIR/scripts/port-open.mjs" "$HOST" "$PORT" >/dev/null 2>&1
 }
 
+discover_port() {
+  local candidate
+  if is_running && [[ -f "$PORT_FILE" ]]; then
+    candidate="$(cat "$PORT_FILE")"
+    if [[ "$candidate" =~ ^[0-9]+$ ]] && (( candidate >= 1024 && candidate <= 65535 )); then
+      set_port "$candidate"
+      health_ok && return 0
+    fi
+  fi
+  for candidate in $(seq "$BASE_PORT" "$((BASE_PORT + 30 > 65535 ? 65535 : BASE_PORT + 30))"); do
+    set_port "$candidate"
+    health_ok && return 0
+  done
+  set_port "$BASE_PORT"
+  return 1
+}
+
 choose_port() {
   local candidate
-  for candidate in $(seq "$BASE_PORT" "$((BASE_PORT + 30))"); do
+  for candidate in $(seq "$BASE_PORT" "$((BASE_PORT + 30 > 65535 ? 65535 : BASE_PORT + 30))"); do
     set_port "$candidate"
     if health_ok; then
       return 0
@@ -130,7 +159,7 @@ choose_port() {
 }
 
 start_server() {
-  choose_port
+  discover_port || choose_port
 
   if needs_webui; then
     if daemon_ready && daemon_pid_matches_install && webui_health_ok; then
@@ -158,6 +187,7 @@ start_server() {
       nohup env "${server_env[@]}" "$NODE_BIN" "$APP_DIR/server.js" >>"$LOG_FILE" 2>&1 &
     fi
     echo "$!" > "$PID_FILE"
+    printf '%s\n' "$PORT" > "$PORT_FILE"
   )
 
   for _ in $(seq 1 80); do
@@ -170,7 +200,7 @@ start_server() {
   echo "Cloudflare One WARP daemon did not become healthy. Log: $LOG_FILE" >&2
   if is_running; then
     kill "$(cat "$PID_FILE")" 2>/dev/null || true
-    rm -f "$PID_FILE"
+    rm -f "$PID_FILE" "$PORT_FILE"
   fi
   return 1
 }
@@ -178,7 +208,7 @@ start_server() {
 stop_server() {
   if is_running; then
     kill "$(cat "$PID_FILE")"
-    rm -f "$PID_FILE"
+    rm -f "$PID_FILE" "$PORT_FILE"
     echo "Stopped Cloudflare One WARP daemon."
   else
     echo "Cloudflare One WARP daemon is not running."
@@ -236,6 +266,7 @@ case "${1:-}" in
     "$NODE_BIN" --input-type=module -e "import { getVersion } from 'file://$APP_DIR/lib/version.mjs'; console.log(getVersion());"
     ;;
   --status)
+    discover_port || true
     if is_running && health_ok; then
       echo "Cloudflare One WARP is running at $URL"
     else

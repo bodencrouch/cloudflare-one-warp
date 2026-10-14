@@ -4,7 +4,10 @@ import { test } from "node:test";
 import {
   buildReadinessReport,
   formatDiagnosticsClipboard,
-  probeWarpCliPresent
+  probeWarpCliPresent,
+  probeWarpCli,
+  probeTrayToolkit,
+  assessReadiness
 } from "../lib/readiness/index.mjs";
 
 test("all ready report has no blockers or soft warnings", () => {
@@ -114,4 +117,75 @@ test("diagnostics clipboard excludes account-looking fields and includes readine
   assert.doesNotMatch(text, /Organization:\s+\S+/i);
   assert.doesNotMatch(text, /License:\s+\S+/i);
   assert.doesNotMatch(text, /Account ID:\s+\S+/i);
+});
+
+
+test("Windows discovery honors PATHEXT and executable candidates", () => {
+  const result = probeWarpCliPresent("warp-cli", {
+    platform: "win32", env: { PATH: "C:\\WARP", PATHEXT: ".EXE;.CMD" },
+    access(path) { if (path !== "C:\\WARP\\warp-cli.EXE") throw new Error("missing"); }
+  });
+  assert.equal(result.present, true);
+  assert.equal(result.path, "C:\\WARP\\warp-cli.EXE");
+});
+
+test("Flatpak readiness probes the host CLI instead of sandbox PATH", async () => {
+  const result = await probeWarpCli({ env: { FLATPAK_ID: "test" }, executeCommand: async (cmd, args) => {
+    assert.equal(cmd, "flatpak-spawn");
+    assert.deepEqual(args, ["--host", "--", "warp-cli", "--version"]);
+    return { status: 0 };
+  } });
+  assert.equal(result.present, true);
+  assert.equal(result.host, true);
+});
+
+test("slow toolkit probing yields to the event loop", async () => {
+  let timerRan = false;
+  const timer = new Promise(resolve => setTimeout(() => { timerRan = true; resolve(); }, 5));
+  const pending = probeTrayToolkit({ spawn: async () => {
+    await new Promise(resolve => setTimeout(resolve, 30));
+    return { status: 0 };
+  } });
+  await timer;
+  assert.equal(timerRan, true);
+  assert.equal((await pending).backend, "qt");
+});
+
+test("failed status is not ready even with unfamiliar stderr", async () => {
+  const report = await assessReadiness({
+    warpCliPath: "warp-cli", whichSync: () => "/mock/warp-cli",
+    runStatus: async () => ({ ok: false, code: 1, stderr: "IPC connection refused" }),
+    trayProbe: async () => ({ available: true }), killSwitchDesired: true,
+    probeKillSwitch: async () => ({ active: null })
+  });
+  assert.equal(report.hardBlocked, true);
+  assert.match(report.items.find(i => i.id === "warp_service").detail, /IPC connection refused/);
+  assert.match(report.items.find(i => i.id === "kill_switch").detail, /unknown/i);
+});
+
+test("requested protection with absent rules never promises protection", () => {
+  const report = buildReadinessReport({ warpCli: { present: true }, warpService: { available: true },
+    trayToolkit: { available: true }, killSwitch: { desired: true, active: false } });
+  const protection = report.items.find(i => i.id === "kill_switch");
+  assert.match(protection.nextStep, /rules are absent/);
+  assert.doesNotMatch(protection.nextStep, /will be blocked/);
+  assert.equal(protection.hardBlocker, false);
+});
+
+test("failed enrollment restoration is a persistent protection warning", () => {
+  const report = buildReadinessReport({ warpCli: { present: true }, warpService: { available: true },
+    trayToolkit: { available: true }, killSwitch: { desired: true, active: false,
+      enrollmentPause: { restorationPending: true, error: "nft restore failed" } } });
+  const protection = report.items.find(i => i.id === "kill_switch");
+  assert.equal(protection.state, "needs_attention");
+  assert.match(protection.nextStep, /restoration failed/);
+  assert.equal(protection.detail, "nft restore failed");
+});
+
+test("empty successful status does not establish service readiness", async () => {
+  const common = { warpCliPath: "warp-cli", whichSync: () => "/mock/warp-cli", trayProbe: () => ({ available: true }) };
+  const empty = await assessReadiness({ ...common, runStatus: async () => ({ ok: true, code: 0, stdout: "" }) });
+  assert.equal(empty.hardBlocked, true);
+  const disconnected = await assessReadiness({ ...common, runStatus: async () => ({ ok: true, code: 0, stdout: "Status update: Disconnected" }) });
+  assert.equal(disconnected.hardBlocked, false);
 });

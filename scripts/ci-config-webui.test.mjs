@@ -103,3 +103,36 @@ test("persistUserUi writes notifications preference", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("persisted notifications replace session override immediately and failed writes preserve it", () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-ui-session-"));
+  const env = { HOME: root };
+  try {
+    clearSessionOverrides();
+    setSessionOverrides({ ui: { notifications: false } });
+    assert.equal(persistUserUi({ notifications: true }, { env }).ui.notifications, true);
+    assert.equal(getConfig().ui.notifications, true);
+    setSessionOverrides({ ui: { notifications: false } });
+    const blocker = join(root, "blocker");
+    writeFileSync(blocker, "not a directory");
+    assert.throws(() => persistUserUi({ notifications: true }, { env, userPath: join(blocker, "config.json") }));
+    assert.equal(getConfig().ui.notifications, false);
+  } finally { clearSessionOverrides(); reloadConfig(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("XDG configuration migrates prior user settings and rejects corrupt writes", () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-xdg-config-"));
+  const prior = join(root, ".config/cloudflare-one-warp/config.json");
+  const current = join(root, "custom/cloudflare-one-warp/config.json");
+  const env = { HOME: root, XDG_CONFIG_HOME: join(root, "custom") };
+  try {
+    mkdirSync(join(root, ".config/cloudflare-one-warp"), { recursive: true });
+    writeFileSync(prior, JSON.stringify({ server: { port: 49871 }, ui: { locale: "fr" } }));
+    const cfg = persistUserUi({ notifications: false }, { env });
+    assert.equal(cfg.server.port, 49871);
+    assert.equal(JSON.parse(readFileSync(current)).ui.locale, "fr");
+    writeFileSync(current, "{broken");
+    assert.throws(() => persistUserUi({ notifications: true }, { env }));
+    assert.equal(readFileSync(current, "utf8"), "{broken");
+  } finally { clearSessionOverrides(); reloadConfig(); rmSync(root, { recursive: true, force: true }); }
+});

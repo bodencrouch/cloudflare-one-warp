@@ -58,3 +58,11 @@ test("managed registration is treated as Zero Trust", () => {
   }));
   assert.equal(isZeroTrustAccount(parsed), true);
 });
+
+
+test("organization errors cannot be interpreted as team names", () => {
+  for (const text of ["Error: This command is only available for organization accounts", "IPC connection refused", "Organization: Error: unavailable", '{"organization":"not a valid team"}', "<script>alert(1)</script>"]) {
+    assert.equal(parseRegistrationOrganization(text).organization, null);
+  }
+  assert.equal(parseRegistrationOrganization("my-team").organization, "my-team");
+});
