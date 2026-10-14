@@ -265,3 +265,36 @@ test("privileged fallback receives only structured fixed options, never an nft f
     assert.deepEqual(JSON.parse(readFileSync(recorded, "utf8")), [env.CLOUDFLARE_ONE_WARP_NFT_HELPER, "enable", "true", "destroy"]);
   } finally { rmSync(fake.root, { recursive: true, force: true }); }
 });
+
+test("explicit off cancels a queued restore generation even after protection is re-enabled", { skip: process.platform === "win32" }, async () => {
+  const fake = fakeFirewall();
+  let release;
+  const blocked = new Promise((resolve) => { release = resolve; });
+  try {
+    clearSessionOverrides(); setSessionKillSwitch({ enabled: true, allowLan: false });
+    await applyKillSwitch({ enabled: true, env: fake.env });
+    await beginEnrollmentPause({ env: fake.env });
+    const blocker = applyKillSwitch({ enabled: false, env: fake.env, onSuccess: () => blocked });
+    const off = applyKillSwitch({ enabled: false, env: fake.env, onSuccess: () => {
+      setSessionKillSwitch({ enabled: false }); cancelEnrollmentPause();
+    } });
+    const on = applyKillSwitch({ enabled: true, env: fake.env, onSuccess: () => {
+      setSessionKillSwitch({ enabled: true }); writeFileSync(fake.failure, "1");
+    } });
+    const obsoleteRestore = endEnrollmentPause({ env: fake.env, retryMs: 10 });
+    await delay(60); release();
+    await blocker; await off; await on;
+    const result = await obsoleteRestore;
+    assert.equal(result.ok, true);
+    assert.equal(result.cancelled, true);
+    assert.equal(result.resumed, false);
+    assert.equal(getEnrollmentPauseState().paused, false);
+    const before = readFileSync(fake.events, "utf8");
+    assert.equal(before.match(/start true/g)?.length, 2, "obsolete generation must not invoke nft");
+    await delay(80);
+    assert.equal(readFileSync(fake.events, "utf8"), before, "canceled generation must not schedule a retry");
+  } finally {
+    release(); cancelEnrollmentPause(); clearSessionOverrides(); reloadConfig(process.env);
+    rmSync(fake.root, { recursive: true, force: true });
+  }
+});
