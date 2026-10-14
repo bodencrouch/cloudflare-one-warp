@@ -7,6 +7,7 @@ import unittest
 import json
 import os
 import tempfile
+import subprocess
 from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from tray_api import CloudflareOneWarpClient, session_token_path
@@ -100,14 +101,22 @@ class ClientRecoveryTest(unittest.TestCase):
         self.end_headers()
         self.wfile.write(json.dumps(payload).encode())
       def log_message(self, *_args): pass
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    # The isolated HTTP fixture needs no host DNS or reverse lookups.
+    with patch("socket.getfqdn", return_value="localhost"):
+      server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
       with tempfile.TemporaryDirectory() as home, patch.dict(os.environ, {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, "config"), "XDG_RUNTIME_DIR": os.path.join(home, "runtime")}):
-        path = session_token_path(server.server_port)
-        os.makedirs(os.path.dirname(path))
-        with open(path, "w", encoding="utf-8") as handle: handle.write(token)
-        os.chmod(path, 0o600)
+        # Exercise the daemon's actual platform storage boundary. chmod(0600)
+        # alone does not establish an owner-only protected DACL on NTFS.
+        program = """import {pathToFileURL} from 'node:url';
+const {createSessionToken}=await import(pathToFileURL(process.argv[1]));
+process.stdout.write(createSessionToken(Number(process.argv[2])).token);"""
+        result = subprocess.run([os.environ.get("CLOUDFLARE_ONE_WARP_NODE") or "node",
+          "--input-type=module", "-e", program,
+          str(Path(__file__).resolve().parent.parent / "lib" / "http" / "request-gate.mjs"),
+          str(server.server_port)], check=True, capture_output=True, text=True, timeout=20)
+        token = result.stdout.strip()
         client = CloudflareOneWarpClient.__new__(CloudflareOneWarpClient)
         client.host = "127.0.0.1"
         client.base_port = server.server_port
