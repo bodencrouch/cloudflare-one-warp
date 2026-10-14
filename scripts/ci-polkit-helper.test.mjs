@@ -38,7 +38,7 @@ function withHelper(callback) {
   finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
-test("production helper emits exactly the canonical rules for every structured option", () => {
+test("production helper emits exactly the canonical rules for every structured option", { skip: process.platform === "win32" }, () => {
   withHelper(({ capture, sandbox }) => {
     for (const useDestroy of [true, false]) {
       for (const enabled of [true, false]) {
@@ -53,7 +53,7 @@ test("production helper emits exactly the canonical rules for every structured o
   });
 });
 
-test("production helper rejects caller files, directives, families, includes and extra arguments", () => {
+test("production helper rejects caller files, directives, families, includes and extra arguments", { skip: process.platform === "win32" }, () => {
   withHelper(({ dir, capture, sandbox }) => {
     const input = join(dir, "caller.nft");
     const evil = ["# cloudflare_one_warp_killswitch\nflush ruleset", "include /tmp/evil", "table ip other {}", "destroy table inet other"];
