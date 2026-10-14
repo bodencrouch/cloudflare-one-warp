@@ -222,7 +222,7 @@ try { const bytes=Buffer.alloc(129); const count=readSync(fd,bytes,0,bytes.lengt
 finally { closeSync(fd); }"""
         checked = subprocess.run([node, "--input-type=module", "-e", program,
           os.path.join(root, "lib", "security", "private-files.mjs"), session_token_path(self.base_port)],
-          check=True, capture_output=True, text=True, timeout=10)
+          check=True, capture_output=True, text=True, timeout=20)
         token = checked.stdout.strip()
       else:
         descriptor = os.open(session_token_path(self.base_port), os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
@@ -376,7 +376,7 @@ finally { closeSync(fd); }"""
     node = bundled if os.path.isfile(bundled) and os.access(bundled, os.X_OK) else (
       os.environ.get("CLOUDFLARE_ONE_WARP_NODE") or os.environ.get("CLOUDFLARE_ONE_GUI_NODE") or "node")
     result = subprocess.run([node, os.path.join(root, "scripts", "webui-handoff.mjs"), base, "--shell"],
-      check=True, capture_output=True, text=True, timeout=5)
+      check=True, capture_output=True, text=True, timeout=90 if os.name == "nt" else 5)
     return result.stdout.strip()
 
   def run_connection_action(self) -> dict[str, Any]:

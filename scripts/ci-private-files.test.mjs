@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync, statSync, chmodSync } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { assertPrivateDirectory, assertPrivateFile, ensurePrivateDirectory, ensurePrivateFile } from "../lib/security/private-files.mjs";
+import { assertPrivateDirectory, assertPrivateFile, ensurePrivateDirectory, ensurePrivateFile, WINDOWS_ACL_TIMEOUT_MS } from "../lib/security/private-files.mjs";
 
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), "warp-private-storage-"));
@@ -37,7 +37,7 @@ test("Windows private storage verifies native owner SID and protected DACL", { s
   assertPrivateDirectory(directory);
   assertPrivateFile(file);
   const execute = script => execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-    env: { ...process.env, WARP_ACL_TEST_FILE: file }, timeout: 5000, windowsHide: true, encoding: "utf8"
+    env: { ...process.env, WARP_ACL_TEST_FILE: file }, timeout: WINDOWS_ACL_TIMEOUT_MS, windowsHide: true, encoding: "utf8"
   });
   const acl = JSON.parse(execute(String.raw`
 $a = Get-Acl -LiteralPath $env:WARP_ACL_TEST_FILE
@@ -52,7 +52,13 @@ $r = [System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.
 $a.AddAccessRule($r)
 Set-Acl -LiteralPath $env:WARP_ACL_TEST_FILE -AclObject $a
 `);
-  assert.throws(() => assertPrivateFile(file), /private ACL could not be verified/);
+  assert.throws(() => assertPrivateFile(file), error => {
+    assert.equal(error.code, "PRIVATE_ACL_INVALID");
+    assert.equal(error.message.includes(file), false);
+    assert.equal(error.message.includes("test credential"), false);
+    assert.match(error.message, /private ACL could not be verified/);
+    return true;
+  });
   ensurePrivateFile(file);
   assertPrivateFile(file);
 });

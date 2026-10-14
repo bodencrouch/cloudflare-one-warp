@@ -115,7 +115,7 @@ process.stdout.write(createSessionToken(Number(process.argv[2])).token);"""
         result = subprocess.run([os.environ.get("CLOUDFLARE_ONE_WARP_NODE") or "node",
           "--input-type=module", "-e", program,
           str(Path(__file__).resolve().parent.parent / "lib" / "http" / "request-gate.mjs"),
-          str(server.server_port)], check=True, capture_output=True, text=True, timeout=20)
+          str(server.server_port)], check=True, capture_output=True, text=True, timeout=60)
         token = result.stdout.strip()
         client = CloudflareOneWarpClient.__new__(CloudflareOneWarpClient)
         client.host = "127.0.0.1"

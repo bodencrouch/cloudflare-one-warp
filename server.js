@@ -1346,8 +1346,9 @@ server.on("error", (error) => {
 server.listen(port, listenHost, () => {
   try {
     session = createSessionToken(port);
-  } catch {
-    console.error("Unable to publish the local session credential.");
+  } catch (error) {
+    const failure = /^[A-Z0-9_]{1,40}$/.test(error.code || "") ? error.code : "PRIVATE_CREDENTIAL_FAILURE";
+    console.error(`Unable to publish the local session credential (${failure}).`);
     server.close();
     process.exitCode = 1;
     return;
