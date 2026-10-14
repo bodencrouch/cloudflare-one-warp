@@ -163,7 +163,7 @@ setTimeout(() => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-test("kill switch queue serializes nft and persistence, including after failure", async () => {
+test("kill switch queue serializes nft and persistence, including after failure", { skip: process.platform === "win32" }, async () => {
   const fake = fakeFirewall();
   try {
     const persist = [];
@@ -183,7 +183,7 @@ test("kill switch queue serializes nft and persistence, including after failure"
   } finally { rmSync(fake.root, { recursive: true, force: true }); }
 });
 
-test("failed enrollment restore retains warning and retries until protection returns", async () => {
+test("failed enrollment restore retains warning and retries until protection returns", { skip: process.platform === "win32" }, async () => {
   const fake = fakeFirewall();
   try {
     clearSessionOverrides();
@@ -209,7 +209,7 @@ test("failed enrollment restore retains warning and retries until protection ret
   }
 });
 
-test("enrollment restoration obeys current off preference and current LAN setting", async () => {
+test("enrollment restoration obeys current off preference and current LAN setting", { skip: process.platform === "win32" }, async () => {
   const fake = fakeFirewall();
   try {
     clearSessionOverrides();
@@ -231,7 +231,7 @@ test("enrollment restoration obeys current off preference and current LAN settin
   }
 });
 
-test("queued restore reads preference only after an explicit off operation persists", async () => {
+test("queued restore reads preference only after an explicit off operation persists", { skip: process.platform === "win32" }, async () => {
   const fake = fakeFirewall();
   try {
     clearSessionOverrides(); setSessionKillSwitch({ enabled: true, allowLan: false });
@@ -252,7 +252,7 @@ test("queued restore reads preference only after an explicit off operation persi
   }
 });
 
-test("privileged fallback receives only structured fixed options, never an nft filename", async () => {
+test("privileged fallback receives only structured fixed options, never an nft filename", { skip: process.platform === "win32" }, async () => {
   const fake = fakeFirewall();
   const recorded = join(fake.root, "pkexec-args");
   try {
