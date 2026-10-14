@@ -113,6 +113,7 @@ Full contributor guide: **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)**
 | [Distribution](docs/DISTRIBUTION.md) | Flathub, Snap, COPR, AUR, AppImageHub |
 | [Updates](docs/UPDATES.md) | Update channels and manifest |
 | [CI](docs/CI.md) | Test confidence levels |
+| [Manual review fixes](docs/REVIEW_FIXES.md) | Findings, fixes, regression coverage, and native validation limits |
 
 ## Distribution
 
