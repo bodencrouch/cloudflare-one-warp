@@ -9,12 +9,12 @@ Cloudflare One WARP uses layered configuration so operators can manage the daemo
 | 1. Defaults | in `lib/config.mjs` | Safe localhost-only baseline |
 | 2. System JSON | `/etc/cloudflare-one-warp/config.json` | Fleet / machine policy |
 | 3. Environment file | `/etc/default/cloudflare-one-warp` | Debian/RHEL-style `KEY=value` for systemd |
-| 4. User JSON | `~/.config/cloudflare-one-warp/config.json` | Per-user preferences |
-| 5. Prior install path | `~/.config/cloudflare-one-gui/config.json` | Migrated automatically if present |
+| 4. Legacy user JSON | `~/.config/cloudflare-one-gui/config.json` | Prior product configuration fallback |
+| 5. User JSON | `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/config.json` | Per-user preferences; the previous `~/.config` location loads first as a fallback |
 | 6. Environment | `CLOUDFLARE_ONE_WARP_*`, `WARP_CLI`, `PORT` | Containers, CI, drop-ins |
 | 7. Session | `POST /api/config/session` | In-app toggles until restart |
 
-Higher layers win on conflicting keys.
+Higher layers win on conflicting keys. An absolute `XDG_CONFIG_HOME` selects the current user configuration directory; relative values are ignored. Writes go to the current directory.
 
 ## Config file schema
 
@@ -161,7 +161,7 @@ ${XDG_CONFIG_HOME:-~/.config}/cloudflare-one-warp/session-<port>.token   # mode 
 The Web UI, tray, and settings dialog handle this for you. For scripts, send it as `x-cloudflare-one-warp-session` on every `POST`:
 
 ```bash
-SESSION=$(cat ~/.config/cloudflare-one-warp/session-4173.token)
+SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")
 ```
 
 Requests that change something must also come from this computer, be addressed to `127.0.0.1` / `localhost`, and send `content-type: application/json`. Anything else is refused with `403` (or `415` for a non-JSON body) and logged in the Console tab. All API reads and writes require a loopback peer. Legacy remote-bind settings fall back to `127.0.0.1`; the settings API rejects new remote binds. For access from another computer, use an authenticated SSH tunnel with the same local and remote port, for example `ssh -L 4173:127.0.0.1:4173 user@host`, then open `http://127.0.0.1:4173` locally.
@@ -223,9 +223,9 @@ curl -s -X POST http://127.0.0.1:4173/api/config/tray-autostart \
 | OS | Idiomatic config |
 |----|------------------|
 | Linux (deb/rpm) | `/etc/default/cloudflare-one-warp` + `/etc/cloudflare-one-warp/config.json` |
-| Linux (user) | `~/.config/cloudflare-one-warp/config.json` + user systemd |
-| macOS (Homebrew) | `~/.config/cloudflare-one-warp/config.json` + `launchctl`/`brew services` (future) |
-| Container | `CLOUDFLARE_ONE_WARP_*` env vars on `docker run` |
+| Linux (user) | `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/config.json` + user systemd |
+| macOS (Homebrew) | `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/config.json` + `launchctl`/`brew services` (future) |
+| Container (Linux) | `CLOUDFLARE_ONE_WARP_*` env vars; host networking and mounted CLI/socket ([example](PACKAGING.md#container-images-ghcr)) |
 
 ## WARP / Cloudflare One settings
 
