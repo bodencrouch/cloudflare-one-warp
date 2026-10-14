@@ -1,5 +1,5 @@
 Name:           cloudflare-one-warp
-Version:        0.3.5
+Version:        0.3.6
 Release:        1%{?dist}
 Summary:        Cloudflare One WARP — unofficial Cloudflare One client via warp-cli
 

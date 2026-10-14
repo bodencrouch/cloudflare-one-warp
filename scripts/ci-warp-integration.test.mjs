@@ -784,3 +784,33 @@ test("saving a future server port does not advertise an unbound listener", async
   assert.equal(after.json.effectivePort, before.json.effectivePort);
   assert.equal(after.json.effectivePort, port);
 });
+
+test("invalid enrollment pause intent never begins a protection pause", async () => {
+  for (const body of [{}, { mode: "typo" }, { mode: null }, { mode: false }]) {
+    const result = await httpJson("POST", "/api/killswitch/enrollment-pause", body);
+    assert.equal(result.status, 400, JSON.stringify(body));
+  }
+});
+
+test("inherited action names are rejected as unsupported input", async () => {
+  for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    assert.equal((await action(name)).status, 400, name);
+  }
+});
+
+test("proxy ports must be integers inside the TCP port range", async () => {
+  for (const value of [0, 65536, 99999, "1.5", "-1"]) {
+    assert.equal((await action("setProxyPort", value)).status, 400, String(value));
+  }
+});
+
+test("JSON mutation bodies must be objects rather than scalars or arrays", async () => {
+  const session = await httpJson("GET", "/api/session");
+  const headers = { "content-type": "application/json", "x-cloudflare-one-warp-session": session.json.session };
+  for (const body of ["null", "[]", '"text"', "false", "123"]) {
+    const result = await httpRaw("POST", "/api/killswitch/enrollment-pause", { headers, body });
+    assert.equal(result.status, 400, body);
+    assert.match(result.json.error, /JSON object/);
+  }
+  assert.equal((await httpJson("GET", "/api/health")).status, 200);
+});

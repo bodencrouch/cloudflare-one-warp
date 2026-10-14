@@ -159,3 +159,37 @@ test("asynchronous notification executable failure cannot crash the daemon", asy
     assert.doesNotThrow(() => child.emit("error", new Error("ENOENT")));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("roaming keeps settled baseline and multiline reasons cannot erase disconnect warnings", async () => {
+  const notes = [];
+  const watcher = startStatusWatcher({ statusListener: { subscribe: () => () => {} }, debounceMs: 5,
+    available: () => true, notify: note => notes.push(note), getKillSwitchDesired: () => true });
+  const settle = () => new Promise(resolve => setTimeout(resolve, 15));
+  try {
+    watcher._inject("Connected"); await settle();
+    watcher._inject("Reconnecting"); await settle();
+    watcher._inject("Connected"); await settle();
+    assert.deepEqual(notes, [], "a successful roam stays silent");
+    watcher._inject("Connecting"); await settle();
+    watcher._inject("Disconnected");
+    watcher._inject("Reason: User initiated");
+    await settle();
+    assert.equal(notes.length, 1);
+    assert.match(notes[0].body, /Always On/);
+    watcher._inject("Connected"); watcher._inject("Network: Unhealthy"); await settle();
+    assert.equal(notes.length, 2);
+    watcher._inject("Connected"); watcher._inject("Network: Unhealthy"); await settle();
+    assert.equal(notes.length, 2, "repeated unhealthy status stays silent");
+  } finally { watcher.stop(); }
+});
+
+test("status parser requires state records and uses latest explicit state", () => {
+  for (const text of ["Error: not currently connected", "Reason: previously connected", "The disconnected client was connected yesterday", "Connected yesterday"]) {
+    assert.equal(parseStatus(text).connected, false);
+  }
+  assert.equal(parseStatus("Status update: Disconnected\nReason: previously connected").connected, false);
+  assert.equal(parseStatus("Status update: Disconnected\nStatus update: Connected").connected, true);
+  assert.equal(parseStatus("Status update: Connected\nStatus update: Disconnected").disconnected, true);
+  assert.equal(parseStatus("Connected\nRegistration missing").connected, false);
+  assert.equal(parseStatus("Network: Healthy\nNetwork: Unhealthy").healthy, false);
+});

@@ -31,3 +31,10 @@ test("spawn failures are bounded results", async () => {
   assert.equal(result.ok, false);
   assert.match(result.stderr, /ENOENT/);
 });
+
+test("CLI output preserves UTF-8 characters split across pipe chunks", async () => {
+  const script = 'const bytes=Buffer.from("€");process.stdout.write(bytes.subarray(0,1));setTimeout(()=>{process.stdout.write(bytes.subarray(1));},40);';
+  const result = await runBoundedChild(() => spawn(process.execPath, ["-e", script]));
+  assert.equal(result.ok, true);
+  assert.equal(result.stdout, "€");
+});

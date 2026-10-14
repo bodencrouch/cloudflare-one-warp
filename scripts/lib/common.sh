@@ -36,19 +36,33 @@ cloudflare_one_warp_require_command() {
   fi
 }
 
-cloudflare_one_warp_link_or_copy() {
-  local src="$1"
-  local dst="$2"
-  mkdir -p "$(dirname "$dst")"
+cloudflare_one_warp_validate_command_link() {
+  local src="$1" dst="$2"
   if [[ -e "$dst" && ! -L "$dst" ]]; then
-    echo "Refusing to replace an existing command: $dst" >&2
-    return 1
+    echo "Refusing to replace an existing command: $dst" >&2; return 1
   fi
   if [[ -L "$dst" && "$(readlink "$dst")" != "$src" ]]; then
-    echo "Refusing to replace an unrelated command link: $dst" >&2
-    return 1
+    echo "Refusing to replace an unrelated command link: $dst" >&2; return 1
   fi
+}
+
+cloudflare_one_warp_link_or_copy() {
+  local src="$1" dst="$2"
+  cloudflare_one_warp_validate_command_link "$src" "$dst"
+  mkdir -p "$(dirname "$dst")"
   ln -sf "$src" "$dst"
+}
+
+# Replace the directory entry rather than following an existing file symlink.
+cloudflare_one_warp_atomic_text_file() {
+  local destination="$1" temporary
+  if [[ -d "$destination" && ! -L "$destination" ]]; then
+    echo "Integration path is a directory: $destination" >&2; return 1
+  fi
+  temporary="$(mktemp "${destination}.XXXXXX")"
+  if cat > "$temporary" && chmod 0644 "$temporary" && node -e 'require("fs").renameSync(process.argv[1], process.argv[2])' "$temporary" "$destination"; then return 0; fi
+  rm -f "$temporary"
+  return 1
 }
 
 cloudflare_one_warp_remove_legacy_desktop_entries() {
@@ -65,13 +79,17 @@ cloudflare_one_warp_remove_legacy_desktop_entries() {
 
 # Reject destructive targets and unrelated trees before install or purge.
 cloudflare_one_warp_validate_install_dir() {
-  local target="$1" resolved
+  local target="$1" mode="${2:-install}" resolved
   resolved="$(node -e 'const p=require("path"); if(/[\r\n]/.test(process.argv[1])) process.exit(2); process.stdout.write(p.resolve(process.argv[1]))' "$target")"
-  case "$resolved" in /|"$HOME"|/usr|/usr/local|/etc|/var|/tmp|/opt|"$(cloudflare_one_warp_repo_root)")
+  case "$resolved" in /|"$HOME"|/usr|/usr/local|/etc|/var|/tmp|/opt)
     echo "Unsafe install directory: $resolved" >&2; return 1 ;;
   esac
   case "$resolved/" in "$(cloudflare_one_warp_repo_root)/"*)
-    echo "Install directory must be outside the source tree" >&2; return 1 ;;
+    if [[ "$mode" != remove || "$resolved" != "$(cloudflare_one_warp_repo_root)" ||
+          ! -f "$target/.cloudflare-one-warp-install" || -L "$target/.cloudflare-one-warp-install" ]] ||
+      [[ "$(cat "$target/.cloudflare-one-warp-install" 2>/dev/null)" != 'Cloudflare One WARP local install' ]]; then
+      echo "Install directory must be outside the source tree" >&2; return 1
+    fi ;;
   esac
   if [[ -L "$target" ]]; then echo "Install directory must not be a symbolic link" >&2; return 1; fi
   if [[ -e "$target" && ! -d "$target" ]]; then echo "Install directory is not a directory" >&2; return 1; fi

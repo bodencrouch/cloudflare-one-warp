@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   enrichSplitTunnel,
   parseRouteList,
+  parseManagedByDashboard,
   parseSplitTunnelMode
 } from "../lib/warp/split-tunnel.mjs";
 
@@ -28,4 +29,18 @@ test("enrichSplitTunnel merges dump, ips, and hosts", () => {
   assert.deepEqual(result.hosts, ["example.com"]);
   assert.equal(result.managedByDashboard, true);
   assert.match(result.managedHint, /device profile/i);
+});
+
+
+test("split policy parser respects explicit ownership values and rejects incidental prose", () => {
+  for (const text of ["Managed: false", "Not managed by dashboard", "Unmanaged", "No device profile exists", "Error: dashboard unavailable"]) {
+    assert.equal(parseManagedByDashboard(text), false);
+  }
+  for (const text of ["Managed: true", "Managed by Cloudflare device profile", "Source: dashboard", "Managed by your organization"]) {
+    assert.equal(parseManagedByDashboard(text), true);
+  }
+  assert.equal(parseManagedByDashboard("Managed: true\nManaged: false"), false);
+  assert.equal(parseSplitTunnelMode("Error: mode: include-invalid"), "unknown");
+  assert.equal(parseSplitTunnelMode("routes not included"), "unknown");
+  assert.equal(parseSplitTunnelMode("Mode: include\nMode: exclude"), "exclude");
 });

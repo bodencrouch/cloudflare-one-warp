@@ -7,6 +7,11 @@ DIST="${ROOT}/dist"
 PAYLOAD="${PAYLOAD_DIR:-${DIST}/payload}"
 LIB="${PAYLOAD}/usr/lib/cloudflare-one-warp"
 
+# Native bundles must apply the same credential exclusions as source/Snap/Flatpak.
+SOURCE_STAGE="$(mktemp -d)"
+trap 'rm -rf "$SOURCE_STAGE"' EXIT
+bash "${ROOT}/packaging/scripts/stage-source.sh" "$SOURCE_STAGE"
+
 rm -rf "$PAYLOAD"
 mkdir -p \
   "$LIB" \
@@ -23,7 +28,7 @@ mkdir -p \
 
 install -m 0644 "${ROOT}/server.js" "${LIB}/server.js"
 install -m 0644 "${ROOT}/package.json" "${LIB}/package.json"
-cp -a "${ROOT}/lib/." "${LIB}/lib/"
+cp -a "${SOURCE_STAGE}/lib/." "${LIB}/lib/"
 mkdir -p "${LIB}/config"
 install -m 0644 "${ROOT}/config/config.example.json" "${PAYLOAD}/etc/cloudflare-one-warp/config.json.example"
 install -m 0644 "${ROOT}/config/update-manifest.json" "${LIB}/config/update-manifest.json"
@@ -33,8 +38,8 @@ install -m 0644 "${ROOT}/LICENSE" "${PAYLOAD}/usr/share/licenses/cloudflare-one-
 install -m 0644 "${ROOT}/CHANGELOG.md" "${PAYLOAD}/usr/share/doc/cloudflare-one-warp/CHANGELOG.md"
 install -m 0644 "${ROOT}/SECURITY.md" "${PAYLOAD}/usr/share/doc/cloudflare-one-warp/SECURITY.md"
 
-cp -a "${ROOT}/public" "${LIB}/public"
-cp -a "${ROOT}/assets" "${LIB}/assets"
+cp -a "${SOURCE_STAGE}/public" "${LIB}/public"
+cp -a "${SOURCE_STAGE}/assets" "${LIB}/assets"
 mkdir -p "${LIB}/scripts" "${LIB}/bin"
 install -m 0755 "${ROOT}/scripts/health-check.mjs" "${LIB}/scripts/health-check.mjs"
 install -m 0755 "${ROOT}/scripts/daemon-ready.mjs" "${LIB}/scripts/daemon-ready.mjs"

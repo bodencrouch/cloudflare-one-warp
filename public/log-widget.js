@@ -1,5 +1,6 @@
-import { apiFetch } from "./api-client.js?clientRevision=8";
-import { t } from "./i18n.js?clientRevision=8";
+import { preferences } from "./storage.js?clientRevision=9";
+import { apiFetch } from "./api-client.js?clientRevision=9";
+import { t } from "./i18n.js?clientRevision=9";
 
 export const LOG_WIDGET_HEIGHT_KEY = "cloudflare-one-warp-log-height";
 export const LOG_WIDGET_COLLAPSED_KEY = "cloudflare-one-warp-log-collapsed";
@@ -7,9 +8,9 @@ export const LOG_WIDGET_TAB_KEY = "cloudflare-one-warp-log-tab";
 export const STATUS_LINES_CAP = 1000;
 
 export function createDefaultLogWidgetState() {
-  const collapsed = localStorage.getItem(LOG_WIDGET_COLLAPSED_KEY) === "1";
-  const height = Number(localStorage.getItem(LOG_WIDGET_HEIGHT_KEY)) || 220;
-  const tab = localStorage.getItem(LOG_WIDGET_TAB_KEY) || "status";
+  const collapsed = preferences.getItem(LOG_WIDGET_COLLAPSED_KEY) === "1";
+  const height = Number(preferences.getItem(LOG_WIDGET_HEIGHT_KEY)) || 220;
+  const tab = preferences.getItem(LOG_WIDGET_TAB_KEY) || "status";
   return {
     tab: ["status", "console", "diagnostics"].includes(tab) ? tab : "status",
     collapsed,
@@ -248,7 +249,7 @@ export function renderLogDock(state, handlers = {}) {
       if (next === undefined) return;
       event.preventDefault();
       setHeight(next);
-      localStorage.setItem(LOG_WIDGET_HEIGHT_KEY, String(lw.height));
+      preferences.setItem(LOG_WIDGET_HEIGHT_KEY, String(lw.height));
     };
     resize.onmousedown = (event) => {
       event.preventDefault();
@@ -261,7 +262,7 @@ export function renderLogDock(state, handlers = {}) {
       const onUp = () => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
-        localStorage.setItem(LOG_WIDGET_HEIGHT_KEY, String(lw.height));
+        preferences.setItem(LOG_WIDGET_HEIGHT_KEY, String(lw.height));
       };
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
@@ -313,8 +314,8 @@ export function openLogDockTab(state, tab) {
   if (!state.logWidget) return;
   state.logWidget.tab = tab;
   state.logWidget.collapsed = false;
-  localStorage.setItem(LOG_WIDGET_TAB_KEY, tab);
-  localStorage.setItem(LOG_WIDGET_COLLAPSED_KEY, "0");
+  preferences.setItem(LOG_WIDGET_TAB_KEY, tab);
+  preferences.setItem(LOG_WIDGET_COLLAPSED_KEY, "0");
 }
 
 export function isLogPanelFocused() {

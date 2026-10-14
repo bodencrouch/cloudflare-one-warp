@@ -126,16 +126,27 @@ try {
   const ownerToken = readSessionToken(port, { ...process.env, HOME: xdgRoot, XDG_CONFIG_HOME: join(xdgRoot, "config") });
   const migrationRequests = [];
   migration.on("request", (request) => migrationRequests.push(request));
-  await migration.goto(`http://127.0.0.1:${port}/?clientRevision=8#session=${ownerToken}`, { waitUntil: "domcontentloaded" });
+  await migration.goto(`http://127.0.0.1:${port}/?clientRevision=9#session=${ownerToken}`, { waitUntil: "domcontentloaded" });
   await migration.locator("[data-testid='log-dock']").waitFor({ timeout: 20000 });
   if (await migration.evaluate(() => Boolean(window.legacyOwnerClientExecuted))) throw new Error("Cached legacy authorization module executed");
   if (new URL(migration.url()).hash.includes("session")) throw new Error("Migration retained owner fragment");
   await waitForPredicate(migration, () => Boolean(document.querySelector("[data-connection-toggle]")), { timeout: 10000 });
   for (const request of migrationRequests) if (request.url().includes(ownerToken)) throw new Error("Migration credential entered an HTTP request URL");
   if (!migrationRequests.some((request) => new URL(request.url()).pathname === "/api/snapshot" && request.headers()["x-cloudflare-one-warp-session"] === ownerToken)) throw new Error("Migrated shell did not authorize private API");
-  if (!migrationRequests.some((request) => new URL(request.url()).pathname === "/api-client.js" && new URL(request.url()).searchParams.get("clientRevision") === "8")) throw new Error("Owner authorization module was not revisioned");
+  if (!migrationRequests.some((request) => new URL(request.url()).pathname === "/api-client.js" && new URL(request.url()).searchParams.get("clientRevision") === "9")) throw new Error("Owner authorization module was not revisioned");
   await migration.close();
   await rm(legacyWorkerPath, { force: true });
+  const blocked = await browser.newPage();
+  const blockedErrors = [];
+  blocked.on("pageerror", (error) => blockedErrors.push(error.message));
+  await blocked.addInitScript(() => {
+    for (const storage of ["localStorage", "sessionStorage"]) Object.defineProperty(window, storage, { configurable: true, get() { throw new DOMException("Storage blocked", "SecurityError"); } });
+  });
+  await blocked.goto(`http://127.0.0.1:${port}/?shell=1#session=${ownerToken}`, { waitUntil: "domcontentloaded" });
+  await blocked.locator(".simple-shell").waitFor();
+  await blocked.locator("[data-log-tab='console']").click();
+  if (blockedErrors.length) throw new Error(`Storage policy broke UI: ${blockedErrors.join("; ")}`);
+  await blocked.close();
   const narrow = await browser.newPage({ viewport: { width: 320, height: 760 } });
   await narrow.goto(`http://127.0.0.1:${port}/?shell=1#session=${readSessionToken(port, { ...process.env, HOME: xdgRoot, XDG_CONFIG_HOME: join(xdgRoot, "config") })}`, { waitUntil: "domcontentloaded" });
   await narrow.locator(".simple-shell").waitFor();
@@ -149,7 +160,7 @@ try {
   await resize.press("Home");
   if (await resize.getAttribute("aria-valuenow") !== "120") throw new Error("Log panel resize minimum not enforced");
   const malicious = '<img src="/missing-regression-image" onerror="window.metadataExecuted=true">';
-  await page.route("**/api/update/forks", (route) => route.fulfill({ json: { upstream: { owner: "bodencrouch", repo: "cloudflare-one-warp" }, forks: [] } }));
+  await page.route("**/api/update/forks", (route) => route.fulfill({ json: { upstream: { owner: "bodencrouch", repo: "cloudflare-one-warp" }, forks: [{ owner: "bodencrouch", repo: "cloudflare-one-warp", upstream: true }, { owner: "test-fork", repo: "cloudflare-one-warp", upstream: false }] } }));
   await page.route("**/api/update/releases?*", (route) => route.fulfill({ json: { releases: [] } }));
   await page.route("**/api/update/check", (route) => route.fulfill({ json: { ok: true, current: "0.3.4", latest: "0.4.0", updateAvailable: true, installFormat: "source", canApply: false, source: { owner: "bodencrouch", repo: "cloudflare-one-warp" }, release: { name: malicious, body: "Reviewed release" } } }));
   await page.locator("[data-nav='app']").click();
@@ -157,6 +168,15 @@ try {
   await page.getByText(malicious, { exact: true }).waitFor();
   if (await page.evaluate(() => Boolean(window.metadataExecuted))) throw new Error("Release metadata executed as markup");
   if (await page.locator(".update-card img").count()) throw new Error("Release metadata created an HTML element");
+  await page.route("**/api/update/source", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.fulfill({ status: 503, json: { error: "Update source save failed" } });
+  });
+  await page.getByRole("combobox", { name: "Owner", exact: true }).selectOption("test-fork");
+  if (!await page.getByRole("combobox", { name: "Owner", exact: true }).isDisabled()) throw new Error("Publisher control remained writable during source save");
+  if (!await page.getByRole("button", { name: "Check now", exact: true }).isDisabled()) throw new Error("Update check could race unsaved publisher");
+  await page.getByRole("alert").filter({ hasText: "Update source save failed" }).waitFor();
+  if (await page.getByRole("combobox", { name: "Owner", exact: true }).inputValue() !== "bodencrouch") throw new Error("Failed source save left unsaved publisher selected");
   await page.locator("[data-nav='tunnel']").click();
   if (await page.locator("[data-nav='tunnel']").getAttribute("aria-current") !== "page") throw new Error("Navigation does not announce current page");
   if (!await page.locator("[data-nav='tunnel']").evaluate((node) => node === document.activeElement)) throw new Error("Navigation lost keyboard focus during render");
@@ -196,6 +216,20 @@ try {
   await license.fill("private-license-regression");
   await page.locator("[data-testid='account-apply-license']").click();
   await waitForPredicate(page, () => document.querySelector("[data-testid='account-license-input']")?.value === "", { timeout: 10000, message: "Consumed credential remained in the input" });
+  await page.route("**/api/account", (route) => route.fulfill({ json: { registered: true, accountType: "PRIVATE-ACCOUNT-REGRESSION", consumer: true, license: "private-license-sentinel" } }));
+  await page.locator("[data-nav='tunnel']").click();
+  await page.locator("[data-nav='account']").click();
+  await page.getByText("PRIVATE-ACCOUNT-REGRESSION", { exact: true }).waitFor();
+  await page.route("**/api/snapshot", (route) => route.fulfill({ status: 401, json: { error: "Owner authorization expired" } }));
+  await page.locator("[data-testid='refresh-button']").click();
+  await page.getByRole("alert").filter({ hasText: "--webui" }).waitFor();
+  if ((await page.locator("body").innerText()).includes("PRIVATE-ACCOUNT-REGRESSION")) throw new Error("Expired authorization left private account visible");
+  const refreshFailure = await bootExpertPage(browser);
+  await refreshFailure.route("**/api/snapshot", (route) => route.fulfill({ status: 503, json: { error: "Temporary snapshot outage" } }));
+  await refreshFailure.route("**/api/events", (route) => route.fulfill({ contentType: "text/event-stream", body: 'event: warp\ndata: {"line":"Connection changed","status":{"connected":true,"label":"Connected"}}\n\n' }));
+  await refreshFailure.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+  await refreshFailure.getByRole("alert").filter({ hasText: "Temporary snapshot outage" }).waitFor({ timeout: 10000 });
+  await refreshFailure.close();
   console.log("Frontend expert regressions OK (metadata escaping, keyboard focus, selection semantics, command suppression, failure announcement)");
 } catch (error) {
   console.error(error);

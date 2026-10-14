@@ -1,5 +1,6 @@
-import { apiFetch, AuthorizedEventSource } from "./api-client.js?clientRevision=8";
-import { loadLocale, t, tip, getLocale } from "./i18n.js?clientRevision=8";
+import { preferences } from "./storage.js?clientRevision=9";
+import { apiFetch, AuthorizedEventSource, onAuthorizationLost, AUTH_HELP } from "./api-client.js?clientRevision=9";
+import { loadLocale, t, tip, getLocale } from "./i18n.js?clientRevision=9";
 import {
   appendStatusLine,
   createDefaultLogWidgetState,
@@ -11,7 +12,7 @@ import {
   pollConsoleLogs,
   renderLogDock,
   seedStatusFromSnapshot
-} from "./log-widget.js?clientRevision=8";
+} from "./log-widget.js?clientRevision=9";
 
 const navItems = [
   ["home", "nav.home", "⌂", "pageHome"],
@@ -118,6 +119,32 @@ const simpleNavItems = [
 
 const app = document.querySelector("#app");
 
+onAuthorizationLost(() => {
+  refresh.requestId = (refresh.requestId || 0) + 1;
+  state.snapshot = state.account = state.appConfig = state.lastAction = state.health = state.version = null;
+  state.busy = false;
+  state.accountLoading = false;
+  state.revealLicense = false;
+  state.desktopApps.list = [];
+  state.desktopApps.lastShortcut = null;
+  state.update.checking = false;
+  state.update.result = null;
+  state.update.confirmToken = null;
+  state.update.releases = [];
+  state.update.forks = [];
+  state.logWidget.consoleEntries = [];
+  state.logWidget.statusLines = [];
+  state.live.connected = false;
+  state.live.lastLine = "";
+  state.toast = null;
+  state.killswitch = { desired: false, allowLan: false, active: null, probeError: true, enrollmentPaused: false, detail: AUTH_HELP, loading: false };
+  for (const key of Object.keys(state.forms)) state.forms[key] = key === "customCommand" ? "status" : "";
+  state.error = AUTH_HELP;
+  connectLiveEvents.source?.close();
+  render();
+});
+
+
 function isNativeShell() {
   return new URLSearchParams(window.location.search).get("shell") === "1";
 }
@@ -147,22 +174,22 @@ function openSystemSettings() {
 }
 
 function useExpertLayout() {
-  return !isNativeShell() || localStorage.getItem(EXPERT_UI_STORAGE_KEY) === "1";
+  return !isNativeShell() || preferences.getItem(EXPERT_UI_STORAGE_KEY) === "1";
 }
 
 function setExpertMode(enabled) {
   if (enabled) {
-    localStorage.setItem(EXPERT_UI_STORAGE_KEY, "1");
+    preferences.setItem(EXPERT_UI_STORAGE_KEY, "1");
     state.view = "home";
   } else {
-    localStorage.removeItem(EXPERT_UI_STORAGE_KEY);
+    preferences.removeItem(EXPERT_UI_STORAGE_KEY);
     state.view = "connectivity";
   }
   render();
 }
 
 function openRoutingExpert(view = "split", scrollId = null) {
-  localStorage.setItem(EXPERT_UI_STORAGE_KEY, "1");
+  preferences.setItem(EXPERT_UI_STORAGE_KEY, "1");
   state.view = view;
   state.pendingScrollId = scrollId;
   render();
@@ -301,6 +328,7 @@ function applyConnectionToggle(button) {
   const toggle = connectionToggle();
   button.className = toggle.className;
   button.textContent = toggle.label;
+  button.setAttribute("aria-label", toggle.label);
   button.disabled = toggle.disabled || state.busy;
   button.setAttribute("aria-pressed", toggle.pressed ? "true" : "false");
   button.setAttribute("data-action", toggle.action || "");
@@ -486,6 +514,7 @@ async function refresh({ silent = false, preserveError = false } = {}) {
   } catch (error) {
     if (requestId !== refresh.requestId) return;
     state.error = error.message;
+    if (silent) { render(); return; }
   }
   if (silent) {
     patchSilentRefresh();
@@ -964,13 +993,13 @@ function logDockHandlers() {
   return {
     onTabChange: async (tab) => {
       state.logWidget.tab = tab;
-      localStorage.setItem(LOG_WIDGET_TAB_KEY, tab);
+      preferences.setItem(LOG_WIDGET_TAB_KEY, tab);
       if (tab === "console") await pollConsoleLogs(state);
       render();
     },
     onToggleCollapse: () => {
       state.logWidget.collapsed = !state.logWidget.collapsed;
-      localStorage.setItem(LOG_WIDGET_COLLAPSED_KEY, state.logWidget.collapsed ? "1" : "0");
+      preferences.setItem(LOG_WIDGET_COLLAPSED_KEY, state.logWidget.collapsed ? "1" : "0");
       render();
     },
     onCopyConsoleEntry: async (entry) => {
@@ -1133,6 +1162,7 @@ function tipClass(key, base = "") {
 function applyTip(node, key) {
   const text = tip(key);
   if (!node || !text || text.startsWith("tips.")) return node;
+  if (node.tagName === "BUTTON" && !node.hasAttribute("aria-label")) node.setAttribute("aria-label", node.textContent);
   node.classList.add("tip");
   node.setAttribute("data-tip", text);
   if (!node.hasAttribute("tabindex")) node.tabIndex = 0;
@@ -1400,6 +1430,7 @@ function basicAccountPanel(acct) {
   const actions = el("div", "button-row");
   const registerBtn = el("button", "primary tip", t("account.registerFree"));
   registerBtn.setAttribute("data-tip", tip("registerFree"));
+  registerBtn.setAttribute("aria-label", t("account.registerFree"));
   registerBtn.setAttribute("data-testid", "account-register");
   registerBtn.disabled = state.busy;
   registerBtn.onclick = () => action("register");
@@ -2044,7 +2075,7 @@ function updatesPanel() {
   ownerField.innerHTML = `<span class="tip" data-tip="${escapeHtml(tip("sourceOwner"))}" tabindex="0">${t("app.sourceOwner")}</span>`;
   const ownerSelect = document.createElement("select");
   ownerSelect.className = "combo";
-  ownerSelect.disabled = state.busy || Boolean(state.update.savingSource);
+  ownerSelect.disabled = state.busy || Boolean(state.update.savingSource) || Boolean(state.update.savingPrefs);
   ownerSelect.setAttribute("aria-label", t("app.sourceOwner"));
   owners.forEach((name) => {
     const option = document.createElement("option");
@@ -2067,7 +2098,7 @@ function updatesPanel() {
   repoField.innerHTML = `<span class="tip" data-tip="${escapeHtml(tip("sourceRepo"))}" tabindex="0">${t("app.sourceRepo")}</span>`;
   const repoSelect = document.createElement("select");
   repoSelect.className = "combo";
-  repoSelect.disabled = state.busy || Boolean(state.update.savingSource);
+  repoSelect.disabled = state.busy || Boolean(state.update.savingSource) || Boolean(state.update.savingPrefs);
   repoSelect.setAttribute("aria-label", t("app.sourceRepo"));
   if (!reposForOwner.length) {
     const option = document.createElement("option");
@@ -2097,7 +2128,7 @@ function updatesPanel() {
   releaseField.innerHTML = `<span class="tip" data-tip="${escapeHtml(tip("release"))}" tabindex="0">${t("app.release")}</span>`;
   const releaseSelect = document.createElement("select");
   releaseSelect.className = "combo";
-  releaseSelect.disabled = state.busy || Boolean(state.update.savingSource);
+  releaseSelect.disabled = state.busy || Boolean(state.update.savingSource) || Boolean(state.update.savingPrefs);
   releaseSelect.setAttribute("aria-label", t("app.release"));
   const channelDefault = document.createElement("option");
   channelDefault.value = "";
@@ -2120,11 +2151,15 @@ function updatesPanel() {
   const actions = el("div", "button-row");
   const refreshBtn = el("button", "secondary tip", t("common.refreshSources"));
   refreshBtn.setAttribute("data-tip", tip("refreshSources"));
+  refreshBtn.setAttribute("aria-label", t("common.refreshSources"));
   refreshBtn.tabIndex = 0;
+  refreshBtn.disabled = state.busy || Boolean(state.update.savingSource) || Boolean(state.update.savingPrefs) || state.update.loadingCatalog;
   refreshBtn.onclick = () => loadUpdateCatalog({ force: true });
   const checkBtn = el("button", "primary tip", t("common.checkNow"));
   checkBtn.setAttribute("data-tip", tip("checkUpdates"));
+  checkBtn.setAttribute("aria-label", t("common.checkNow"));
   checkBtn.tabIndex = 0;
+  checkBtn.disabled = state.busy || Boolean(state.update.savingSource) || Boolean(state.update.savingPrefs);
   checkBtn.onclick = () => runUpdateCheck();
   actions.append(refreshBtn, checkBtn);
 
@@ -2216,6 +2251,7 @@ async function applySelectedSource() {
   state.update.loadingReleases = true;
   state.error = null;
   render();
+  let sourceSaved = false;
   try {
     const response = await apiFetch("/api/update/source", {
       method: "POST",
@@ -2223,17 +2259,17 @@ async function applySelectedSource() {
       body: JSON.stringify({ owner, repo })
     });
     const body = await response.json();
-    if (!response.ok || body.ok === false) {
-      state.error = body.error || "Unable to set update source";
-      state.update.loadingReleases = false;
-      render();
-      return;
-    }
+    if (!response.ok || body.ok === false || !body.config) throw new Error(body.error || "Unable to set update source");
+    sourceSaved = true;
     state.appConfig = body.config;
     await loadReleases();
     await runUpdateCheck();
   } catch (error) {
     state.error = error.message;
+    if (!sourceSaved) {
+      state.update.selectedOwner = previous.owner;
+      state.update.selectedRepo = previous.repo;
+    }
     state.update.loadingReleases = false;
   } finally {
     state.update.savingSource = false;
@@ -2361,12 +2397,14 @@ function desktopAppPanel({ withTips = false } = {}) {
 }
 
 async function loadUpdateCatalog({ force = false } = {}) {
+  if (state.update.loadingCatalog || state.update.savingSource || state.update.savingPrefs) return;
   if (state.update.forks.length && !force) return;
   state.update.loadingCatalog = true;
   render();
   try {
     const response = await apiFetch("/api/update/forks");
     const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Unable to load update sources.");
     state.update.upstream = body.upstream || null;
     state.update.forks = body.forks || [];
     const source = state.appConfig?.updates?.source || body.upstream;

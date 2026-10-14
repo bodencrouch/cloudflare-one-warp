@@ -2,6 +2,12 @@
 const STORAGE_KEY = "cloudflare-one-warp-owner-session";
 export const AUTH_HELP = "Open Cloudflare One WARP with --webui to authorize this browser. If the daemon restarted, reopen the app to authorize it again.";
 let sessionToken = null;
+const authorizationLost = new Set();
+export function onAuthorizationLost(handler) {
+  authorizationLost.add(handler);
+  return () => authorizationLost.delete(handler);
+}
+
 
 function remember(token) {
   sessionToken = token;
@@ -33,10 +39,23 @@ export async function apiFetch(path, options = {}) {
   const publicRead = ["/api/health", "/api/version"].includes(url.pathname) && String(options.method || "GET").toUpperCase() === "GET";
   const headers = new Headers(options.headers);
   if (!publicRead || sessionToken) headers.set("x-cloudflare-one-warp-session", await primeSession());
+  const requestToken = headers.get("x-cloudflare-one-warp-session");
   const response = await window.fetch(`${url.pathname}${url.search}`, { ...options, headers, cache: "no-store", credentials: "same-origin" });
   if (response.status === 401) {
     remember(null);
+    for (const handler of authorizationLost) {
+      try { handler(); } catch { /* Authorization revocation must still finish. */ }
+    }
     throw new Error(AUTH_HELP);
+  }
+  if (requestToken && requestToken !== sessionToken) throw new Error(AUTH_HELP);
+  if (requestToken) {
+    const readJson = response.json.bind(response);
+    response.json = async (...args) => {
+      const result = await readJson(...args);
+      if (requestToken !== sessionToken) throw new Error(AUTH_HELP);
+      return result;
+    };
   }
   return response;
 }
@@ -72,7 +91,10 @@ export class AuthorizedEventSource {
       try {
         while (!this.closed) {
           const chunk = await reader.read();
-          if (chunk.done) break;
+          if (chunk.done) {
+            if (!this.closed) this.emit("error", JSON.stringify({ line: "Live status connection closed. Reconnecting…" }));
+            break;
+          }
           buffer += decoder.decode(chunk.value, { stream: true });
           if (buffer.length > 65536) throw new Error("Live status event exceeds limit");
           let end;

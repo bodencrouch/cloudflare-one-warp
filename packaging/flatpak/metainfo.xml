@@ -27,6 +27,9 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.3.6" date="2026-10-14">
+      <description><p>Improve recovery, enrollment safety, desktop ownership, and package verification.</p></description>
+    </release>
     <release version="0.3.5" date="2026-10-14">
       <description>
         <p>Authenticated local control, safer networking integration, and verified distribution builds.</p>

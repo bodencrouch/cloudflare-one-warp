@@ -1079,6 +1079,31 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "description": "Malformed body or invalid enrollment-pause mode; protection is unchanged."
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mode"
+                ],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "begin",
+                      "end"
+                    ]
+                  }
+                }
+              }
+            }
           }
         }
       }

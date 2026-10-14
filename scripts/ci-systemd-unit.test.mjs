@@ -32,7 +32,7 @@ function parseUnit(text) {
 // installer to catch drift between the two copies.
 function extractUserUnit() {
   const script = readFileSync(installScriptPath, "utf8").replace(/\r\n/g, "\n");
-  const match = script.match(/cat > "\$SERVICE_FILE" <<SERVICE\n([\s\S]*?)\nSERVICE\n/);
+  const match = script.match(/cloudflare_one_warp_atomic_text_file "\$SERVICE_FILE" <<SERVICE\n([\s\S]*?)\nSERVICE\n/);
   assert.ok(match, "install-local.sh no longer writes the unit with a <<SERVICE heredoc");
   return match[1];
 }

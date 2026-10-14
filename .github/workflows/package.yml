@@ -213,7 +213,7 @@ jobs:
       - name: Install flatpak-builder
         run: |
           sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder elfutils
+          sudo apt-get install -y flatpak flatpak-builder elfutils ostree
           flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install -y --user flathub \
             org.freedesktop.Platform//25.08 \
@@ -256,6 +256,8 @@ jobs:
 
       - name: Collect and verify snap artifact
         run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools
           mkdir -p dist/packages
           VERSION="${{ needs.resolve-version.outputs.version }}"
           DEST="dist/packages/cloudflare-one-warp_${VERSION}_amd64.snap"

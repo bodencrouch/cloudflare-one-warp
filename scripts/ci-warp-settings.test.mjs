@@ -99,3 +99,22 @@ test("deriveProxyPort and isProxyOperatingMode handle real warp-cli strings", ()
   assert.equal(isProxyOperatingMode(settings.Mode), true);
   assert.equal(isProxyOperatingMode("warp"), false);
 });
+
+test("local network access never treats denials or failures as allowed", () => {
+  assert.equal(deriveLocalNetworkAccess("Access denied"), "blocked");
+  assert.equal(deriveLocalNetworkAccess("Local network access is not allowed"), "blocked");
+  assert.equal(deriveLocalNetworkAccess("Error: unable to grant access"), "unknown");
+  assert.equal(deriveLocalNetworkAccess("Access status unavailable"), "unknown");
+});
+
+test("proxy port parsing accepts all valid ports and rejects malformed or truncated values", () => {
+  assert.equal(deriveProxyPort({ Mode: "WarpProxy on port 9" }), "9");
+  assert.equal(deriveProxyPort({ Mode: "WarpProxy on port 65535" }), "65535");
+  for (const value of ["0", "65536", "999999", "40000evil", "-1", "4.5", "unknown"]) {
+    assert.equal(deriveProxyPort({ "Proxy port": value }), null);
+    assert.equal(deriveProxyPort({ Mode: `WarpProxy on port ${value}` }), null);
+  }
+  const enriched = enrichSettings({ "Disabled for Wifi": "unknown", "Disabled for Ethernet": "false" });
+  assert.equal(enriched["Wi-Fi WARP"], undefined);
+  assert.equal(enriched["Ethernet WARP"], "keep");
+});
