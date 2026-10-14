@@ -1,6 +1,6 @@
 # Distribution channels
 
-Where to install Cloudflare One WARP and how each channel is published from this repository.
+GitHub release assets are the available direct installation channel. Store recipes and publishing automation do not establish that a package is listed in Flathub, Snap, COPR, AUR, or AppImageHub. The store commands below apply only after the listed publishing and review steps have completed.
 
 > **Not affiliated with Cloudflare.** Install [Cloudflare WARP](https://developers.cloudflare.com/warp-client/get-started/linux/) separately on every platform.
 
@@ -12,7 +12,7 @@ Where to install Cloudflare One WARP and how each channel is published from this
 | **Flathub** | `flatpak install flathub io.github.bodencrouch.CloudflareOneWarp` | After Flathub PR merge |
 | **Snap Store** | `snap install cloudflare-one-warp --classic` | After store upload + classic review |
 | **Fedora COPR** | `dnf copr enable bodencrouch/cloudflare-one-warp && dnf install cloudflare-one-warp` | After Packit/COPR build |
-| **Homebrew (macOS)** | `brew tap bodencrouch/cloudflare-one-warp homebrew-tap && brew install cloudflare-one-warp` | Automated on release |
+| **Homebrew (macOS)** | `brew tap bodencrouch/cloudflare-one-warp && brew install cloudflare-one-warp` | Dedicated tap; updated on release |
 | **AppImageHub** | Listed at [appimage.github.io](https://appimage.github.io/) | After listing PR merge |
 | **Arch AUR** | `yay -S cloudflare-one-warp` | After AUR package publish |
 | **User install (any Linux)** | `./cloudflare-one-warp install` from a clone | Manual |
@@ -62,10 +62,12 @@ Builds are triggered from release tags via [Packit](https://packit.dev) (see [`.
 ### Homebrew (macOS)
 
 ```bash
-brew tap bodencrouch/cloudflare-one-warp homebrew-tap
+brew tap bodencrouch/cloudflare-one-warp
 brew install cloudflare-one-warp
 cloudflare-one-warp --no-open
 ```
+
+The tap is a conventional repository with `Formula/` on its default branch. If tap publication is unavailable, download the generated Formula artifact from the package workflow, then run `brew install ./Formula/cloudflare-one-warp.rb`.
 
 Requires [Cloudflare WARP for macOS](https://developers.cloudflare.com/warp-client/get-started/macos/).
 
@@ -93,7 +95,7 @@ PKGBUILD template: [`packaging/aur/PKGBUILD`](../packaging/aur/PKGBUILD)
 
 | Platform | Native bundle | Install path today |
 |----------|---------------|-------------------|
-| **Linux** | Primary target | Flathub, Snap, COPR, AppImage, deb, rpm, AUR, GitHub Releases |
+| **Linux** | Primary target | GitHub Releases: AppImage, deb, rpm, Flatpak and Snap bundles |
 | **macOS** | No `.app` yet | Homebrew tap (CLI + browser Web UI) |
 | **Windows** | No `.exe` yet | Not packaged — official Cloudflare One client exists; CI runs mock tests only |
 
@@ -115,6 +117,7 @@ Release flow:
 | `COPR_API_TOKEN` | Manual COPR trigger from CI (Packit uses its own integration) |
 | `AUR_SSH_PRIVATE_KEY` | AUR package push via [`scripts/publish-aur.sh`](../scripts/publish-aur.sh) |
 | `FLATHUB_PAT` | Optional PR to flathub/flathub via [`scripts/publish-flathub-pr.sh`](../scripts/publish-flathub-pr.sh) |
+| `HOMEBREW_TAP_SSH_KEY` | Dedicated tap deploy key with write access |
 | `GH_PAT` | Optional AppImageHub listing PR via [`scripts/publish-appimagehub-pr.sh`](../scripts/publish-appimagehub-pr.sh) |
 
 ### One-time setup checklist

@@ -27,8 +27,14 @@ parts:
     source-type: local
     build-packages:
       - rsync
+      - curl
+      - xz-utils
     override-build: |
       set -euo pipefail
+      curl --fail --location --connect-timeout 30 --max-time 600 https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.xz -o /tmp/cloudflare-one-warp-node.tar.xz
+      echo "fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6  /tmp/cloudflare-one-warp-node.tar.xz" | sha256sum -c -
+      install -d "$CRAFT_PART_INSTALL/node-runtime"
+      tar -xJf /tmp/cloudflare-one-warp-node.tar.xz -C "$CRAFT_PART_INSTALL/node-runtime" --strip-components=1
       install -d "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp"
       rsync -a \
         --exclude '.git' \
@@ -46,6 +52,8 @@ parts:
         "$CRAFT_PART_INSTALL/share/icons/hicolor/scalable/apps"
       cat > "$CRAFT_PART_INSTALL/bin/cloudflare-one-warp" <<'EOF'
       #!/bin/bash
+      export PATH="$SNAP/node-runtime/bin:$PATH"
+      export CLOUDFLARE_ONE_WARP_NODE="$SNAP/node-runtime/bin/node"
       exec "$SNAP/usr/lib/cloudflare-one-warp/bin/cloudflare-one-warp" "$@"
       EOF
       chmod 0755 "$CRAFT_PART_INSTALL/bin/cloudflare-one-warp"
@@ -54,6 +62,8 @@ parts:
       chmod 0755 "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/scripts/cloudflare-one-warp-nft-apply" 2>/dev/null || true
       cat > "$CRAFT_PART_INSTALL/bin/cloudflare-one-warp-tray" <<'EOF'
       #!/bin/bash
+      export PATH="$SNAP/node-runtime/bin:$PATH"
+      export CLOUDFLARE_ONE_WARP_NODE="$SNAP/node-runtime/bin/node"
       exec "$SNAP/usr/lib/cloudflare-one-warp/bin/cloudflare-one-warp-tray" "$@"
       EOF
       chmod 0755 "$CRAFT_PART_INSTALL/bin/cloudflare-one-warp-tray"
@@ -64,6 +74,5 @@ parts:
       install -m 0644 "$CRAFT_PART_SRC/assets/cloudflare-one-warp.svg" \
         "$CRAFT_PART_INSTALL/share/icons/hicolor/scalable/apps/cloudflare-one-warp.svg"
     stage-packages:
-      - nodejs
       - python3-pyqt6
       - python3-pyqt6.qtwebengine

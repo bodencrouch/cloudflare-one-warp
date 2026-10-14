@@ -32,6 +32,10 @@ contents:
     dst: /usr/share/polkit-1/actions/com.cloudflare.one.warp.policy
   - src: ./dist/payload/usr/share/applications/cloudflare-one-warp.desktop
     dst: /usr/share/applications/cloudflare-one-warp.desktop
+  - src: ./dist/payload/usr/share/applications/cloudflare-one-warp-tray.desktop
+    dst: /usr/share/applications/cloudflare-one-warp-tray.desktop
+  - src: ./dist/payload/usr/share/applications/cloudflare-one-warp-settings.desktop
+    dst: /usr/share/applications/cloudflare-one-warp-settings.desktop
   - src: ./dist/payload/usr/share/icons/hicolor/scalable/apps/cloudflare-one-warp.svg
     dst: /usr/share/icons/hicolor/scalable/apps/cloudflare-one-warp.svg
   - src: ./dist/payload/usr/lib/systemd/user/cloudflare-one-warp.service
@@ -65,10 +69,10 @@ recommends:
 overrides:
   deb:
     depends:
-      - "nodejs (>= 20)"
+      - "nodejs (>= 22)"
   rpm:
     depends:
-      - "nodejs >= 20"
+      - "nodejs >= 22"
     recommends:
       - python3-pyqt6
       - python3-pyqt6-webengine
@@ -76,7 +80,7 @@ overrides:
       - libnotify
   archlinux:
     depends:
-      - nodejs
+      - "nodejs>=22"
     recommends:
       - python-pyqt6
       - python-pyqt6-webengine

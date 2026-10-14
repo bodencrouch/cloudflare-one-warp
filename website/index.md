@@ -68,11 +68,11 @@ The Split Tunnel page includes an **App routing** panel:
 
 1. **Turn on app routing** — sets MASQUE + local proxy mode (`enableLocalProxy`).
 2. **Choose an app** — dropdown of `.desktop` entries on your system.
-3. **Create WARP shortcut** — launches that app through `127.0.0.1:40000`.
+3. **Create WARP shortcut** — launches that app through the configured local proxy port (default `127.0.0.1:40000`).
 
 ```bash
 # Same flow from the API
-SESSION=$(cat ~/.config/cloudflare-one-warp/session-4173.token)
+SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")
 curl -X POST http://127.0.0.1:4173/api/action \
   -H 'Content-Type: application/json' -H "x-cloudflare-one-warp-session: $SESSION" \
   -d '{"action":"enableLocalProxy"}'

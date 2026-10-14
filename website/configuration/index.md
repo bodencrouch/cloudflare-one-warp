@@ -3,11 +3,11 @@
 Layered config merges (lowest → highest priority):
 
 1. **System** — `/etc/cloudflare-one-warp/config.json` (packaged installs)
-2. **User** — `~/.config/cloudflare-one-warp/config.json`
+2. **User** — `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/config.json`
 3. **Environment** — `CLOUDFLARE_ONE_WARP_*` variables
 4. **Session** — `POST /api/config/session` (until daemon restart)
 
-Implementation: `lib/config.mjs`.
+Implementation: `lib/config.mjs`. The control plane accepts only loopback peers. `server.bind` is restricted to loopback; the legacy `webui.allowRemote` option cannot enable LAN access. Valid legacy settings under `~/.config` migrate when a custom XDG config home is used.
 
 ## Example file
 
@@ -39,7 +39,7 @@ Use for in-app Settings changes without editing files:
 ```bash
 curl -X POST http://127.0.0.1:4173/api/config/session \
   -H 'Content-Type: application/json' \
-  -H "x-cloudflare-one-warp-session: $(cat ~/.config/cloudflare-one-warp/session-4173.token)" \
+  -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" \
   -d '{"ui":{"theme":"dark"}}'
 ```
 

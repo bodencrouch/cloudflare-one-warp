@@ -1,3 +1,7 @@
+# 0.3.4 maintenance release
+
+This release resolves the 24 findings in the manual review, covering privileged firewall operations, credentials in logs, HTTP error handling, protection recovery, daemon lifecycle, readiness, desktop integration, updates, and package installation. See [CHANGELOG](../CHANGELOG.md) for the changes. Native Windows, Flatpak host integration and systemd namespace behavior also depend on the installed host tools.
+
 Cloudflare One WARP 0.3.3 renames the client and all distribution artifacts to match the repository.
 
 - Product: **Cloudflare One WARP**.

@@ -5,7 +5,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION="${PACKAGE_VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
 OUT="${ROOT}/dist/packages"
 APPDIR="${ROOT}/dist/AppDir"
-NODE_VERSION="${NODE_VERSION:-20.18.1}"
+NODE_VERSION="${NODE_VERSION:-24.21.0}"
 ARCH="${APPIMAGE_ARCH:-x86_64}"
 
 mkdir -p "$OUT"
@@ -19,7 +19,11 @@ cp -a "${ROOT}/dist/payload/usr" "${APPDIR}/usr"
 # Bundle official Node.js binary distribution.
 node_tarball="node-v${NODE_VERSION}-linux-x64.tar.xz"
 node_url="https://nodejs.org/dist/v${NODE_VERSION}/${node_tarball}"
-node_sha256="c6fa75c841cbffac851678a472f2a5bd612fff8308ef39236190e1f8dbb0e567"
+node_sha256="${NODE_SHA256:-fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6}"
+if [[ "$NODE_VERSION" != "24.21.0" && -z "${NODE_SHA256:-}" ]]; then
+  echo "NODE_SHA256 is required when overriding NODE_VERSION" >&2
+  exit 1
+fi
 tmpdir="$(mktemp -d)"
 curl --connect-timeout 30 --max-time 600 -fsSL "$node_url" -o "${tmpdir}/${node_tarball}"
 echo "${node_sha256}  ${node_tarball}" | (cd "$tmpdir" && sha256sum -c -)

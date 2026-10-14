@@ -12,6 +12,7 @@
 | Understand updates | [UPDATES.md](UPDATES.md) |
 | Install from app stores | [DISTRIBUTION.md](DISTRIBUTION.md) |
 | Understand CI | [CI.md](CI.md) |
+| Review the 0.3.4 fixes and their validation | [REVIEW_FIXES.md](REVIEW_FIXES.md) |
 
 ## Common commands
 

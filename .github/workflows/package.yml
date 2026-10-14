@@ -21,7 +21,7 @@ on:
         required: false
         default: true
       update_homebrew_tap:
-        description: "Update homebrew-tap branch with generated Formula"
+        description: "Update dedicated Homebrew tap with generated Formula"
         type: boolean
         required: false
         default: true
@@ -45,7 +45,7 @@ on:
         type: boolean
         default: true
       update_homebrew_tap:
-        description: "Update homebrew-tap branch with generated Formula"
+        description: "Update dedicated Homebrew tap with generated Formula"
         type: boolean
         default: false
       sync_manifest:
@@ -115,7 +115,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install verify deps
         run: |
@@ -149,7 +149,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install AppImage dependencies
         run: sudo apt-get update && sudo apt-get install -y libfuse2 file
@@ -180,7 +180,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Build source archives and PKGBUILD
         run: |
@@ -207,7 +207,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install flatpak-builder
         run: |
@@ -215,8 +215,8 @@ jobs:
           sudo apt-get install -y flatpak flatpak-builder elfutils
           flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install -y --user flathub \
-            org.freedesktop.Platform//24.08 \
-            org.freedesktop.Sdk//24.08
+            org.freedesktop.Platform//25.08 \
+            org.freedesktop.Sdk//25.08
 
       - name: Build Flatpak bundle
         run: bash packaging/scripts/build-flatpak.sh
@@ -330,7 +330,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - uses: actions/download-artifact@v4
         with:
@@ -348,30 +348,6 @@ jobs:
           path: homebrew-tap/**/*
           retention-days: 14
 
-      - name: Update homebrew-tap branch
-        if: github.event_name == 'release' || (inputs.publish_release && inputs.update_homebrew_tap)
-        run: |
-          git config user.name "bodencrouch"
-          git config user.email "221775936+bodencrouch@users.noreply.github.com"
-          FORMULA_TMP="$(mktemp)"
-          cp homebrew-tap/Formula/cloudflare-one-warp.rb "$FORMULA_TMP"
-          # Generated Formula lives under ./homebrew-tap/; remove it so the
-          # branch name is not ambiguous with that directory (git exit 128).
-          rm -rf homebrew-tap
-          git fetch origin homebrew-tap || true
-          if git show-ref --verify --quiet refs/remotes/origin/homebrew-tap; then
-            git switch -C homebrew-tap --track origin/homebrew-tap
-            git reset --hard origin/homebrew-tap
-          else
-            git switch --orphan homebrew-tap
-            git rm -rf . 2>/dev/null || true
-          fi
-          mkdir -p Formula
-          cp "$FORMULA_TMP" Formula/cloudflare-one-warp.rb
-          rm -f "$FORMULA_TMP"
-          git add Formula/cloudflare-one-warp.rb
-          git commit -m "chore(homebrew): cloudflare-one-warp ${{ needs.resolve-version.outputs.version }}" || true
-          git push origin HEAD:homebrew-tap --force
 
   publish:
     needs: [resolve-version, deb-rpm-arch, appimage, source, flatpak, snap, homebrew]
@@ -420,6 +396,41 @@ jobs:
             fi
           done
 
+  publish-homebrew-tap:
+    needs: [resolve-version, homebrew, publish]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (inputs.publish_release && inputs.update_homebrew_tap)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-homebrew
+          path: homebrew-tap
+
+      - name: Update dedicated Homebrew tap
+        if: github.event_name == 'release' || (inputs.publish_release && inputs.update_homebrew_tap)
+        env:
+          HOMEBREW_TAP_SSH_KEY: ${{ secrets.HOMEBREW_TAP_SSH_KEY }}
+        run: |
+          test -n "$HOMEBREW_TAP_SSH_KEY" || { echo "HOMEBREW_TAP_SSH_KEY is required for tap publication" >&2; exit 1; }
+          TAP_KEY="$(mktemp)"
+          TAP_HOSTS="$(mktemp)"
+          trap 'rm -f "$TAP_KEY" "$TAP_HOSTS"' EXIT
+          printf '%s\n' "$HOMEBREW_TAP_SSH_KEY" > "$TAP_KEY"
+          chmod 600 "$TAP_KEY"
+          curl --fail --silent --show-error https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > "$TAP_HOSTS"
+          export GIT_SSH_COMMAND="ssh -i $TAP_KEY -o IdentitiesOnly=yes -o UserKnownHostsFile=$TAP_HOSTS -o StrictHostKeyChecking=yes"
+          git clone https://github.com/bodencrouch/homebrew-cloudflare-one-warp.git tap-repository
+          git -C tap-repository remote set-url --push origin git@github.com:bodencrouch/homebrew-cloudflare-one-warp.git
+          git -C tap-repository config user.name "bodencrouch"
+          git -C tap-repository config user.email "221775936+bodencrouch@users.noreply.github.com"
+          mkdir -p tap-repository/Formula
+          cp homebrew-tap/Formula/cloudflare-one-warp.rb tap-repository/Formula/
+          git -C tap-repository add Formula/cloudflare-one-warp.rb
+          if ! git -C tap-repository diff --cached --quiet; then
+            git -C tap-repository commit -m "chore(homebrew): cloudflare-one-warp ${{ needs.resolve-version.outputs.version }}"
+            git -C tap-repository push
+          fi
+
   sync-manifest:
     needs: [resolve-version, publish]
     runs-on: ubuntu-latest
@@ -436,7 +447,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Update update-manifest.json
         env:

@@ -7,14 +7,14 @@ Top-level sections from `config.example.json`:
 | Key | Type | Description |
 |-----|------|-------------|
 | `port` | number | HTTP listen port |
-| `bind` | string | Bind address (default loopback) |
+| `bind` | string | Loopback bind address only (`127.0.0.1`, `localhost`, or `::1`) |
 
 ## webui
 
 | Key | Type | Description |
 |-----|------|-------------|
 | `enabled` | boolean | Serve `public/` static UI |
-| `allowRemote` | boolean | Allow non-localhost (use with care) |
+| `allowRemote` | boolean | Legacy compatibility key; remote access is disabled |
 
 ## warp
 

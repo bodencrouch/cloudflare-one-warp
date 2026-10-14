@@ -52,7 +52,8 @@ cp "$OUT" "$WORKDIR/hub/data/cloudflare-one-warp.yml"
 git -C "$WORKDIR/hub" config user.email "221775936+bodencrouch@users.noreply.github.com"
 git -C "$WORKDIR/hub" config user.name "bodencrouch"
 git -C "$WORKDIR/hub" add "data/cloudflare-one-warp.yml"
-git -C "$WORKDIR/hub" commit -m "Add Cloudflare One WARP ${VERSION}" || exit 0
+if git -C "$WORKDIR/hub" diff --cached --quiet; then echo "No AppImageHub changes."; exit 0; fi
+git -C "$WORKDIR/hub" commit -m "Add Cloudflare One WARP ${VERSION}"
 git -C "$WORKDIR/hub" push -f origin "$BRANCH"
 
 if command -v gh >/dev/null 2>&1; then

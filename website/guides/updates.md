@@ -5,10 +5,10 @@ Client self-update checks GitHub releases against `config/update-manifest.json`.
 ## API
 
 ```bash
-SESSION=$(cat ~/.config/cloudflare-one-warp/session-4173.token)
+SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")
 curl -s http://127.0.0.1:4173/api/update/check | jq
 
-# AppImage apply: prepare first, then confirm with the returned token
+# AppImage apply: available only with a usable pinned release signature; prepare first, then confirm with the returned token
 TOKEN=$(curl -s -X POST http://127.0.0.1:4173/api/update/prepare \
   -H 'Content-Type: application/json' -H "x-cloudflare-one-warp-session: $SESSION" \
   -d '{}' | jq -r .applyConfirmToken)
@@ -27,6 +27,8 @@ An AppImage is replaced only when all of these hold:
 - the new version is newer than the one you have.
 
 Otherwise nothing changes and Cloudflare One WARP tells you to download the release yourself.
+
+The current bootstrap key ring is empty, so automatic AppImage Apply is unavailable. Download the matching release artifact and install it manually. An update must also match the host architecture. Verified replacement uses a temporary sibling of the installed AppImage and works when the cache is on another filesystem.
 
 ## Channels
 

@@ -62,7 +62,7 @@ const state = {
     failures: 0
   },
   forms: {
-    proxyPort: "40000",
+    proxyPort: "",
     vnet: "",
     splitIp: "",
     splitHost: "",
@@ -576,7 +576,7 @@ function killSwitchPanel() {
       <strong class="tip" data-tip="${escapeHtml(tip("killSwitch"))}" tabindex="0">${t("home.killSwitchLabel")}</strong>
       <p>${escapeHtml(
         mode === "paused"
-          ? t("home.killSwitchPausedHint")
+          ? (ks.detail || t("home.killSwitchPausedHint"))
           : mode === "always_on"
             ? (ks.detail || t("home.killSwitchRestoreHint"))
             : (ks.detail || (mismatch ? t("home.killSwitchMismatch") : t("home.killSwitchHint")))
@@ -1809,7 +1809,7 @@ function tunnelView() {
   view.append(segmented("Preferred protocol", protocols, "setProtocol", setting("Tunnel protocol", "Protocol"), tip("protocol"), protocolValueTips, "Tunnel protocol|Protocol"));
   view.append(segmented("MASQUE options", masqueOptions, "setMasqueOptions", setting("MASQUE options"), tip("masque"), null, "MASQUE options"));
   view.append(formPanel("Proxy and VNet", [
-    ["SOCKS proxy port", "proxyPort", "Set proxy port", () => action("setProxyPort", state.forms.proxyPort), "proxyPort"],
+    ["SOCKS proxy port", "proxyPort", "Set proxy port", () => action("setProxyPort", proxyPortValue()), "proxyPort"],
     ["Virtual network", "vnet", "Set VNet", () => action("setVnet", state.forms.vnet), "vnet"],
     ["Endpoint IP:port", "endpoint", "Set endpoint", () => action("setEndpoint", state.forms.endpoint, null, true), "endpoint"]
   ]));
@@ -2077,25 +2077,7 @@ function updatesPanel() {
     if (release.tag === state.update.selectedTag) option.selected = true;
     releaseSelect.append(option);
   });
-  releaseSelect.onchange = () => {
-    state.update.selectedTag = releaseSelect.value;
-    if (state.update.result && releaseSelect.value) {
-      const release = state.update.releases.find((item) => item.tag === releaseSelect.value);
-      if (release) {
-        const latest = release.tag.replace(/^v/i, "");
-        const current = state.update.result.current || "";
-        const delta = compareLooseSemver(latest, current);
-        state.update.result = {
-          ...state.update.result,
-          latest,
-          release,
-          downgrade: delta < 0,
-          updateAvailable: delta > 0
-        };
-      }
-    }
-    render();
-  };
+  releaseSelect.onchange = () => selectUpdateRelease(releaseSelect.value);
   releaseField.append(releaseSelect);
 
   sourceGrid.append(ownerField, repoField, releaseField);
@@ -2134,7 +2116,7 @@ function updatesPanel() {
     card.append(notes);
 
     const cta = el("div", "button-row");
-    if (result.installFormat === "appimage" && (result.updateAvailable || state.update.selectedTag)) {
+    if (result.installFormat === "appimage" && result.canApply === true && (result.updateAvailable || state.update.selectedTag)) {
       const applyBtn = el("button", "primary", t("common.apply"));
       applyBtn.onclick = () => {
         if (result.downgrade && !window.confirm("Selected release is older than the installed version. Continue?")) {
@@ -2150,6 +2132,16 @@ function updatesPanel() {
         render();
       };
       cta.append(showBtn);
+    }
+    if (result.installFormat === "appimage" && result.canApply !== true && result.applyUnavailableReason) {
+      card.append(el("p", "muted", escapeHtml(result.applyUnavailableReason)));
+      if (/^https:\/\/github\.com\//.test(result.release?.htmlUrl || "")) {
+        const manual = el("a", "secondary", "Download release");
+        manual.href = result.release.htmlUrl;
+        manual.target = "_blank";
+        manual.rel = "noopener noreferrer";
+        cta.append(manual);
+      }
     }
     card.append(cta);
     panel.append(card);
@@ -2360,15 +2352,25 @@ async function loadAppPanel() {
 }
 
 async function runUpdateCheck() {
+  if (state.update.selectedTag) {
+    await selectUpdateRelease(state.update.selectedTag);
+    return;
+  }
+  const selectedTag = state.update.selectedTag;
+  const requestId = state.update.selectionRequest;
   state.update.checking = true;
   state.error = null;
   render();
   try {
     const response = await apiFetch("/api/update/check");
-    state.update.result = await response.json();
-    if (state.update.result?.applyConfirmToken) {
-      state.update.confirmToken = state.update.result.applyConfirmToken;
+    const result = await response.json();
+    if (selectedTag !== state.update.selectedTag || requestId !== state.update.selectionRequest) {
+      state.update.checking = false;
+      render();
+      return;
     }
+    state.update.result = result;
+    state.update.confirmToken = state.update.result?.applyConfirmToken || null;
     if (state.update.result?.source) {
       state.update.selectedOwner = state.update.result.source.owner;
       state.update.selectedRepo = state.update.result.source.repo;
@@ -2397,6 +2399,58 @@ async function loadReleases() {
     state.error = error.message;
   }
   state.update.loadingReleases = false;
+  render();
+}
+
+async function selectUpdateRelease(tag) {
+  const requestId = (state.update.selectionRequest || 0) + 1;
+  state.update.selectionRequest = requestId;
+  const sourceKey = `${state.update.selectedOwner}/${state.update.selectedRepo}`;
+  const stillSelected = () => state.update.selectedTag === tag && state.update.selectionRequest === requestId && `${state.update.selectedOwner}/${state.update.selectedRepo}` === sourceKey;
+  state.update.selectedTag = tag;
+  state.update.confirmToken = null;
+  if (!state.update.result) return;
+  // Clear all eligibility and commands before fetching the selected release.
+  // A response for the previous tag must never authorize a different download.
+  state.update.result = {
+    ...state.update.result,
+    canApply: false,
+    applyUnavailableReason: null,
+    applyConfirmToken: null,
+    guidedCommands: []
+  };
+  if (!tag) {
+    render();
+    await runUpdateCheck();
+    return;
+  }
+  const release = state.update.releases.find((item) => item.tag === tag);
+  if (!release) { render(); return; }
+  const latest = release.tag.replace(/^v/i, "");
+  const delta = compareLooseSemver(latest, state.update.result.current || "");
+  state.update.result = { ...state.update.result, latest, release, downgrade: delta < 0, updateAvailable: delta > 0 };
+  render();
+  try {
+    const response = await apiFetch("/api/update/prepare", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tag })
+    });
+    const prepared = await response.json();
+    if (!stillSelected()) return;
+    state.update.result = {
+      ...state.update.result,
+      canApply: prepared.ok === true && prepared.mode === "appimage" && Boolean(prepared.applyConfirmToken),
+      applyUnavailableReason: prepared.ok === false ? prepared.error : null,
+      recommendedAsset: prepared.recommendedAsset || null,
+      guidedCommands: prepared.mode === "guided" ? prepared.commands || [] : [],
+      applyConfirmToken: prepared.applyConfirmToken || null
+    };
+    state.update.confirmToken = prepared.applyConfirmToken || null;
+  } catch (error) {
+    if (!stillSelected()) return;
+    state.update.result = { ...state.update.result, applyUnavailableReason: error.message };
+  }
   render();
 }
 

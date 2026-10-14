@@ -66,7 +66,7 @@ When `ui.notifications` is true (default), `server.js` starts `lib/notify/status
 | `/api/action` | POST | Whitelisted mutations (`connect`, `setMode`, …) |
 | `/api/config/tray-autostart` | POST | Persist Cloudflare One WARP tray XDG autostart (Linux; ignored at login when `tray.shell` is `cloudflare`) |
 | `/api/config/tray-shell` | POST | Persist desktop app: `cloudflare` or `cloudflare-one-warp` (Linux) |
-| `/api/config/webui` | POST | Persist `webui.enabled` / `allowRemote` (restart required) |
+| `/api/config/webui` | POST | Persist `webui.enabled` (restart required); remote access is rejected |
 | `/api/config/server` | POST | Persist `server.port` / `bind` (restart required) |
 | `/api/config/ui` | POST | Persist `ui.notifications` |
 | `/api/killswitch` | GET/POST | nftables kill-switch desired/active (Linux) |
@@ -87,15 +87,15 @@ The daemon listens on loopback, so any web page a user visits can reach it. [`li
 | Check | Applies to | Failure |
 |-------|-----------|---------|
 | `Host` must be this daemon's loopback address and port | all requests | `403 host_not_allowed` (DNS rebinding) |
-| Peer must be loopback | mutations, `/api/session` | `403 remote_peer_denied` |
+| Peer must be loopback | all API requests | `403 remote_peer_denied` |
 | `Sec-Fetch-Site` must be `same-origin`/`none` | mutations, `/api/session` | `403 cross_site_denied` |
 | `Origin` (or `Referer` when absent) must match this daemon | mutations, `/api/session` | `403 cross_origin_denied` |
 | `Content-Type: application/json` | mutations | `415 json_required` |
 | `X-Cloudflare-One-Warp-Session` must match the current credential | mutations | `403 session_required` |
 
-Mutations are `POST`/`PUT`/`PATCH`/`DELETE` under `/api/`. Read-only requests stay open so `allowRemote` diagnostics keep working, but they can never change WARP or config state. Blocked requests are appended to the command log with source `security` — reason only, never the body or credential.
+Mutations are `POST`/`PUT`/`PATCH`/`DELETE` under `/api/`. Read-only requests require no credential but still require a loopback peer and valid local Host. Blocked requests are appended to the command log with source `security` — reason only, never the body or credential.
 
-The credential is 32 random bytes minted at daemon start and written to `~/.config/cloudflare-one-warp/session-<port>.token` with mode `0600` (removed on shutdown). The Web UI fetches it from `GET /api/session` via [`public/api-client.js`](../public/api-client.js); the tray and native settings dialog read the file (falling back to the endpoint) via `scripts/tray_api.py`. It authenticates *the local user's clients*, not a person — it replaces nothing about `warp-cli` permissions.
+The credential is 32 random bytes minted at daemon start and published after socket acquisition to `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-<port>.token` with mode `0600` (removed only by its owning daemon on shutdown). The Web UI fetches it from `GET /api/session` via [`public/api-client.js`](../public/api-client.js); the tray and native settings dialog read the file (falling back to the endpoint) via `scripts/tray_api.py`. It authenticates *the local user's clients*, not a person — it replaces nothing about `warp-cli` permissions.
 
 API responses send `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and `Content-Security-Policy: default-src 'none'`; Web UI assets get a `'self'`-scoped policy that also allows the `qrc:` WebChannel bridge used by the tray shell.
 
@@ -104,7 +104,7 @@ API responses send `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `
 Windows Cloudflare One exposes **Always On** in the client. Linux `warp-cli` has no public equivalent. Cloudflare One WARP implements **Always On (kill switch)** via nftables table `inet cloudflare_one_warp_killswitch`:
 
 1. User toggles desired state → `POST /api/killswitch`
-2. `lib/killswitch/apply.mjs` writes a validated rules script and runs `pkexec cloudflare-one-warp-nft-apply apply <file>` (or unprivileged `nft -f` when permitted)
+2. `lib/killswitch/apply.mjs` queues a canonical rules script and uses unprivileged `nft -f` when permitted; privileged fallback passes only fixed enable/disable, LAN, and table-operation options to `cloudflare-one-warp-nft-apply`, which constructs its own rules
 3. Polkit policy `com.cloudflare.one.warp.nft-apply` scopes elevation to `/usr/lib/cloudflare-one-warp/scripts/cloudflare-one-warp-nft-apply`
 4. GET `/api/killswitch` probes with read-only `nft list` — never escalates privilege
 5. Zero Trust enrollment can pause rules via `lib/killswitch/enroll-pause.mjs` without clearing persisted desired state
@@ -112,7 +112,7 @@ Windows Cloudflare One exposes **Always On** in the client. Linux `warp-cli` has
 ## Configuration flow
 
 1. **Boot** — `reloadConfig()` merges layers (see [CONFIGURATION.md](CONFIGURATION.md)).
-2. **Listen** — `effectiveBind()` returns `127.0.0.1` unless `webui.enabled && webui.allowRemote`.
+2. **Listen** — `effectiveBind()` permits only loopback addresses; legacy remote settings resolve to `127.0.0.1`.
 3. **Runtime** — Session overrides mutate an in-memory layer; GET `/api/config` reflects changes immediately for keys that do not require restart.
 4. **WARP** — `warp.cli` selects binary; Flatpak sets `FLATPAK_ID` and uses `flatpak-spawn --host`.
 
@@ -128,10 +128,10 @@ Windows Cloudflare One exposes **Always On** in the client. Linux `warp-cli` has
 
 ## Security model (v1)
 
-- Binds to loopback unless explicitly configured for remote Web UI.
+- Binds to loopback; legacy remote settings cannot expose the control plane.
 - No shell when invoking `warp-cli`; argument allow-lists for `/api/action`.
 - Destructive operations require GUI confirmation.
-- Every mutation passes the [request gate](#request-gate): local Host, loopback peer, same-origin, JSON body, and the per-daemon session credential. A page the user visits cannot drive WARP, and a remote peer cannot mutate anything even when `webui.allowRemote` or a `0.0.0.0` bind is configured.
+- Every mutation passes the [request gate](#request-gate): local Host, loopback peer, same-origin, JSON body, and the per-daemon session credential. Every API read also requires a loopback peer. Legacy remote settings cannot expose the control plane.
 - **Cross-site guard:** inside the API handler, every non-GET request also passes `crossSiteRejection()` — `Sec-Fetch-Site`, `Origin`, and a required `application/json` content type — as a second check behind the request gate.
 - AppImage self-updates require a valid Ed25519 signature from a pinned key and refuse downgrades (see [UPDATES.md](UPDATES.md)).
 - **Gap:** the kill-switch helper still elevates through `pkexec`, so the systemd units cannot set `NoNewPrivileges=true` yet (see [PACKAGING.md](PACKAGING.md)).

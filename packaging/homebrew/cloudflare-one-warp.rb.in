@@ -5,13 +5,13 @@ class CloudflareOneWarp < Formula
   sha256 "__SHA256__"
   license "MIT"
 
-  depends_on "node@20"
+  depends_on "node@24"
 
   def install
     libexec.install "server.js", "package.json", "lib", "config", "public", "assets", "scripts", "bin", "LICENSE", "README.md"
     (bin/"cloudflare-one-warp").write <<~EOS
       #!/bin/bash
-      export PATH="#{Formula["node@20"].bin}:$PATH"
+      export PATH="#{Formula["node@24"].bin}:$PATH"
       exec "#{libexec}/bin/cloudflare-one-warp" "$@"
     EOS
     chmod 0755, bin/"cloudflare-one-warp"
