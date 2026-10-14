@@ -79,7 +79,7 @@ test("installer loads every generated NM profile including filenames with spaces
     for (const path of ["scripts/sync-nm-profiles.mjs", "lib/networkmanager/profiles.mjs"]) await copyFile(join(repo, path), join(root, "app", path));
     await writeFile(join(root, "bin", "nmcli"), '#!/bin/sh\nprintf "%s|%s|%s\\n" "$1" "$2" "$3" >> "$HOME/nm-log"\n', { mode: 0o755 });
     await promisify(execFile)("bash", [join(repo, "scripts/cloudflare-one-warp-nm"), "--install-dir", join(root, "app")], {
-      env: { ...process.env, HOME: join(root, "home"), PATH: join(root, "bin") + ":" + process.env.PATH }, timeout: 10000
+      env: { ...process.env, HOME: join(root, "home"), XDG_CONFIG_HOME: join(root, "home", ".config"), PATH: join(root, "bin") + ":" + process.env.PATH }, timeout: 10000
     });
     const lines = (await readFile(join(root, "home", "nm-log"), "utf8")).split("\n").filter(l => l.startsWith("connection|load|"));
     assert.equal(lines.length, 3);
