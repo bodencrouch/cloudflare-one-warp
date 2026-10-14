@@ -82,11 +82,11 @@ else
 fi
 
 if [[ "$RELOAD_NM" -eq 1 ]]; then
-  for profile in "${NM_USER_DIR}"/Cloudflare One WARP-WARP-*.nmconnection; do
+  for profile in "${NM_USER_DIR}/Cloudflare One WARP-WARP-"*.nmconnection; do
     [[ -f "$profile" ]] || continue
-    nmcli connection load "$profile" >/dev/null 2>&1 || true
+    nmcli connection load "$profile"
   done
-  nmcli connection reload >/dev/null 2>&1 || true
+  nmcli connection reload
 fi
 
 echo "Cloudflare One WARP network profiles ready."

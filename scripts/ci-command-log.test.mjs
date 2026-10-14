@@ -164,3 +164,19 @@ test("enableLocalProxy while disconnected sets MASQUE and proxy mode", async () 
   const protocol = settings["Tunnel protocol"] || settings.Protocol || "";
   assert.match(String(protocol), /masque/i);
 });
+
+test("a retained entry bounds large output and command text", () => {
+  resetCommandLogForTests();
+  appendFromRunWarp({command:"x".repeat(100000),stdout:"s".repeat(100000),stderr:"e".repeat(100000)});
+  const [entry] = listEntries();
+  assert.ok(entry.command.length <= 16384);
+  assert.ok(entry.stdout.length <= 16384);
+  assert.ok(entry.stderr.length <= 16384);
+});
+
+test("override credentials are redacted while harmless override subcommands remain visible", async () => {
+  const {redactWarpArgs} = await import("../lib/warp/command-log.mjs");
+  assert.deepEqual(redactWarpArgs(["override","DUMMY-CODE"]),["override","[redacted]"]);
+  assert.deepEqual(redactWarpArgs(["override","unlock","DUMMY-CODE"]),["override","unlock","[redacted]"]);
+  assert.deepEqual(redactWarpArgs(["override","local-network","show"]),["override","local-network","show"]);
+});

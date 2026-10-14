@@ -1,4 +1,9 @@
 import assert from "node:assert/strict";
+import { spawn, execFile } from "node:child_process";
+import { createServer } from "node:net";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
+import { once } from "node:events";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,7 +30,7 @@ test("persistUserWebUi writes user config without clobbering other keys", () => 
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ ui: { locale: "en" } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
@@ -46,7 +51,7 @@ test("persistUserServer validates port range via caller", () => {
   const root = mkdtempSync(join(tmpdir(), "cf-one-warp-server-persist-"));
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
@@ -74,7 +79,7 @@ test("CLOUDFLARE_ONE_WARP_WEBUI=1 overrides file enabled:false at process start"
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ webui: { enabled: false } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root, CLOUDFLARE_ONE_WARP_WEBUI: "1" };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config"), CLOUDFLARE_ONE_WARP_WEBUI: "1" };
 
   try {
     clearSessionOverrides();
@@ -91,7 +96,7 @@ test("persistUserUi writes notifications preference", () => {
   const root = mkdtempSync(join(tmpdir(), "cf-one-warp-ui-persist-"));
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
-  const env = { ...process.env, HOME: root };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
 
   try {
     clearSessionOverrides();
@@ -100,6 +105,94 @@ test("persistUserUi writes notifications preference", () => {
   } finally {
     clearSessionOverrides();
     reloadConfig(process.env);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("persisted notifications replace session override immediately and failed writes preserve it", () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-ui-session-"));
+  const env = { HOME: root };
+  try {
+    clearSessionOverrides();
+    setSessionOverrides({ ui: { notifications: false } });
+    assert.equal(persistUserUi({ notifications: true }, { env }).ui.notifications, true);
+    assert.equal(getConfig().ui.notifications, true);
+    setSessionOverrides({ ui: { notifications: false } });
+    const blocker = join(root, "blocker");
+    writeFileSync(blocker, "not a directory");
+    assert.throws(() => persistUserUi({ notifications: true }, { env, userPath: join(blocker, "config.json") }));
+    assert.equal(getConfig().ui.notifications, false);
+  } finally { clearSessionOverrides(); reloadConfig(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("XDG configuration migrates prior user settings and rejects corrupt writes", () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-xdg-config-"));
+  const prior = join(root, ".config/cloudflare-one-warp/config.json");
+  const current = join(root, "custom/cloudflare-one-warp/config.json");
+  const env = { HOME: root, XDG_CONFIG_HOME: join(root, "custom") };
+  try {
+    mkdirSync(join(root, ".config/cloudflare-one-warp"), { recursive: true });
+    writeFileSync(prior, JSON.stringify({ server: { port: 49871 }, ui: { locale: "fr" } }));
+    const cfg = persistUserUi({ notifications: false }, { env });
+    assert.equal(cfg.server.port, 49871);
+    assert.equal(JSON.parse(readFileSync(current)).ui.locale, "fr");
+    writeFileSync(current, "{broken");
+    assert.throws(() => persistUserUi({ notifications: true }, { env }));
+    assert.equal(readFileSync(current, "utf8"), "{broken");
+  } finally { clearSessionOverrides(); reloadConfig(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("legacy remote settings cannot expose the control plane", async () => {
+  const { effectiveBind, isValidServerBind } = await import("../lib/config.mjs");
+  assert.equal(effectiveBind({server:{bind:"0.0.0.0"},webui:{enabled:true,allowRemote:true}}), "127.0.0.1");
+  assert.equal(effectiveBind({server:{bind:"localhost"}}), "127.0.0.1");
+  assert.equal(effectiveBind({server:{bind:"::1"}}), "::1");
+  assert.equal(isValidServerBind("192.168.1.2"), false);
+});
+
+test("launcher reuses unmanaged API daemon and separately starts requested Web UI", { skip: process.platform === "win32", timeout: 30000 }, async () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-unmanaged-launcher-"));
+  const repository = fileURLToPath(new URL("..", import.meta.url));
+  const probe = createServer();
+  probe.listen(0, "127.0.0.1");
+  await once(probe, "listening");
+  const port = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, "config"),
+    XDG_RUNTIME_DIR: join(root, "run"), XDG_CACHE_HOME: join(root, "cache"),
+    CLOUDFLARE_ONE_WARP_PORT: String(port), CLOUDFLARE_ONE_WARP_WEBUI: "0",
+    CLOUDFLARE_ONE_WARP_CLI: join(repository, "scripts/mock-warp-cli.mjs") };
+  const daemon = spawn(process.execPath, [join(repository, "server.js")], { env, stdio: "ignore" });
+  const run = promisify(execFile);
+  const launcher = join(repository, "bin/cloudflare-one-warp");
+  const healthUrl = `http://127.0.0.1:${port}/api/health`;
+  let managedPid;
+  try {
+    let ready = false;
+    for (let i = 0; i < 80; i += 1) {
+      try { ready = (await (await fetch(healthUrl)).json()).ok; if (ready) break; } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.equal(ready, true);
+    const tokenPath = join(root, "config/cloudflare-one-warp", `session-${port}.token`);
+    const token = readFileSync(tokenPath, "utf8");
+    const api = await run(launcher, ["--no-open"], { env });
+    assert.equal(api.stdout.trim(), `http://127.0.0.1:${port}`);
+    assert.match((await run(launcher, ["--status"], { env })).stdout, new RegExp(`:${port}`));
+    const ui = await run(launcher, ["--daemon"], { env });
+    assert.notEqual(ui.stdout.trim(), `http://127.0.0.1:${port}`);
+    managedPid = Number(readFileSync(join(root, "run/cloudflare-one-warp/server.pid"), "utf8"));
+    const uiHealth = await (await fetch(`${ui.stdout.trim()}/api/health`)).json();
+    assert.equal(uiHealth.webuiEnabled, true);
+    assert.equal((await (await fetch(healthUrl)).json()).webuiEnabled, false);
+    assert.equal(readFileSync(tokenPath, "utf8"), token);
+    const repeated = await run(launcher, ["--daemon"], { env });
+    assert.equal(repeated.stdout, ui.stdout);
+    assert.equal(Number(readFileSync(join(root, "run/cloudflare-one-warp/server.pid"), "utf8")), managedPid);
+  } finally {
+    if (managedPid) { try { process.kill(managedPid); } catch {} }
+    daemon.kill();
+    await once(daemon, "exit").catch(() => {});
     rmSync(root, { recursive: true, force: true });
   }
 });

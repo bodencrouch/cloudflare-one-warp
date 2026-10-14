@@ -29,6 +29,7 @@ function startDaemon() {
     env: {
       ...process.env,
       HOME: home,
+      XDG_CONFIG_HOME: join(home, ".config"),
       PORT: String(port),
       CLOUDFLARE_ONE_WARP_PORT: String(port),
       WARP_CLI: join(root, "scripts/mock-warp-cli.mjs"),
@@ -93,7 +94,7 @@ test("tray client authenticates mutations and recovers from a stale credential",
   const result = spawnSync(python, ["-c", trayScript], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, HOME: home, CLOUDFLARE_ONE_WARP_PORT: String(port) }
+    env: { ...process.env, HOME: home, XDG_CONFIG_HOME: join(home, ".config"), CLOUDFLARE_ONE_WARP_PORT: String(port) }
   });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   const payload = JSON.parse(result.stdout.trim().split("\n").pop());

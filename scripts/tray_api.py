@@ -17,8 +17,41 @@ PORT_SCAN = 31
 
 def session_token_path(port: int) -> str:
   """Mirror lib/http/request-gate.mjs sessionTokenPath()."""
-  home = os.environ.get("HOME") or os.path.expanduser("~")
-  return os.path.join(home, ".config", "cloudflare-one-warp", f"session-{port}.token")
+  home = os.environ.get("HOME") or os.environ.get("USERPROFILE") or os.path.expanduser("~")
+  config_home = os.environ.get("XDG_CONFIG_HOME")
+  if not config_home or not os.path.isabs(config_home):
+    config_home = os.path.join(home, ".config")
+  return os.path.join(config_home, "cloudflare-one-warp", f"session-{port}.token")
+
+
+def configured_port() -> int:
+  """Resolve the same system/legacy/user/env port layers as the Node daemon."""
+  home = os.environ.get("HOME") or os.environ.get("USERPROFILE") or os.path.expanduser("~")
+  config_home = os.environ.get("XDG_CONFIG_HOME")
+  if not config_home or not os.path.isabs(config_home):
+    config_home = os.path.join(home, ".config")
+  port = DEFAULT_PORT
+  paths = ["/etc/cloudflare-one-warp/config.json",
+           os.path.join(home, ".config", "cloudflare-one-gui", "config.json"),
+           os.path.join(home, ".config", "cloudflare-one-warp", "config.json"),
+           os.path.join(config_home, "cloudflare-one-warp", "config.json")]
+  for path in paths:
+    try:
+      with open(path, encoding="utf-8") as handle:
+        value = json.load(handle).get("server", {}).get("port")
+      if isinstance(value, int) and not isinstance(value, bool) and 1024 <= value <= 65535:
+        port = value
+    except (OSError, ValueError, AttributeError):
+      pass
+  value = os.environ.get("CLOUDFLARE_ONE_WARP_PORT") or os.environ.get("CLOUDFLARE_ONE_GUI_PORT") or os.environ.get("PORT")
+  if value:
+    try:
+      parsed = int(value)
+      if 1024 <= parsed <= 65535:
+        port = parsed
+    except ValueError:
+      pass
+  return port
 
 
 def app_dir() -> str:
@@ -89,15 +122,23 @@ class CloudflareOneWarpClient:
 
   def __init__(self, host: str = "127.0.0.1") -> None:
     self.host = host
-    env_port = os.environ.get("CLOUDFLARE_ONE_WARP_PORT") or os.environ.get("CLOUDFLARE_ONE_GUI_PORT")
-    self.base_port = int(env_port) if env_port else DEFAULT_PORT
+    self.base_port = configured_port()
     self.base_url: str | None = None
     self.session: str | None = None
     self.discover()
 
   def discover(self) -> bool:
     self.session = None
-    for port in range(self.base_port, self.base_port + PORT_SCAN):
+    ports = list(range(self.base_port, min(65536, self.base_port + PORT_SCAN)))
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+    try:
+      with open(os.path.join(runtime, "cloudflare-one-warp", "server.port"), encoding="utf-8") as handle:
+        selected = int(handle.read().strip())
+      if 1024 <= selected <= 65535:
+        ports.insert(0, selected)
+    except (OSError, ValueError):
+      pass
+    for port in dict.fromkeys(ports):
       url = f"http://{self.host}:{port}/api/health"
       try:
         with urllib.request.urlopen(url, timeout=1.5) as response:
@@ -105,7 +146,7 @@ class CloudflareOneWarpClient:
       except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
         continue
       app_id = payload.get("app")
-      if payload.get("ok") and app_id in ("cloudflare-one-warp", "cloudflare-one-warp", "cloudflare-one-gui"):
+      if payload.get("ok") and app_id in ("cloudflare-one-warp", "cloudflare-one-gui"):
         self.base_url = f"http://{self.host}:{port}"
         self.base_port = port
         return True
