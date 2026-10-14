@@ -8,7 +8,7 @@ https://developers.cloudflare.com/warp-client/get-started/linux/
 
 | Artifact | Depends on | Notes |
 |----------|------------|-------|
-| `.deb` / `.rpm` / Arch `.pkg.tar.zst` | System `nodejs >= 24` | Built with [nfpm](https://nfpm.goreleaser.com/); recommends `python3-pyqt6` + WebEngine for tray |
+| `.deb` / `.rpm` / Arch `.pkg.tar.zst` | System `nodejs >= 22` | Built with [nfpm](https://nfpm.goreleaser.com/); recommends `python3-pyqt6` + WebEngine for tray |
 | `.AppImage` | Host `warp-cli` | Bundles Node 24; x86_64 |
 | `.flatpak` | Host `warp-cli`, host PyQt6 for tray | Bundles Node; `cloudflare-one-warp-tray` in app; tray needs host PyQt6 (Phase 2: bundle Qt) |
 | `.snap` (classic) | Host `warp-cli` | Classic confinement; stages `python3-pyqt6` for tray; polkit policy included |
@@ -41,10 +41,21 @@ See [DISTRIBUTION.md](DISTRIBUTION.md) for Flathub, Snap Store, COPR, AUR, and A
 
 ```bash
 docker pull ghcr.io/bodencrouch/cloudflare-one-warp:latest
-docker run --rm -p 4173:4173 -e WARP_CLI=/path/to/warp-cli ghcr.io/bodencrouch/cloudflare-one-warp:latest
+# Linux host with Cloudflare WARP installed and warp-svc running.
+warp_cli_path=$(readlink -f "$(command -v warp-cli)")
+test -x "$warp_cli_path" && test -d /run/cloudflare-warp || exit 1
+docker run --rm --network host \
+  --mount "type=bind,src=$warp_cli_path,dst=/usr/local/bin/warp-cli,readonly" \
+  --mount type=bind,src=/run/cloudflare-warp,dst=/run/cloudflare-warp,readonly \
+  -e WARP_CLI=/usr/local/bin/warp-cli \
+  ghcr.io/bodencrouch/cloudflare-one-warp:latest
 
 docker pull ghcr.io/bodencrouch/cloudflare-one-warp-ci:latest
 ```
+
+On Linux, host networking shares the host network namespace, so the loopback-only API is reachable at `http://127.0.0.1:4173` from the host. Docker bridge port publishing cannot reach this daemon. The container calls the mounted host CLI through the WARP service's Unix socket; the read-only directory mount still permits socket communication. The host service controls the host's WARP connection.
+
+The image runs as its unprivileged `node` user. That user must be able to execute the mounted CLI and access the service socket; match the host socket's group with `--group-add` if required. The CLI must match the image's architecture and Debian Bookworm runtime libraries. Missing libraries require a compatible custom image or a native installation. This example targets Linux Docker Engine; use a native installation on macOS or Windows. Desktop integration and the host's privileged nftables helper are not provided by this API container.
 
 ## Homebrew (macOS)
 
