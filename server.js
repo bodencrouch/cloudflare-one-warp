@@ -71,6 +71,7 @@ import {
   probeKillSwitchActive,
   beginEnrollmentPause,
   endEnrollmentPause,
+  cancelEnrollmentPause,
   getEnrollmentPauseState,
   ENROLLMENT_PAUSE_ACTIONS
 } from "./lib/killswitch/index.mjs";
@@ -78,7 +79,8 @@ import { startStatusWatcher } from "./lib/notify/status-watcher.mjs";
 import {
   appendFromRunWarp,
   getCommandLogCapacity,
-  listEntries
+  listEntries,
+  redactWarpArgs
 } from "./lib/warp/command-log.mjs";
 import { assessReadiness, formatDiagnosticsClipboard } from "./lib/readiness/index.mjs";
 
@@ -87,7 +89,7 @@ const publicRoot = join(root, "public");
 const config = reloadConfig();
 const port = Number(config.server?.port || 4173);
 const listenHost = effectiveBind(config);
-const session = createSessionToken(port);
+let session = null;
 
 function publicConfig(cfg = getConfig()) {
   return decorateTrayConfig(cfg);
@@ -102,28 +104,39 @@ const MIME = {
   ".svg": "image/svg+xml"
 };
 
-/** Keep NetworkManager / KDE Plasma proxy state aligned with warp-cli (Linux only). */
-async function afterWarpNetworkSync(action) {
-  if (process.platform !== "linux" || !action) return;
-  try {
-    const snap = await snapshot();
-    if (action === "disconnect") {
-      deactivateCloudflareOneWarpNmProfiles();
-      syncKdeProxy({ enabled: false, appRoot: root });
-      return;
-    }
-    const syncActions = new Set(["connect", "setMode", "setProtocol", "setMasqueOptions", "enableLocalProxy"]);
-    if (!syncActions.has(action)) return;
-    syncNmForWarpState(snap);
-    const settings = snap.settings || {};
+/** Serialize desktop synchronization using the latest WARP state, not stale action intent. */
+let networkSyncChain = Promise.resolve();
+const NETWORK_SYNC_ACTIONS = new Set([
+  "connect", "disconnect", "setMode", "setProtocol", "setMasqueOptions", "enableLocalProxy", "setProxyPort"
+]);
+function afterWarpNetworkSync(action) {
+  if (process.platform !== "linux" || !NETWORK_SYNC_ACTIONS.has(action)) return Promise.resolve();
+  const synchronize = async () => {
+    const [statusResult, settingsResult] = await Promise.all([
+      runWarp(["status"]), runWarp(["settings", "list"])
+    ]);
+    if (!statusResult.ok || !settingsResult.ok) return;
+    const snap = {
+      status: parseStatus(statusResult.stdout),
+      settings: enrichSettings(parseSettings(settingsResult.stdout))
+    };
+    await syncNmForWarpState(snap);
+    const settings = snap.settings;
     const slug = slugForWarpSettings({
       mode: settings.Mode,
-      protocol: settings["Preferred protocol"] ?? settings.Protocol ?? settings.protocol
+      protocol: settings["Preferred protocol"] ?? settings["Tunnel protocol"] ?? settings.Protocol ?? settings.protocol
     });
-    syncKdeProxy({ enabled: slug === "proxy", port: 40000, appRoot: root });
-  } catch {
-    /* optional integration */
-  }
+    const proxyPort = Number(settings["Proxy port"] || 40000);
+    await syncKdeProxy({
+      enabled: Boolean(snap.status.connected) && slug === "proxy",
+      port: proxyPort,
+      appRoot: root
+    });
+  };
+  networkSyncChain = networkSyncChain.then(synchronize, synchronize).catch((error) => {
+    console.warn(`Desktop network synchronization failed: ${error.message}`);
+  });
+  return networkSyncChain;
 }
 
 const COMMANDS = {
@@ -258,46 +271,70 @@ function getStatusListener() {
 
 function runWarp(args, options = {}) {
   const finalArgs = ["--no-ansi", "--no-paginate", ...args];
+  const safeArgs = redactWarpArgs(finalArgs);
+  const secrets = finalArgs.flatMap((value, index) => {
+    if (safeArgs[index] === value) return [];
+    const secret = String(value);
+    const values = [secret];
+    if (/^--[^=]+=/.test(secret)) values.push(secret.slice(secret.indexOf("=") + 1));
+    if (/^https?:|^com\.cloudflare\.warp:/i.test(secret)) {
+      try {
+        const url = new URL(secret);
+        for (const [name, value] of url.searchParams) {
+          if (/token|secret|key/i.test(name) && value) values.push(value);
+        }
+      } catch { /* the full opaque value is still redacted */ }
+    }
+    return values.filter(Boolean);
+  });
+  const scrub = (text) => secrets.reduce((value, secret) => value.split(secret).join("[redacted]"), String(text || ""));
+  const command = `warp-cli ${safeArgs.join(" ")}`;
   const startedAt = Date.now();
-
+  const maxOutput = 1024 * 1024;
   return new Promise((resolve) => {
-    const child = spawnWarpCli(finalArgs, {
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: options.timeout || 15000
-    });
+    let child;
     let stdout = "";
     let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on("error", (error) => {
+    let outputBytes = 0;
+    let finished = false;
+    let overflow = false;
+    const finish = (code, error = "") => {
+      if (finished) return;
+      finished = true;
       const result = {
-        ok: false,
-        command: `warp-cli ${finalArgs.join(" ")}`,
-        code: null,
-        stdout: "",
-        stderr: error.message,
-        durationMs: Date.now() - startedAt
-      };
-      appendFromRunWarp(redactCommand(result), { source: options.source || "warp" });
-      resolve(result);
-    });
-    child.on("close", (code) => {
-      const result = {
-        ok: code === 0,
-        command: `warp-cli ${finalArgs.join(" ")}`,
+        ok: code === 0 && !overflow && !error,
+        command,
         code,
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
+        stdout: scrub(stdout.trim()),
+        stderr: scrub(overflow ? "warp-cli output exceeded the 1 MiB limit." : error || stderr.trim()),
         durationMs: Date.now() - startedAt
       };
       appendFromRunWarp(redactCommand(result), { source: options.source || "warp" });
       resolve(result);
-    });
+    };
+    try {
+      child = spawnWarpCli(finalArgs, {
+        stdio: ["ignore", "pipe", "pipe"], timeout: options.timeout || 15000
+      });
+    } catch (error) {
+      finish(null, error.message);
+      return;
+    }
+    const collect = (stream, chunk) => {
+      if (overflow) return;
+      outputBytes += chunk.length;
+      if (outputBytes > maxOutput) {
+        overflow = true;
+        child.kill("SIGKILL");
+        return;
+      }
+      if (stream === "stdout") stdout += chunk.toString();
+      else stderr += chunk.toString();
+    };
+    child.stdout.on("data", (chunk) => collect("stdout", chunk));
+    child.stderr.on("data", (chunk) => collect("stderr", chunk));
+    child.on("error", (error) => finish(null, error.message));
+    child.on("close", (code) => finish(code));
   });
 }
 
@@ -348,8 +385,9 @@ function redactWarpOutput(text) {
     .replace(/(Public key:\s+).+/gi, "$1[redacted]")
     .replace(/(License:\s+).+/gi, "$1[redacted]")
     .replace(/(Account ID:\s+).+/gi, "$1[redacted]")
+    .replace(/((?:Token|Secret|Authorization):\s+).+/gi, "$1[redacted]")
     // JSON from warp-cli --json (registration show/devices/organization)
-    .replace(/("(?:id|device_id|public_key|license|account_id)"\s*:\s*)"(?:\\.|[^"\\])*"/gi, '$1"[redacted]"');
+    .replace(/("(?:id|device_id|public_key|license|account_id|token|secret|authorization)"\s*:\s*)"(?:\\.|[^"\\])*"/gi, '$1"[redacted]"');
 }
 
 function redactCommand(result) {
@@ -494,10 +532,40 @@ function crossSiteRejection(req) {
 }
 
 async function readJson(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  const limit = 64 * 1024;
+  const bodyError = () => Object.assign(new Error("Request body exceeds the 64 KiB limit."), { status: 413 });
+  if (Number(req.headers["content-length"]) > limit) {
+    req.resume();
+    throw bodyError();
+  }
+  const data = await new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    const cleanup = () => {
+      req.off("data", onData);
+      req.off("end", onEnd);
+      req.off("error", onError);
+      req.off("aborted", onAborted);
+    };
+    const onError = (error) => { cleanup(); reject(error); };
+    const onAborted = () => onError(Object.assign(new Error("Request aborted."), { status: 400 }));
+    const onEnd = () => { cleanup(); resolve(Buffer.concat(chunks)); };
+    const onData = (chunk) => {
+      size += chunk.length;
+      if (size > limit) {
+        cleanup();
+        req.resume();
+        reject(bodyError());
+      } else chunks.push(chunk);
+    };
+    req.on("data", onData);
+    req.on("end", onEnd);
+    req.on("error", onError);
+    req.on("aborted", onAborted);
+  });
+  if (!data.length) return {};
+  try { return JSON.parse(data.toString("utf8")); }
+  catch { throw Object.assign(new Error("Malformed JSON request."), { status: 400 }); }
 }
 
 function actionArgs(body) {
@@ -568,7 +636,7 @@ async function accountDetails() {
   }
 
   const organization = parseRegistrationOrganization(
-    orgResult.ok ? orgResult.stdout : orgResult.stderr || orgResult.stdout
+    orgResult.ok ? orgResult.stdout : ""
   );
   let devices = parseRegistrationDevices(
     devicesResult.ok ? devicesResult.stdout : devicesResult.stderr || devicesResult.stdout
@@ -791,6 +859,7 @@ async function handleApi(req, res, url) {
       } else {
         setSessionOverrides(body?.config || body);
       }
+      reconcileStatusWatcher();
       json(res, 200, {
         ok: true,
         config: publicConfig(getConfig()),
@@ -1003,9 +1072,11 @@ async function handleApi(req, res, url) {
         active: probe.active,
         probeError: Boolean(probe.probeError),
         enrollmentPause: enroll,
-        detail: enroll.paused
-          ? "Kill switch paused for Zero Trust enrollment."
-          : probe.detail,
+        detail: enroll.restorationPending
+          ? `Kill switch restoration is pending: ${enroll.error || "retrying protection"}`
+          : enroll.paused
+            ? "Kill switch paused for Zero Trust enrollment."
+            : probe.detail,
         interface: "CloudflareWARP",
         note: "Native nftables kill switch — blocks outbound traffic except loopback, the WARP tunnel, and Cloudflare bootstrap IPs."
       });
@@ -1031,21 +1102,20 @@ async function handleApi(req, res, url) {
         json(res, 400, { ok: false, error: "Body must include boolean enabled." });
         return;
       }
-      const previousDesired = Boolean(getConfig().warp?.killSwitch);
-      const previousAllowLan = Boolean(getConfig().warp?.killSwitchAllowLan);
-      const allowLan = typeof body.allowLan === "boolean"
-        ? body.allowLan
-        : previousAllowLan;
+      let allowLan;
       // Apply nft first — only commit session desired after a successful apply.
       const result = await applyKillSwitch({
-        enabled: body.enabled,
-        allowLan
+        resolve: () => {
+          allowLan = typeof body.allowLan === "boolean"
+            ? body.allowLan
+            : Boolean(getConfig().warp?.killSwitchAllowLan);
+          return { enabled: body.enabled, allowLan };
+        },
+        onSuccess: () => {
+          persistUserKillSwitch({ enabled: body.enabled, allowLan });
+          if (!body.enabled) cancelEnrollmentPause();
+        }
       });
-      if (result.ok) {
-        persistUserKillSwitch({ enabled: body.enabled, allowLan });
-      } else {
-        setSessionKillSwitch({ enabled: previousDesired, allowLan: previousAllowLan });
-      }
       const desired = Boolean(getConfig().warp?.killSwitch);
       json(res, result.ok ? 200 : 502, {
         ok: result.ok,
@@ -1141,7 +1211,7 @@ async function handleApi(req, res, url) {
 
     json(res, 404, { ok: false, error: "Unknown API route." });
   } catch (error) {
-    json(res, 500, { ok: false, error: error.message });
+    json(res, error.status || 500, { ok: false, error: error.message });
   }
 }
 
@@ -1152,7 +1222,13 @@ async function serveStatic(req, res, url) {
     res.end("Not found");
     return;
   }
-  let pathname = decodeURIComponent(url.pathname);
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch {
+    json(res, 400, { ok: false, error: "Malformed request path." });
+    return;
+  }
   if (pathname === "/") pathname = "/index.html";
   const safePath = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
   const filePath = join(publicRoot, safePath);
@@ -1190,7 +1266,7 @@ function logBlockedRequest(req, url, verdict) {
   );
 }
 
-createServer(async (req, res) => {
+async function dispatchRequest(req, res) {
   // Parse against our own origin: an attacker-controlled Host header must never
   // influence routing, and a malformed one must not throw.
   let url;
@@ -1207,7 +1283,7 @@ createServer(async (req, res) => {
     headers: req.headers,
     remoteAddress: req.socket?.remoteAddress,
     port,
-    sessionToken: session.token
+    sessionToken: session?.token
   });
   if (!verdict.allowed) {
     logBlockedRequest(req, url, verdict);
@@ -1220,7 +1296,27 @@ createServer(async (req, res) => {
     return;
   }
   await serveStatic(req, res, url);
-}).listen(port, listenHost, () => {
+}
+
+const server = createServer((req, res) => {
+  void dispatchRequest(req, res).catch(() => {
+    if (res.headersSent) res.destroy();
+    else json(res, 500, { ok: false, error: "Request could not be completed." });
+  });
+});
+server.on("error", (error) => {
+  console.error(`Unable to start daemon: ${error.code || "listen failed"}`);
+  process.exitCode = 1;
+});
+server.listen(port, listenHost, () => {
+  try {
+    session = createSessionToken(port);
+  } catch {
+    console.error("Unable to publish the local session credential.");
+    server.close();
+    process.exitCode = 1;
+    return;
+  }
   console.log(`${APP_DISPLAY_NAME} running at http://${listenHost}:${port}`);
   if (getConfig().webui?.enabled) {
     console.log("Web UI enabled — serving static assets from public/.");
@@ -1239,17 +1335,22 @@ createServer(async (req, res) => {
   // Reconcile kill switch: enable when desired; clear orphan table only when probe sees it.
   {
     const desired = Boolean(getConfig().warp?.killSwitch);
-    const allowLan = Boolean(getConfig().warp?.killSwitchAllowLan);
     (async () => {
       if (desired) {
-        const result = await applyKillSwitch({ enabled: true, allowLan });
+        const result = await applyKillSwitch({ resolve: () => ({
+          enabled: Boolean(getConfig().warp?.killSwitch),
+          allowLan: Boolean(getConfig().warp?.killSwitchAllowLan)
+        }) });
         if (result.ok) console.log("WARP kill switch active (warp.killSwitch).");
         else console.warn(`WARP kill switch desired but not applied: ${result.detail}`);
         return;
       }
       const probe = await probeKillSwitchActive();
       if (probe.active === true) {
-        const result = await applyKillSwitch({ enabled: false, allowLan });
+        const result = await applyKillSwitch({ resolve: () => ({
+          enabled: Boolean(getConfig().warp?.killSwitch),
+          allowLan: Boolean(getConfig().warp?.killSwitchAllowLan)
+        }) });
         if (result.ok) console.log("WARP kill switch orphan table removed.");
         else console.warn(`WARP kill switch orphan cleanup failed: ${result.detail}`);
       } else if (probe.probeError) {
@@ -1262,7 +1363,8 @@ createServer(async (req, res) => {
 
   if (getConfig().tray?.autostart) {
     try {
-      const sync = syncTrayAutostart({ autostart: true });
+      const autostart = activeTrayShell() === "cloudflare-one-warp";
+      const sync = syncTrayAutostart({ autostart });
       if (sync.written) console.log(`Tray autostart entry installed (${sync.path}).`);
     } catch (error) {
       console.warn(`Tray autostart sync failed: ${error.message}`);
@@ -1272,7 +1374,7 @@ createServer(async (req, res) => {
   const shutdown = () => {
     notifyWatcher?.stop();
     getStatusListener().stop();
-    removeSessionToken(port);
+    removeSessionToken(port, process.env, session?.token);
     process.exit(0);
   };
   process.on("SIGINT", shutdown);

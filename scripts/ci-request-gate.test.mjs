@@ -167,14 +167,15 @@ test("read-only requests do not need a session token", () => {
   assert.equal(verdict.allowed, true);
 });
 
-test("remote read-only requests stay available for diagnostics", () => {
+test("remote read-only requests are denied even with a forged localhost Host", () => {
   const verdict = evaluate({
     method: "GET",
     pathname: "/api/health",
     remoteAddress: "192.168.1.20",
-    headers: { host: undefined, origin: undefined, "content-type": undefined, [SESSION_HEADER]: undefined }
+    headers: { host: `localhost:${PORT}`, origin: undefined, "content-type": undefined, [SESSION_HEADER]: undefined }
   });
-  assert.equal(verdict.allowed, true);
+  assert.equal(verdict.allowed, false);
+  assert.equal(verdict.reason, "remote_peer_denied");
 });
 
 test("session bootstrap requires a same-origin loopback caller", () => {
@@ -234,4 +235,16 @@ test("security headers deny embedding and sniffing", () => {
   assert.match(API_SECURITY_HEADERS["content-security-policy"], /default-src 'none'/);
   assert.match(WEB_SECURITY_HEADERS["content-security-policy"], /connect-src 'self'/);
   assert.match(WEB_SECURITY_HEADERS["content-security-policy"], /frame-ancestors 'none'/);
+});
+
+test("cleanup does not remove another daemon's token", () => {
+  const home = mkdtempSync(join(tmpdir(), "cf-token-owner-"));
+  try {
+    const env = { HOME: home };
+    const first = createSessionToken(PORT, env);
+    const second = createSessionToken(PORT, env);
+    assert.equal(removeSessionToken(PORT, env, first.token), false);
+    assert.equal(readSessionToken(PORT, env), second.token);
+    assert.equal(removeSessionToken(PORT, env, second.token), true);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
