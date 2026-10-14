@@ -114,7 +114,7 @@ daemon_pid_matches_install() {
 }
 
 restart_stale_daemon() {
-  if is_running; then
+  if is_running && daemon_pid_matches_install; then
     kill "$(cat "$PID_FILE")" 2>/dev/null || true
     rm -f "$PID_FILE" "$PORT_FILE"
   fi
@@ -165,16 +165,33 @@ choose_port() {
 start_server() {
   discover_port || choose_port
 
-  if needs_webui; then
-    if daemon_ready && daemon_pid_matches_install && webui_health_ok; then
+  if daemon_ready; then
+    if ! needs_webui || webui_health_ok; then
+      # systemd and directly launched daemons have no launcher PID file.
       return 0
     fi
-  elif daemon_ready && daemon_pid_matches_install; then
-    return 0
+    if is_running && daemon_pid_matches_install; then
+      restart_stale_daemon
+      # Shutdown releases the listening socket asynchronously.
+      for _ in $(seq 1 80); do
+        if ! port_open; then break; fi
+        sleep 0.1
+      done
+    fi
+  elif is_running && daemon_pid_matches_install; then
+    restart_stale_daemon
   fi
 
-  if health_ok || is_running; then
-    restart_stale_daemon
+  # Never replace an unmanaged daemon, including an older API revision or an
+  # API-only system service. Find an unused port for this requested capability.
+  local candidate found=0
+  for candidate in $(seq "$BASE_PORT" "$((BASE_PORT + 30 > 65535 ? 65535 : BASE_PORT + 30))"); do
+    set_port "$candidate"
+    if ! port_open; then found=1; break; fi
+  done
+  if [[ "$found" != "1" ]]; then
+    echo "No available local port found for the requested daemon capability." >&2
+    return 1
   fi
 
   : > "$LOG_FILE"
@@ -195,9 +212,10 @@ start_server() {
   )
 
   for _ in $(seq 1 80); do
-    if health_ok; then
+    if daemon_ready && { ! needs_webui || webui_health_ok; }; then
       return 0
     fi
+    if ! is_running; then break; fi
     sleep 0.1
   done
 
@@ -210,7 +228,7 @@ start_server() {
 }
 
 stop_server() {
-  if is_running; then
+  if is_running && daemon_pid_matches_install; then
     kill "$(cat "$PID_FILE")"
     rm -f "$PID_FILE" "$PORT_FILE"
     echo "Stopped Cloudflare One WARP daemon."
@@ -271,7 +289,7 @@ case "${1:-}" in
     ;;
   --status)
     discover_port || true
-    if is_running && health_ok; then
+    if daemon_ready; then
       echo "Cloudflare One WARP is running at $URL"
     else
       echo "Cloudflare One WARP is not running."
