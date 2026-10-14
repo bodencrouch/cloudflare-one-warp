@@ -24,7 +24,7 @@ test('KDE proxy preserves existing policy and relinquishes externally changed co
  const file = join(config,'kioslaverc');
  writeFileSync(join(bin,'kwriteconfig6'), `#!${process.execPath}\nconst fs=require('fs'),p=require('path'),a=process.argv.slice(2),f=p.join(process.env.XDG_CONFIG_HOME,'kioslaverc');const fail=p.join(process.env.XDG_CONFIG_HOME,'writer-fail');if(fs.existsSync(fail)){const count=Number(fs.readFileSync(fail,'utf8'))+1;fs.writeFileSync(fail,String(count));if(count>=3)process.exit(1)}let values={};for(const l of fs.existsSync(f)?fs.readFileSync(f,'utf8').split('\\n'):[]){let i=l.indexOf('=');if(i>=0)values[l.slice(0,i)]=l.slice(i+1)}let k=a[a.indexOf('--key')+1];if(a.includes('--delete'))delete values[k];else values[k]=a.at(-1);fs.writeFileSync(f,'[Proxy Settings]\\n'+Object.entries(values).map(([k,v])=>k+'='+v).join('\\n')+'\\n');`,{mode:0o755});
  writeFileSync(join(bin,'dbus-send'),'#!/bin/sh\nexit 0\n',{mode:0o755});
- const run = (...args) => spawnSync('bash',['scripts/cloudflare-one-warp-kde-proxy-sync',...args],{env:{...process.env,HOME:dir,XDG_CONFIG_HOME:config,PATH:bin+':'+process.env.PATH},encoding:'utf8'});
+ const run = (...args) => spawnSync('bash',['scripts/cloudflare-one-warp-kde-proxy-sync',...args],{env:{...process.env,HOME:dir,XDG_CONFIG_HOME:config,XDG_CONFIG_DIRS:join(dir,'system-config'),PATH:bin+':'+process.env.PATH},encoding:'utf8'});
  writeFileSync(file,'[Proxy Settings]\nProxyType=2\nhttp_proxy=corporate:8080\n');
  const original=readFileSync(file,'utf8');
  assert.equal(run('off').status,0); assert.equal(readFileSync(file,'utf8'),original);
@@ -61,6 +61,31 @@ test('KDE proxy preserves existing policy and relinquishes externally changed co
  assert.equal(run('off').status,0);
  assert.match(readFileSync(file,'utf8'),/ProxyType=0/);
  assert.match(readFileSync(file,'utf8'),/http_proxy=saved:8080/);
+ // Interrupted deactivation must finish restoring untouched keys after restart.
+ assert.equal(run('on','45000').status,0);
+ writeFileSync(join(config,'writer-fail'),'0');
+ assert.notEqual(run('off').status,0);
+ assert.equal(JSON.parse(readFileSync(owner,'utf8')).operation,'off');
+ rmSync(join(config,'writer-fail'));
+ assert.equal(run('off').status,0);
+ assert.match(readFileSync(file,'utf8'),/http_proxy=saved:8080/);
+ assert.doesNotMatch(readFileSync(file,'utf8'),/127\.0\.0\.1:45000/);
+ // A writer reporting success without applying changes must retain the journal.
+ assert.equal(run('on','45000').status,0);
+ const writerFile=join(bin,'kwriteconfig6'), writerSource=readFileSync(writerFile,'utf8');
+ writeFileSync(writerFile,'#!/bin/sh\nexit 0\n');
+ assert.notEqual(run('off').status,0);assert.equal(existsSync(owner),true);
+ writeFileSync(writerFile,writerSource);
+ assert.equal(run('off').status,0);
+ // An inherited organization proxy or immutable policy must not be shadowed.
+ const system=join(dir,'system-config');mkdirSync(system);
+ writeFileSync(join(system,'kioslaverc'),'[Proxy Settings]\nProxyType=2\nhttp_proxy=managed:8080\n');
+ rmSync(file);
+ assert.equal(run('on','45000').status,3);assert.equal(existsSync(file),false);
+ writeFileSync(join(system,'kioslaverc'),'[Proxy Settings][$i]\nProxyType=2\n');
+ writeFileSync(file,'[Proxy Settings]\nProxyType=0\n');
+ assert.notEqual(run('on','45000').status,0);assert.doesNotMatch(readFileSync(file,'utf8'),/127\.0\.0\.1/);
+ rmSync(join(system,'kioslaverc'));
  writeFileSync(file,'[Proxy Settings][$i]\nProxyType=2\n');
  assert.notEqual(run('on','45000').status,0);
  assert.match(readFileSync(file,'utf8'),/ProxyType=2/);
@@ -145,4 +170,34 @@ test('NetworkManager proxy helper preserves vendor port and only changes an expl
  const before=readFileSync(log,'utf8');
  assert.equal(activate({CLOUDFLARE_ONE_WARP_PROXY_PORT:'65536'}).status,2);
  assert.equal(readFileSync(log,'utf8'),before);
+});
+
+test('NM marker transitions preserve matching healthy tunnels and never disconnect a newer mode', async t => {
+ if(process.platform !== 'linux') return t.skip('Linux helper');
+ const dir=mkdtempSync(join(tmpdir(),'warp-nm-transition-'));
+ t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const log=join(dir,'commands');
+ writeFileSync(join(dir,'warp-cli'),`#!${process.execPath}\nconst fs=require('fs'),args=process.argv.slice(2);fs.appendFileSync(process.env.TEST_COMMANDS,JSON.stringify(args)+'\\n');if(args[0]==='settings' && process.env.TEST_QUERY_FAIL==='1')process.exit(1);if(args[0]==='settings')console.log('Mode: '+process.env.TEST_MODE+'\\nProtocol: '+process.env.TEST_PROTOCOL);if(args[0]==='status')console.log('Status update: Connected');`,{mode:0o755});
+ const env={...process.env,PATH:dir+':'+process.env.PATH,TEST_COMMANDS:log,TEST_MODE:'WarpWithDnsOverHttps',TEST_PROTOCOL:'WireGuard',CLOUDFLARE_ONE_WARP_SKIP_KDE_PROXY:'1'};
+ const run=(action,profile)=>spawnSync('bash',['scripts/cloudflare-one-warp-connect',action,profile],{env,encoding:'utf8'});
+ const mutations=()=>readFileSync(log,'utf8').trim().split('\n').map(JSON.parse).filter(args=>!['settings','status'].includes(args[0]));
+ assert.equal(run('up','Cloudflare One WARP (WireGuard)').status,0);
+ assert.deepEqual(mutations(),[]);
+ assert.equal(run('down','Cloudflare One WARP (MASQUE)').status,0);
+ assert.deepEqual(mutations(),[]);
+ assert.equal(run('down','Cloudflare One WARP (WireGuard)').status,0);
+ assert.deepEqual(mutations(),[['disconnect']]);
+ // A deliberate different profile still performs the required vendor transition.
+ writeFileSync(log,'');
+ assert.equal(run('up','Cloudflare One WARP (MASQUE)').status,0);
+ assert.deepEqual(mutations(),[['tunnel','protocol','set','MASQUE'],['mode','warp'],['connect']]);
+ writeFileSync(log,'');env.TEST_QUERY_FAIL='1';
+ assert.equal(run('up','Cloudflare One WARP (MASQUE)').status,1);assert.deepEqual(mutations(),[]);
+ assert.equal(run('down','Cloudflare One WARP (WireGuard)').status,1);assert.deepEqual(mutations(),[]);
+ delete env.TEST_QUERY_FAIL;
+ const originalPath=process.env.PATH;
+ t.after(()=>{process.env.PATH=originalPath;});
+ writeFileSync(join(dir,'nmcli'),'#!/bin/sh\nexit 0\n',{mode:0o755});process.env.PATH=env.PATH;
+ const {syncNmForWarpState}=await import('../lib/networkmanager/sync.mjs');
+ assert.equal((await syncNmForWarpState({status:{connected:true},settings:{Mode:'warp+dot',Protocol:'MASQUE'}})).skipped,true);
 });

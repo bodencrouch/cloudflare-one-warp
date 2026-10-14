@@ -857,6 +857,7 @@ INSTALL
   writeFileSync(join(bin, "npm"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
   try {
     const commands = guidedCommands("source", { version: "2.0.0", tag: "v2.0.0", owner: "bodencrouch", repo: "cloudflare-one-warp" });
+    assert.match(commands.join("\n"), /ci --omit=dev --ignore-scripts/);
     execFileSync("bash", ["-eu", "-c", commands.join("\n")], {
       cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, UPDATE_CAPTURE: capture }
     });
@@ -1007,4 +1008,57 @@ test("versions reject leading zero core identifiers and source paths reject trav
   const { isSafeGithubRef } = await import("../lib/update/detect-format.mjs");
   assert.equal(isSafeGithubRef(".."), false);
   assert.equal(isSafeGithubRef("."), false);
+});
+
+test("guided package installs verify private downloads before privilege escalation", (t) => {
+  if (process.platform !== "linux") { t.skip("Linux package installation guidance"); return; }
+  const dir = mkdtempSync(join(tmpdir(), "warp-private-package-guide-"));
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  const assetName = "cloudflare-one-warp_1.2.0_all.deb";
+  writeFileSync(join(bin, "curl"), `#!/usr/bin/env bash
+set -eu
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then output="$2"; shift; fi
+  url="$1"; shift
+done
+if [[ "$url" == */SHA256SUMS ]]; then
+  printf '%s  %s\\n' "$FIXTURE_DIGEST" "$FIXTURE_ASSET" > "$output"
+else
+  printf package > "$output"
+fi
+`, { mode: 0o755 });
+  writeFileSync(join(bin, "sudo"), `#!/usr/bin/env bash
+set -eu
+for arg in "$@"; do file="$arg"; done
+[ "$(cat "$file")" = package ]
+stat "$file" > "$FIXTURE_CAPTURE"
+printf '%s\\n' "$file" >> "$FIXTURE_CAPTURE"
+`, { mode: 0o755 });
+  try {
+    // sha256sum is the same native verifier used by the generated instructions.
+    const digest = execFileSync("sh", ["-c", "printf package | sha256sum"], { encoding: "utf8" }).split(" ")[0];
+    const capture = join(dir, "installed");
+    const commands = guidedCommands("deb", { version: "1.2.0", tag: "v1.2.0", owner: "bodencrouch", repo: "cloudflare-one-warp" }).join("\n");
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TMPDIR: dir, FIXTURE_ASSET: assetName, FIXTURE_CAPTURE: capture };
+    execFileSync("bash", ["-c", commands], { env: { ...env, FIXTURE_DIGEST: digest } });
+    const installed = readFileSync(capture, "utf8").trim().split("\n").at(-1);
+    assert.ok(installed.startsWith(dir));
+    assert.equal(existsSync(installed), false, "private download is removed after installation");
+    rmSync(capture);
+    assert.throws(() => execFileSync("bash", ["-c", commands], { env: { ...env, FIXTURE_DIGEST: "0".repeat(64) }, stdio: "pipe" }));
+    assert.equal(existsSync(capture), false, "checksum mismatch cannot reach sudo");
+    assert.deepEqual(readdirSync(dir), ["bin"]);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("failed metadata responses cancel their bodies before returning errors", async () => {
+  const { listReleases } = await import("../lib/update/github.mjs");
+  const { fetchRemoteManifest } = await import("../lib/update/manifest.mjs");
+  let cancelled = 0;
+  const response = () => ({ ok: false, status: 404, body: { cancel: async () => { cancelled += 1; } } });
+  const options = { env: {}, fetchImpl: async () => response() };
+  await assert.rejects(listReleases({ owner: "cancel-test", repo: "missing" }, options), /not found/);
+  assert.equal(await fetchRemoteManifest({ owner: "cancel-test", repo: "missing" }, options), null);
+  assert.equal(cancelled, 2);
 });

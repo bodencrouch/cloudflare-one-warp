@@ -180,3 +180,12 @@ test("override credentials are redacted while harmless override subcommands rema
   assert.deepEqual(redactWarpArgs(["override","unlock","DUMMY-CODE"]),["override","unlock","[redacted]"]);
   assert.deepEqual(redactWarpArgs(["override","local-network","show"]),["override","local-network","show"]);
 });
+
+test("credential switches may be separated from values by global CLI flags", async () => {
+  const res = await httpJson("POST", "/api/action", {
+    action: "runCustom", value: "registration license --accept-tos --json DUMMY-PRIVATE-LICENSE"
+  });
+  assert.equal(JSON.stringify(res.json).includes("DUMMY-PRIVATE-LICENSE"), false);
+  const logs = await httpJson("GET", "/api/logs");
+  assert.equal(JSON.stringify(logs.json).includes("DUMMY-PRIVATE-LICENSE"), false);
+});

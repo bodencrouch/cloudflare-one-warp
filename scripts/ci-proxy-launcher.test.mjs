@@ -215,3 +215,27 @@ test("purge removes only unchanged owned complete shortcut pairs", xdgOnly, asyn
   assert.equal(await readFile(join(apps, "owned.desktop"), "utf8"), "[Desktop Entry]\nType=Application\nName=owned\nExec=demo %u\n");
   assert.deepEqual((await cleanupOwnedProxyLaunchers({ env })).removed, []);
 });
+
+test("shortcut preserves terminal and working directory and escapes desktop field codes", xdgOnly, async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "warp %u newline\n"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const env = { HOME: root, XDG_DATA_HOME: join(root, "data"), XDG_DATA_DIRS: "relative" };
+  const apps = join(env.XDG_DATA_HOME, "applications");
+  const cwd = join(root, "work folder");
+  await mkdir(apps, { recursive: true });
+  await mkdir(cwd);
+  const recorder = join(root, "record.mjs");
+  await writeFile(recorder, "console.log(JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }))");
+  // Desktop values escape a literal newline in an otherwise valid executable path.
+  const escape = text => text.replaceAll("\\", "\\\\").replaceAll("\n", "\\n");
+  await writeFile(join(apps, "demo.desktop"), `[Desktop Entry]\nType=Application\nName=Demo\\sTerminal\nExec="${escape(process.execPath)}" "${escape(recorder).replaceAll("%", "%%")}" %c\nTerminal=true\nPath=${escape(cwd)}\n`);
+  const result = await createProxyLauncher({ appId: "demo", env });
+  assert.equal(result.ok, true);
+  const desktop = await readFile(result.desktopPath, "utf8");
+  assert.match(desktop, /Terminal=true/);
+  const exec = desktop.split("\n").find(line => line.startsWith("Exec=")).slice(5);
+  assert.deepEqual(desktopExecArgs(exec), [result.scriptPath]);
+  const output = JSON.parse(execFileSync("sh", [result.scriptPath], { encoding: "utf8" }));
+  assert.deepEqual(output, { cwd, args: ["Demo Terminal"] });
+  assert.equal((await cleanupOwnedProxyLaunchers({ env })).removed.length, 1);
+});

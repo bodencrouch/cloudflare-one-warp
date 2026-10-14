@@ -1,4 +1,21 @@
-# Expert release review: 0.3.5
+# Expert release review: 0.3.6
+
+## Follow-up review
+
+The follow-up starts from the published 0.3.5 release and targets remaining error, restart, ownership and recovery paths. It uses independent manual reviews and reproductions rather than claiming certification or an unavailable automated security scan.
+
+| Area | Follow-up targets | Regression coverage |
+|---|---|---|
+| Enrollment and request safety | Reject malformed pause modes, non-object JSON, inherited action names and invalid TCP ports; restore protection after failed enrollment. | Control-plane integration and request tests |
+| Network recovery | Resume interrupted proxy restoration, respect inherited KDE policy and avoid stale marker operations changing the vendor tunnel. | Network ownership and desktop integration tests |
+| Desktop ownership | Preserve unmanaged autostart/service files; quote desktop paths and reject symlinks; retain settled notification state and rediscover daemon endpoints for reads. | Tray, notification and native client tests |
+| Honest account state | Do not interpret errors, incidental prose or explicit unregistered metadata as successful registration, connection or policy. | Registration, settings and integration tests |
+| Browser recovery | Clear private views after authorization loss, invalidate pending responses, report stream loss and survive blocked browser storage. | Browser regression and API client unit tests |
+| Update and distribution | Private checksum-verified manual package staging, fail-closed source preparation, installed uninstallation and isolated payload validation. | Update, installation and packaging regression tests |
+
+The original review below remains the foundation. Production key provisioning, platform signing and comprehensive native certification retain the documented limits.
+
+## Original review: 0.3.5
 
 This review applies vendor-level release priorities to an independent WARP control plane. It does not claim Cloudflare endorsement or certification. The review targets concrete security, correctness, failure recovery, desktop ownership and distribution behavior rather than adding features without operational evidence.
 

@@ -613,3 +613,69 @@ test("sync-tray-autostart --if-unset seeds a first choice", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("tray desktop quotes one executable and escapes literal field codes", () => {
+  const entry = buildTrayAutostartDesktop({ exec: '/home/User Name/apps/$warp/100%/bin/cloudflare-one-warp-tray', icon: "warp" });
+  assert.match(entry, /^Exec="\/home\/User Name\/apps\/\\\\\$warp\/100%%\/bin\/cloudflare-one-warp-tray"$/m);
+  assert.throws(() => buildTrayAutostartDesktop({ exec: '/x\nExec=/malicious', icon: "warp" }), /Invalid/);
+});
+
+test("tray integrations ignore relative XDG paths and preserve custom entries on enable/disable", {
+  skip: process.platform !== "linux"
+}, () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-managed-tray-"));
+  const env = { HOME: root, XDG_CONFIG_HOME: "relative-config" };
+  const tray = trayAutostartPath(env);
+  const vendor = cloudflareAutostartOverridePath(env);
+  const unit = managedWarpDesktopSvcUnitPath(env);
+  try {
+    assert.equal(tray, join(root, ".config", "autostart", "cloudflare-one-warp-tray.desktop"));
+    assert.equal(vendor, join(root, ".config", "autostart", "com.cloudflare.WarpTaskbar.desktop"));
+    assert.equal(unit, join(root, ".config", "systemd", "user", "cloudflare-one-warp-desktop-svc.service"));
+    for (const path of [tray, vendor, unit]) {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, "user-owned custom content\n");
+    }
+    assert.equal(syncTrayAutostart({ autostart: true, env }).preserved, true);
+    assert.equal(syncTrayAutostart({ autostart: false, env }).preserved, true);
+    assert.equal(syncCloudflareAutostartOverride({ hide: true, env }).preserved, true);
+    assert.equal(syncManagedWarpDesktopSvcUnit({ install: true, env }).preserved, true);
+    for (const path of [tray, vendor, unit]) assert.equal(readFileSync(path, "utf8"), "user-owned custom content\n");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("tray integration refuses symlink writes and supports pre-marker upgrade", { skip: process.platform !== "linux" }, async () => {
+  const { symlinkSync } = await import("node:fs");
+  const root = mkdtempSync(join(tmpdir(), "warp-tray-links-"));
+  const env = { HOME: root, XDG_CONFIG_HOME: join(root, ".config") };
+  const path = trayAutostartPath(env);
+  const target = join(root, "untouched");
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(target, "do not overwrite");
+    symlinkSync(target, path);
+    assert.throws(() => syncTrayAutostart({ autostart: true, env }), /Unsafe tray integration/);
+    assert.throws(() => syncTrayAutostart({ autostart: false, env }), /Unsafe tray integration/);
+    assert.equal(readFileSync(target, "utf8"), "do not overwrite");
+    rmSync(path);
+    writeFileSync(path, buildTrayAutostartDesktop({ exec: "cloudflare-one-warp-tray", icon: "warp" }).replace(/^# Managed by Cloudflare One WARP tray\n/, ""));
+    assert.equal(syncTrayAutostart({ autostart: true, env }).written, true);
+    assert.match(readFileSync(path, "utf8"), /^# Managed by/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("disabling a custom service unit never issues systemctl commands", { skip: process.platform !== "linux" }, async () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-preserve-unit-"));
+  const env = { HOME: root, XDG_CONFIG_HOME: join(root, ".config"), PATH: join(root, "bin") };
+  const path = managedWarpDesktopSvcUnitPath(env);
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    mkdirSync(env.PATH);
+    writeFileSync(path, "[Service]\nExecStart=/custom/user-service\n");
+    const record = join(root, "systemctl-called");
+    writeFileSync(join(env.PATH, "systemctl"), `#!/bin/sh\nprintf called > '${record}'\n`, { mode: 0o755 });
+    const result = await syncWarpDesktopSvcUnit({ enable: false, env, unitPath: join(root, "no-vendor-unit") });
+    assert.equal(result.preserved, true);
+    assert.equal(existsSync(record), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

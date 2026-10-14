@@ -1,12 +1,13 @@
-const CACHE_NAME = "cloudflare-one-warp-shell-v5";
+const CACHE_NAME = "cloudflare-one-warp-shell-v6";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
-  "/styles.css?clientRevision=8",
-  "/app.js?clientRevision=8",
-  "/api-client.js?clientRevision=8",
-  "/log-widget.js?clientRevision=8",
-  "/i18n.js?clientRevision=8",
+  "/styles.css?clientRevision=9",
+  "/app.js?clientRevision=9",
+  "/api-client.js?clientRevision=9",
+  "/storage.js?clientRevision=9",
+  "/log-widget.js?clientRevision=9",
+  "/i18n.js?clientRevision=9",
   "/locales/en.json",
   "/manifest.webmanifest",
   "/icon.svg"

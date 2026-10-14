@@ -62,6 +62,8 @@ APIs:
 
 The apply confirmation token is a one-time binding between a UI prompt and a release asset — it is not authentication. Callers must also pass the [request gate](ARCHITECTURE.md#request-gate).
 
+Manual DEB/RPM/Arch/Flatpak/Snap instructions form one shell block: downloads go into a private temporary directory, the selected artifact is checked against the release's `SHA256SUMS`, and installation stops if a download or checksum fails. The block removes its temporary files on exit. These checks detect corruption and local file substitution; they do not replace publisher signatures. Source preparation uses `npm ci --ignore-scripts` so dependency preparation cannot invoke the installer before the explicit target is selected.
+
 Optional auth for higher GitHub rate limits: `CLOUDFLARE_ONE_WARP_GITHUB_TOKEN` or `GITHUB_TOKEN`.
 
 Override install detection: `CLOUDFLARE_ONE_WARP_INSTALL_FORMAT=appimage|deb|rpm|…`

@@ -1,5 +1,14 @@
 # 0.3.5 (2026-10-14)
 
+## 0.3.6 — 2026-10-14
+
+- Reject malformed enrollment-pause and action requests; validate TCP ports and report the actual daemon endpoint.
+- Recover interrupted KDE proxy restoration and preserve inherited managed policy and desktop file ownership.
+- Correct connection, account and settings parsing; preserve settled notification state through transient CLI output.
+- Recover native reads after daemon endpoint changes; clear browser private state on authorization loss and support unavailable browser storage.
+- Use private, checksum-verified package update instructions and disable source-preparation npm hooks.
+- Repair installed uninstallation and reject invalid packages with isolated payload verification.
+
 * Require owner-file credentials for private API reads, streams and mutations; launch browser and native views through private handoffs without exposing credentials in command arguments.
 * Bound CLI execution and action queues, reconcile actual external WARP state, and report the bound port accurately.
 * Validate installed firewall structure, restrict bootstrap exceptions, preserve KDE proxy ownership and use addressless NetworkManager marker connections.

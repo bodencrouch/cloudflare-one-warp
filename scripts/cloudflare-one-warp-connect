@@ -17,6 +17,11 @@ require_warp() {
   fi
 }
 
+# Dispatchers must not leave an indefinitely hung vendor CLI after network changes.
+warp_cli() {
+  timeout --signal=TERM --kill-after=5s 30s warp-cli "$@"
+}
+
 APP_ROOT="${CLOUDFLARE_ONE_WARP_HOME:-}"
 if [[ -z "$APP_ROOT" ]]; then
   if [[ -d "${HOME}/.local/share/cloudflare-one-warp" ]]; then
@@ -28,36 +33,79 @@ fi
 
 KDE_PROXY="${APP_ROOT}/scripts/cloudflare-one-warp-kde-proxy-sync"
 
+# Marker transitions may follow an already completed daemon/vendor transition.
+# Never tear down a newer mode or reconnect a matching healthy tunnel.
+current_profile_matches() {
+  local connection_id="$1" settings line mode="" protocol=""
+  settings="$(warp_cli settings)" || return 2
+  while IFS= read -r line; do
+    if [[ "$line" =~ Mode:[[:space:]]*(.*) ]]; then mode="${BASH_REMATCH[1],,}"; fi
+    if [[ "$line" =~ [Pp]rotocol:[[:space:]]*(.*) ]]; then protocol="${BASH_REMATCH[1],,}"; fi
+  done <<< "$settings"
+  mode="${mode//[ _-]/}"
+  case "$connection_id" in
+    "Cloudflare One WARP (Local proxy)") [[ "$mode" == proxy || "$mode" == warpproxy* || "$mode" == localproxy* ]] ;;
+    "Cloudflare One WARP (MASQUE)") [[ "$mode" == warp || "$mode" == warpwithdnsoverhttps || "$mode" == warpwithdns ]] && [[ "$protocol" == *masque* ]] ;;
+    "Cloudflare One WARP (WireGuard)") [[ "$mode" == warp || "$mode" == warpwithdnsoverhttps || "$mode" == warpwithdns ]] && [[ "$protocol" == *wireguard* ]] ;;
+    *) return 1 ;;
+  esac
+}
+current_profile_connected() {
+  local profile_result=0
+  current_profile_matches "$1" || profile_result=$?
+  (( profile_result == 0 )) || return "$profile_result"
+  local status
+  status="$(warp_cli status)" || return 2
+  status="${status,,}"
+  [[ "$status" =~ (^|$'\n')([[:space:]]*status[[:space:]]+update:[[:space:]]*)?connected([[:space:]]|$) ]]
+}
+
 warp_up() {
   local connection_id="$1"
   require_warp
+  if [[ "$connection_id" == "Cloudflare One WARP (Local proxy)" ]]; then
+  local proxy_port="${CLOUDFLARE_ONE_WARP_PROXY_PORT:-}"
+  # Activation must preserve the official client's saved port unless explicitly requested.
+  if [[ "${CLOUDFLARE_ONE_WARP_PROXY_PORT+x}" == x ]]; then
+    [[ "$proxy_port" =~ ^[0-9]+$ && ${#proxy_port} -le 5 ]] || { echo "Invalid proxy port" >&2; exit 2; }
+    (( 10#$proxy_port >= 1 && 10#$proxy_port <= 65535 )) || { echo "Invalid proxy port" >&2; exit 2; }
+  fi
+  fi
+  local connection_state=0
+  current_profile_connected "$connection_id" || connection_state=$?
+  if (( connection_state == 2 )); then
+    echo "Unable to inspect the official client; network settings unchanged." >&2
+    return 1
+  fi
 
   case "$connection_id" in
     "Cloudflare One WARP (MASQUE)")
-      warp-cli tunnel protocol set MASQUE
-      warp-cli mode warp
-      warp-cli connect
+      if (( connection_state != 0 )); then
+        warp_cli tunnel protocol set MASQUE
+        warp_cli mode warp
+        warp_cli connect
+      fi
       ;;
     "Cloudflare One WARP (WireGuard)")
-      warp-cli tunnel protocol set WireGuard
-      warp-cli mode warp
-      warp-cli connect
+      if (( connection_state != 0 )); then
+        warp_cli tunnel protocol set WireGuard
+        warp_cli mode warp
+        warp_cli connect
+      fi
       ;;
     "Cloudflare One WARP (Local proxy)")
-      local proxy_port="${CLOUDFLARE_ONE_WARP_PROXY_PORT:-}"
-      # Activation must preserve the official client's saved port unless explicitly requested.
-      if [[ "${CLOUDFLARE_ONE_WARP_PROXY_PORT+x}" == x ]]; then
-        [[ "$proxy_port" =~ ^[0-9]+$ && ${#proxy_port} -le 5 ]] || { echo "Invalid proxy port" >&2; exit 2; }
-        (( 10#$proxy_port >= 1 && 10#$proxy_port <= 65535 )) || { echo "Invalid proxy port" >&2; exit 2; }
+      if (( connection_state != 0 )); then
+        warp_cli tunnel protocol set MASQUE
+        warp_cli mode proxy
+        if [[ -n "$proxy_port" ]]; then warp_cli proxy port "$proxy_port"; fi
+        warp_cli connect
+      elif [[ -n "$proxy_port" ]]; then
+        warp_cli proxy port "$proxy_port"
       fi
-      warp-cli tunnel protocol set MASQUE
-      warp-cli mode proxy
-      if [[ -n "$proxy_port" ]]; then warp-cli proxy port "$proxy_port"; fi
-      warp-cli connect
       if [[ "${CLOUDFLARE_ONE_WARP_SKIP_KDE_PROXY:-0}" != 1 && -x "$KDE_PROXY" ]]; then
         if [[ -z "$proxy_port" ]]; then
           local settings line
-          settings="$(warp-cli settings)"
+          settings="$(warp_cli settings)"
           while IFS= read -r line; do
             if [[ "$line" =~ [Pp]roxy[[:space:]]+[Pp]ort:[[:space:]]*([0-9]+) ]]; then
               proxy_port="${BASH_REMATCH[1]}"
@@ -81,7 +129,13 @@ warp_up() {
 
 warp_down() {
   require_warp
-  warp-cli disconnect || true
+  if [[ -n "${1:-}" ]]; then
+    local matches=0
+    current_profile_matches "$1" || matches=$?
+    if (( matches == 2 )); then return 1; fi
+    if (( matches != 0 )); then return 0; fi
+  fi
+  warp_cli disconnect
   if [[ "${CLOUDFLARE_ONE_WARP_SKIP_KDE_PROXY:-0}" != 1 && -x "$KDE_PROXY" ]]; then
     "$KDE_PROXY" off || true
   fi
@@ -96,7 +150,7 @@ case "$ACTION" in
     warp_up "$CONNECTION_ID"
     ;;
   down)
-    warp_down
+    warp_down "$CONNECTION_ID"
     ;;
   -h|--help)
     usage

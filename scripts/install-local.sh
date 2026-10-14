@@ -122,6 +122,11 @@ if ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0
 fi
 cloudflare_one_warp_validate_install_dir "$INSTALL_DIR"
 INSTALL_DIR="$(node -e 'process.stdout.write(require("path").resolve(process.argv[1]))' "$INSTALL_DIR")"
+# Detect command collisions before stopping or replacing a working app.
+if [[ "$WITH_BIN_LINKS" -eq 1 ]]; then
+  cloudflare_one_warp_validate_command_link "$INSTALL_DIR/bin/cloudflare-one-warp" "$LOCAL_BIN/cloudflare-one-warp"
+  cloudflare_one_warp_validate_command_link "$INSTALL_DIR/bin/cloudflare-one-warp-tray" "$LOCAL_BIN/cloudflare-one-warp-tray"
+fi
 mkdir -p "$(dirname "$INSTALL_DIR")"
 # Build completely before stopping or replacing a working installation.
 install_lock="${INSTALL_DIR}.install-lock"
@@ -189,7 +194,7 @@ if [[ "$WITH_DESKTOP" -eq 1 ]]; then
   mkdir -p "$APPLICATIONS_DIR"
   cloudflare_one_warp_remove_legacy_desktop_entries "$APPLICATIONS_DIR"
 
-  cat > "$DESKTOP_FILE" <<DESKTOP
+  cloudflare_one_warp_atomic_text_file "$DESKTOP_FILE" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=Cloudflare One WARP
@@ -209,7 +214,7 @@ DESKTOP
   echo "Installed desktop entry ${DESKTOP_FILE}"
 
   SETTINGS_DESKTOP="${APPLICATIONS_DIR}/cloudflare-one-warp-settings.desktop"
-  cat > "$SETTINGS_DESKTOP" <<SETTINGS
+  cloudflare_one_warp_atomic_text_file "$SETTINGS_DESKTOP" <<SETTINGS
 [Desktop Entry]
 Type=Application
 Name=Cloudflare One WARP Settings
@@ -237,9 +242,12 @@ if [[ -f "${INSTALL_DIR}/scripts/sync-tray-autostart.mjs" ]]; then
 fi
 
 if [[ -x "${INSTALL_DIR}/scripts/cloudflare-one-warp-nm" ]] && command -v nmcli >/dev/null 2>&1; then
-  CLOUDFLARE_ONE_WARP_HOME="${INSTALL_DIR}" "${INSTALL_DIR}/scripts/cloudflare-one-warp-nm" --user --no-reload >/dev/null 2>&1 || true
-  echo "NetworkManager WARP profiles installed (MASQUE, WireGuard, local proxy)."
-  echo "  Optional: ${INSTALL_DIR}/scripts/cloudflare-one-warp-nm --system  (dispatcher + sysctl, needs pkexec)"
+  if CLOUDFLARE_ONE_WARP_HOME="${INSTALL_DIR}" "${INSTALL_DIR}/scripts/cloudflare-one-warp-nm" --user --no-reload >/dev/null 2>&1; then
+    echo "NetworkManager WARP marker profiles installed (MASQUE, WireGuard, local proxy)."
+    echo "  Optional: ${INSTALL_DIR}/scripts/cloudflare-one-warp-nm --system  (dispatcher + sysctl, needs pkexec)"
+  else
+    echo "Optional NetworkManager profile installation failed; the app remains installed." >&2
+  fi
 fi
 
 if [[ "$WITH_SERVICE" -eq 1 ]]; then
@@ -258,7 +266,7 @@ if [[ "$WITH_SERVICE" -eq 1 ]]; then
   DATA_PATH="$(cloudflare_one_warp_systemd_path "$DATA_HOME/cloudflare-one-warp")"
   UNIT_PATH="$(cloudflare_one_warp_systemd_path "$SYSTEMD_USER_DIR")"
 
-  cat > "$SERVICE_FILE" <<SERVICE
+  cloudflare_one_warp_atomic_text_file "$SERVICE_FILE" <<SERVICE
 [Unit]
 Description=Cloudflare One WARP daemon
 Documentation=file://${INSTALL_DIR}/README.md

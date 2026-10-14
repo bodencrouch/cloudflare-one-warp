@@ -1,6 +1,6 @@
 name: cloudflare-one-warp
 base: core24
-version: '0.3.5'
+version: '0.3.6'
 summary: Cloudflare One WARP — unofficial Cloudflare One client
 description: |
   Cloudflare One WARP wraps the host Cloudflare WARP client (warp-cli) with a local API

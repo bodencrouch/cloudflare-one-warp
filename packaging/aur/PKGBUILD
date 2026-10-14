@@ -1,6 +1,6 @@
 # Maintainer: Cloudflare One WARP contributors
 pkgname=cloudflare-one-warp
-pkgver=0.3.5
+pkgver=0.3.6
 pkgrel=1
 pkgdesc="Cloudflare One WARP — unofficial Cloudflare One client via warp-cli"
 arch=('any')

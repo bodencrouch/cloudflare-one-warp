@@ -1,9 +1,11 @@
-# Cloudflare One WARP 0.3.5
+# Cloudflare One WARP 0.3.6
 
-This release hardens account ownership, network protection, desktop integration, updates, accessibility and distribution after an independent expert review. See the [review and validation map](https://github.com/bodencrouch/cloudflare-one-warp/blob/v0.3.5/docs/EXPERT_REVIEW.md) and [changelog](https://github.com/bodencrouch/cloudflare-one-warp/blob/v0.3.5/CHANGELOG.md).
+This follow-up expert review improves failure recovery, enrollment safety, desktop ownership, update guidance and package verification. See the [review map](https://github.com/bodencrouch/cloudflare-one-warp/blob/v0.3.6/docs/EXPERT_REVIEW.md) and [changelog](https://github.com/bodencrouch/cloudflare-one-warp/blob/v0.3.6/CHANGELOG.md).
 
-Private API reads, writes and live events now require the owner credential. Use `cloudflare-one-warp --webui` to authorize the optional browser UI; native clients read the private token file. Restart the daemon after upgrading. Anonymous health/version probes remain available.
+Invalid enrollment-pause requests are rejected. Interrupted KDE restoration retains recovery information. Status and account parsers distinguish command failures from real connection and registration state. Native reads recover after daemon changes without replaying mutations; browser authorization loss clears private views. Desktop integration preserves unmanaged files, and installed uninstallers work from their own location.
 
-Downloads include deb, rpm, Arch, AppImage, Flatpak, Snap, source, Homebrew formula, checksums and an application dependency SBOM. Release provenance and container build provenance accompany the artifacts. Automatic AppImage replacement remains disabled until a production release key is pinned; manual installation is available.
+Guided package updates use private temporary downloads and verify release checksums before installation. Source preparation disables npm installation hooks. Package verification rejects corrupt payloads and inspects their required runtime helpers.
 
-Cloudflare's installed host `warp-cli` remains required. [Documentation](https://bodencrouch.github.io/cloudflare-one-warp/) and [Homebrew tap](https://github.com/bodencrouch/homebrew-cloudflare-one-warp) are maintained separately from store submission channels.
+Restart the daemon after upgrading. Use `cloudflare-one-warp --webui` to authorize the optional browser UI. Cloudflare's installed host `warp-cli` remains required.
+
+Downloads include DEB, RPM, Arch, AppImage, Flatpak, Snap, source, Homebrew, checksums and an application dependency SBOM, with release provenance. Automatic AppImage replacement remains disabled pending a pinned production release key. Native signing/notarization and external store submissions depend on their separate credentials and platform evidence. [Documentation](https://bodencrouch.github.io/cloudflare-one-warp/).

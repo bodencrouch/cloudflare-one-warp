@@ -66,3 +66,31 @@ test("organization errors cannot be interpreted as team names", () => {
   }
   assert.equal(parseRegistrationOrganization("my-team").organization, "my-team");
 });
+
+test("registration respects explicit absence and rejects malformed structured fields", () => {
+  assert.equal(parseRegistrationShow('{"registered":false,"account":{"type":"free","id":"old-account"}}').registered, false);
+  const malformed = parseRegistrationShow('{"device_id":{},"account":{"type":[],"id":{},"license":{}},"public_key":[]}');
+  assert.equal(malformed.registered, false);
+  assert.equal(malformed.deviceId, null);
+  assert.equal(malformed.license, null);
+  assert.deepEqual(parseRegistrationDevices('[null,1,"not a device",{"device_id":{},"name":{},"active":"false"}]'), [{ deviceId: null, os: null, name: null, model: null, active: null }]);
+});
+
+test("empty registration fields never borrow the next output line", () => {
+  const registration = parseRegistrationShow("Device ID:\nAccount type: free\nLicense:\nAccount ID: acct\n");
+  assert.equal(registration.deviceId, null);
+  assert.equal(registration.license, null);
+  assert.equal(registration.accountType, "free");
+  const devices = parseRegistrationDevices("  Device ID: first\nName:\nOS: Linux\n  Device ID: second\nName: Active: true\nOS: Windows\nActive: false\n");
+  assert.equal(devices.length, 2);
+  assert.equal(devices[0].name, null);
+  assert.equal(devices[1].active, false);
+  assert.equal(parseRegistrationOrganization("Organization:\nnot-the-team").organization, null);
+});
+
+test("account classification uses recognized types instead of substring guesses", () => {
+  assert.equal(isConsumerAccount({ accountType: " Free " }), true);
+  assert.equal(isZeroTrustAccount({ accountType: "Zero Trust" }), true);
+  assert.equal(isZeroTrustAccount({ accountType: "zero balance" }), false);
+  assert.equal(isZeroTrustAccount({ accountType: "steam" }), false);
+});

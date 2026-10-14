@@ -44,8 +44,9 @@ case "${1:-}" in
     exec "${ROOT}/bin/cloudflare-one-warp" "$@"
     ;;
   build)
-    target="${2:-appimage}"
-    shift 2 || true
+    shift
+    target="${1:-appimage}"
+    if [[ $# -gt 0 ]]; then shift; fi
     case "$target" in
       appimage) exec bash "${ROOT}/packaging/scripts/build-appimage.sh" "$@" ;;
       deb) exec bash "${ROOT}/packaging/scripts/build-deb-rpm.sh" deb "$@" ;;
@@ -75,26 +76,27 @@ case "${1:-}" in
     ;;
   dev)
     shift
-    run_npm run dev "$@"
+    run_npm run dev -- "$@"
     ;;
   check)
     shift
-    run_npm run check "$@"
+    run_npm run check -- "$@"
     ;;
   test)
-    suite="${2:-all}"
-    shift 2 || true
+    shift
+    suite="${1:-all}"
+    if [[ $# -gt 0 ]]; then shift; fi
     case "$suite" in
-      all) run_npm run test:all "$@" ;;
-      integration) run_npm run test:integration "$@" ;;
-      mock-warp) run_npm run test:mock-warp "$@" ;;
-      openapi) run_npm run test:openapi "$@" ;;
-      update) run_npm run test:update "$@" ;;
-      notify) run_npm run test:notify "$@" ;;
-      registration) run_npm run test:registration "$@" ;;
-      killswitch) run_npm run test:killswitch "$@" ;;
-      ui) run_npm run test:ui "$@" ;;
-      warp:real) run_npm run test:warp:real "$@" ;;
+      all) run_npm run test:all -- "$@" ;;
+      integration) run_npm run test:integration -- "$@" ;;
+      mock-warp) run_npm run test:mock-warp -- "$@" ;;
+      openapi) run_npm run test:openapi -- "$@" ;;
+      update) run_npm run test:update -- "$@" ;;
+      notify) run_npm run test:notify -- "$@" ;;
+      registration) run_npm run test:registration -- "$@" ;;
+      killswitch) run_npm run test:killswitch -- "$@" ;;
+      ui) run_npm run test:ui -- "$@" ;;
+      warp:real) run_npm run test:warp:real -- "$@" ;;
       *)
         echo "Unknown test suite: $suite" >&2
         exit 2

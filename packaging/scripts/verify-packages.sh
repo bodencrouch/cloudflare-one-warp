@@ -64,38 +64,57 @@ verify_deb_rpm() {
   fi
 }
 
-verify_appimage() {
-  local appimage="${OUT}/cloudflare-one-warp-${VERSION}-x86_64.AppImage"
+verify_extracted_tree() {
+  local app="$1" helper
+  for helper in server.js package.json scripts/tray-qt.py scripts/webui-handoff.mjs scripts/proxy-launcher-cleanup.mjs scripts/cloudflare-one-warp-nft-apply lib/tray/autostart.mjs; do
+    test -f "$app/$helper" || { echo "Missing package payload: $helper" >&2; return 1; }
+  done
+  node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1])); if(p.name!=="cloudflare-one-warp" || p.version!==process.argv[2]) process.exit(1)' "$app/package.json" "$VERSION"
+}
+
+verify_appimage() (
+  local appimage="${OUT}/cloudflare-one-warp-${VERSION}-x86_64.AppImage" extracted
   require_file "$appimage"
-  file "$appimage" | grep -Eiq 'executable|AppImage|ELF'
+  file "$appimage" | grep -Eiq 'ELF.*executable'
   chmod +x "$appimage"
-  # Extract-only validation when FUSE is unavailable.
-  if "$appimage" --appimage-extract >/dev/null 2>&1; then
-    test -f squashfs-root/usr/lib/cloudflare-one-warp/server.js
-    test -f squashfs-root/usr/lib/cloudflare-one-warp/scripts/tray-qt.py
-    test -f squashfs-root/usr/lib/cloudflare-one-warp/scripts/cloudflare-one-warp-nft-apply
-    test -f squashfs-root/usr/lib/cloudflare-one-warp/lib/tray/autostart.mjs
-    test -f squashfs-root/usr/share/polkit-1/actions/com.cloudflare.one.warp.policy
-    rm -rf squashfs-root
-  else
-    echo "AppImage extract skipped (FUSE unavailable); size/type check passed"
-  fi
-}
+  extracted="$(mktemp -d)"
+  trap 'rm -rf "$extracted"' EXIT
+  # --appimage-extract never needs FUSE. Failure indicates an invalid bundle.
+  (cd "$extracted" && "$appimage" --appimage-extract >/dev/null)
+  verify_extracted_tree "$extracted/squashfs-root/usr/lib/cloudflare-one-warp"
+  test -f "$extracted/squashfs-root/usr/share/polkit-1/actions/com.cloudflare.one.warp.policy"
+)
 
-verify_flatpak() {
-  local bundle="${OUT}/cloudflare-one-warp-${VERSION}-x86_64.flatpak"
+verify_flatpak() (
+  local bundle="${OUT}/cloudflare-one-warp-${VERSION}-x86_64.flatpak" extracted repo ref helper
   require_file "$bundle"
-  file "$bundle" | grep -qi 'data'
-  if command -v flatpak >/dev/null 2>&1; then
-    flatpak build-info "$bundle" >/dev/null 2>&1 || true
-  fi
-}
+  command -v flatpak >/dev/null || { echo "flatpak is required for bundle verification" >&2; exit 1; }
+  command -v ostree >/dev/null || { echo "ostree is required for bundle verification" >&2; exit 1; }
+  extracted="$(mktemp -d)"
+  trap 'rm -rf "$extracted"' EXIT
+  repo="$extracted/repo"
+  ostree --repo="$repo" init --mode=archive-z2
+  flatpak build-import-bundle "$repo" "$bundle"
+  ref="$(ostree --repo="$repo" refs)"
+  [[ "$ref" =~ ^app/io\.github\.bodencrouch\.CloudflareOneWarp/x86_64/(stable|master)$ ]]
+  for helper in server.js package.json scripts/tray-qt.py scripts/webui-handoff.mjs scripts/proxy-launcher-cleanup.mjs scripts/cloudflare-one-warp-nft-apply lib/tray/autostart.mjs; do
+    ostree --repo="$repo" ls "$ref" "/files/lib/cloudflare-one-warp/$helper" >/dev/null
+  done
+  ostree --repo="$repo" cat "$ref" /files/lib/cloudflare-one-warp/package.json > "$extracted/package.json"
+  node -e 'const p=require(process.argv[1]); if(p.name!=="cloudflare-one-warp" || p.version!==process.argv[2]) process.exit(1)' "$extracted/package.json" "$VERSION"
+)
 
-verify_snap() {
-  local snap="${OUT}/cloudflare-one-warp_${VERSION}_amd64.snap"
+verify_snap() (
+  local snap="${OUT}/cloudflare-one-warp_${VERSION}_amd64.snap" extracted
   require_file "$snap"
-  file "$snap" | grep -Eiq 'Squashfs|snap'
-}
+  command -v unsquashfs >/dev/null || { echo "squashfs-tools is required for snap verification" >&2; exit 1; }
+  extracted="$(mktemp -d)"
+  trap 'rm -rf "$extracted"' EXIT
+  unsquashfs -no-progress -d "$extracted/tree" "$snap" >/dev/null
+  verify_extracted_tree "$extracted/tree/usr/lib/cloudflare-one-warp"
+  test -x "$extracted/tree/node-runtime/bin/node"
+  test -x "$extracted/tree/bin/cloudflare-one-warp"
+)
 
 case "$SCOPE" in
   deb-rpm|deb|rpm)

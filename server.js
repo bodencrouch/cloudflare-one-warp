@@ -557,8 +557,13 @@ async function readJson(req) {
     req.on("aborted", onAborted);
   });
   if (!data.length) return {};
-  try { return JSON.parse(data.toString("utf8")); }
+  let parsed;
+  try { parsed = JSON.parse(data.toString("utf8")); }
   catch { throw Object.assign(new Error("Malformed JSON request."), { status: 400 }); }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw Object.assign(new Error("Request body must be a JSON object."), { status: 400 });
+  }
+  return parsed;
 }
 
 // Mutating CLI workflows must execute as transactions: proxy setup and enrollment
@@ -579,7 +584,7 @@ async function serializeWarpAction(operation) {
 function actionArgs(body) {
   const { action, value, secondary } = body || {};
 
-  if (ACTIONS[action]) return ACTIONS[action];
+  if (typeof action === "string" && Object.hasOwn(ACTIONS, action)) return ACTIONS[action];
   if (action === "registerOrganization") {
     const team = String(value || "").trim().toLowerCase();
     if (!TEAM_NAME_RE.test(team)) return null;
@@ -599,7 +604,7 @@ function actionArgs(body) {
   if (action === "setProtocol" && PROTOCOLS.has(value)) return ["tunnel", "protocol", "set", value];
   if (action === "setFamilies" && FAMILIES.has(value)) return ["dns", "families", value];
   if (action === "setMasqueOptions" && MASQUE_OPTIONS.has(value)) return ["tunnel", "masque-options", "set", value];
-  if (action === "setProxyPort" && /^\d{2,5}$/.test(String(value))) return ["proxy", "port", String(value)];
+  if (action === "setProxyPort" && /^\d{1,5}$/.test(String(value)) && Number(value) >= 1 && Number(value) <= 65535) return ["proxy", "port", String(value)];
   if (action === "setVnet" && value) return ["vnet", String(value)];
   if (action === "setGatewayId" && value) return ["dns", "gateway-id", "set", String(value)];
   if (action === "setEndpoint" && value) return ["tunnel", "endpoint", "set", String(value)];
@@ -632,14 +637,14 @@ async function accountDetails() {
   ]);
 
   const registration = parseRegistrationShow(
-    showResult.ok ? showResult.stdout : showResult.stderr || showResult.stdout
+    showResult.ok ? showResult.stdout : ""
   );
   // Text fallback when --json is unsupported
   if (!registration.registered && !showResult.ok) {
     const textShow = await runWarp(["registration", "show"]);
     Object.assign(
       registration,
-      parseRegistrationShow(textShow.ok ? textShow.stdout : textShow.stderr || textShow.stdout)
+      parseRegistrationShow(textShow.ok ? textShow.stdout : "")
     );
   }
 
@@ -647,7 +652,7 @@ async function accountDetails() {
     orgResult.ok ? orgResult.stdout : ""
   );
   let devices = parseRegistrationDevices(
-    devicesResult.ok ? devicesResult.stdout : devicesResult.stderr || devicesResult.stdout
+    devicesResult.ok ? devicesResult.stdout : ""
   );
   // devices is consumer-only; ignore failures for Zero Trust
   if (!devicesResult.ok && /only available|not supported|zero.?trust|organization/i.test(
@@ -845,8 +850,8 @@ async function handleApi(req, res, url) {
         config: publicConfig(active),
         sources: describeConfigSources(),
         effective: {
-          bind: effectiveBind(active),
-          port: Number(active.server?.port || port)
+          bind: listenHost,
+          port
         },
         notes: {
           restartRequired: ["server.port", "server.bind", "webui.enabled", "webui.allowRemote"],
@@ -1100,7 +1105,11 @@ async function handleApi(req, res, url) {
 
     if (req.method === "POST" && url.pathname === "/api/killswitch/enrollment-pause") {
       const body = await readJson(req);
-      const mode = body?.mode === "end" ? "end" : "begin";
+      const mode = body.mode;
+      if (mode !== "begin" && mode !== "end") {
+        json(res, 400, { ok: false, error: "mode must be begin or end." });
+        return;
+      }
       if (mode === "begin") {
         const result = await beginEnrollmentPause();
         json(res, result.ok ? 200 : 502, result);
@@ -1209,14 +1218,23 @@ async function handleApi(req, res, url) {
             return;
           }
         }
-        const result = await runWarp(args, { timeout: 30000 });
+        let result;
         let resumeMeta = null;
-        if (pauseForEnroll && body?.action === "registrationToken") {
-          // Token completion ends the browser/IdP window — restore KS if it was desired.
-          resumeMeta = await endEnrollmentPause({ reason: "registrationToken" });
+        try {
+          result = await runWarp(args, { timeout: 30000 });
+        } finally {
+          if (pauseForEnroll && (!result?.ok || body.action === "registrationToken")) {
+            // A failed enrollment must not leave protection removed for the
+            // browser window. Restoration follows the latest desired preference.
+            resumeMeta = await endEnrollmentPause({
+              reason: result?.ok ? "registrationToken" : "enrollment_failed"
+            });
+          }
         }
-        json(res, result.ok ? 200 : 502, {
-          ok: result.ok,
+        const operationOk = result.ok && resumeMeta?.ok !== false;
+        json(res, operationOk ? 200 : 502, {
+          ok: operationOk,
+          error: resumeMeta?.ok === false ? resumeMeta.detail || "Could not restore kill switch protection." : undefined,
           result: redactCommand(result),
           killSwitchPause: pauseMeta,
           killSwitchResume: resumeMeta

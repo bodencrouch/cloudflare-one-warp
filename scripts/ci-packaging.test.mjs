@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -112,6 +112,12 @@ test("source staging excludes local credentials and includes offline installatio
     const restage = spawnSync("bash", [join(destination, "packaging/scripts/stage-source.sh"), second], { encoding: "utf8" });
     assert.equal(restage.status, 0, restage.stderr);
     for (const secret of ["scripts/.env", "lib/private.pem", "config/config.json"]) assert.equal(existsSync(join(second, secret)), false, secret);
+    writeFileSync(join(destination, "public/.env"), "TOKEN=must-not-ship");
+    const native = join(destination, "native-payload");
+    const nativeStage = spawnSync("bash", [join(destination, "packaging/scripts/stage-payload.sh")], { encoding: "utf8", env: { ...process.env, PAYLOAD_DIR: native } });
+    assert.equal(nativeStage.status, 0, nativeStage.stderr);
+    for (const secret of ["lib/private.pem", "public/.env"]) assert.equal(existsSync(join(native, "usr/lib/cloudflare-one-warp", secret)), false, secret);
+
 
   } finally { rmSync(destination, { recursive: true, force: true }); }
 });
@@ -157,6 +163,22 @@ test("local installation handles spaces and preserves the working tree when stag
     const reinstall = spawnSync("bash", [join(source, "scripts/install-local.sh"), "--install-dir", install, "--no-desktop", "--no-bin-links"], { encoding: "utf8", env, timeout: 30000 });
     assert.equal(reinstall.status, 0, reinstall.stderr);
     assert.equal(readFileSync(join(metadata, "routing-state.json"), "utf8"), '{"preserve":true}');
+    const victim = join(home, "unrelated-file");
+    writeFileSync(victim, "preserve unrelated contents");
+    const settings = join(env.XDG_DATA_HOME, "applications/cloudflare-one-warp-settings.desktop");
+    rmSync(settings);
+    symlinkSync(victim, settings);
+    const desktopRefresh = spawnSync("bash", [join(source, "scripts/install-local.sh"), "--install-dir", install, "--no-bin-links"], { encoding: "utf8", env, timeout: 30000 });
+    assert.equal(desktopRefresh.status, 0, desktopRefresh.stderr);
+    assert.equal(readFileSync(victim, "utf8"), "preserve unrelated contents");
+    const commandPath = join(home, ".local/bin/cloudflare-one-warp");
+    rmSync(commandPath);
+    writeFileSync(commandPath, "unrelated command");
+    const currentServer = readFileSync(join(install, "server.js"), "utf8");
+    const collision = spawnSync("bash", [join(source, "scripts/install-local.sh"), "--install-dir", install, "--no-desktop"], { encoding: "utf8", env, timeout: 30000 });
+    assert.notEqual(collision.status, 0);
+    assert.equal(readFileSync(commandPath, "utf8"), "unrelated command");
+    assert.equal(readFileSync(join(install, "server.js"), "utf8"), currentServer);
     const oldServer = readFileSync(join(install, "server.js"), "utf8");
     writeFileSync(join(source, "server.js"), "this is invalid JavaScript {");
     const failure = spawnSync("bash", [join(source, "scripts/install-local.sh"), "--install-dir", install, "--no-desktop", "--no-bin-links"], { encoding: "utf8", env, timeout: 30000 });
@@ -166,6 +188,10 @@ test("local installation handles spaces and preserves the working tree when stag
     const purge = spawnSync("bash", [join(source, "scripts/uninstall-local.sh"), "--install-dir", "/", "--purge"], { encoding: "utf8", env, timeout: 30000 });
     assert.notEqual(purge.status, 0);
     assert.ok(existsSync(join(install, "server.js")));
+    // Exercise the ordinary user path, not the checkout's uninstaller.
+    const uninstall = spawnSync("bash", [join(install, "scripts/uninstall-local.sh"), "--install-dir", install, "--purge"], { encoding: "utf8", env, timeout: 30000 });
+    assert.equal(uninstall.status, 0, uninstall.stderr);
+    assert.equal(existsSync(install), false);
   } finally { rmSync(destination, { recursive: true, force: true }); }
 });
 
@@ -216,5 +242,46 @@ test("source archives are reproducible and generated Arch recipes verify their e
     assert.deepEqual(readFileSync(payloadPath), payload);
     const digest = spawnSync("sha256sum", [archivePath], { encoding: "utf8" }).stdout.split(" ")[0];
     assert.ok(readFileSync(join(destination, "dist/packages/PKGBUILD"), "utf8").includes(`sha256sums=('${digest}')`));
+  } finally { rmSync(destination, { recursive: true, force: true }); }
+});
+
+test("AppImage verification rejects a foreign ELF without touching caller extraction directories", { skip: process.platform !== "linux" }, () => {
+  const destination = mkdtempSync(join(tmpdir(), "warp-invalid-appimage-"));
+  try {
+    const verifier = join(destination, "packaging/scripts/verify-packages.sh");
+    mkdirSync(dirname(verifier), { recursive: true });
+    writeFileSync(verifier, readFileSync(join(root, "packaging/scripts/verify-packages.sh")));
+    const version = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+    writeFileSync(join(destination, "package.json"), JSON.stringify({ version }));
+    const packages = join(destination, "dist/packages");
+    mkdirSync(packages, { recursive: true });
+    const artifact = join(packages, `cloudflare-one-warp-${version}-x86_64.AppImage`);
+    writeFileSync(artifact, readFileSync("/bin/true"), { mode: 0o755 });
+    const existing = join(destination, "squashfs-root");
+    mkdirSync(existing);
+    writeFileSync(join(existing, "preserve"), "user extraction");
+    const result = spawnSync("bash", [verifier, "appimage"], { cwd: destination, encoding: "utf8", timeout: 30000 });
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.equal(readFileSync(join(existing, "preserve"), "utf8"), "user extraction");
+  } finally { rmSync(destination, { recursive: true, force: true }); }
+});
+
+test("Flatpak verification fails closed when bundle import rejects malformed data", { skip: process.platform === "win32" }, () => {
+  const destination = mkdtempSync(join(tmpdir(), "warp-invalid-flatpak-"));
+  try {
+    const verifier = join(destination, "packaging/scripts/verify-packages.sh");
+    mkdirSync(dirname(verifier), { recursive: true });
+    writeFileSync(verifier, readFileSync(join(root, "packaging/scripts/verify-packages.sh")));
+    const version = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+    writeFileSync(join(destination, "package.json"), JSON.stringify({ version }));
+    const packages = join(destination, "dist/packages");
+    mkdirSync(packages, { recursive: true });
+    writeFileSync(join(packages, `cloudflare-one-warp-${version}-x86_64.flatpak`), Buffer.from([0,1,2,3,4]));
+    const bin = join(destination, "tools");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "flatpak"), '#!/bin/sh\nexit 42\n', { mode: 0o755 });
+    writeFileSync(join(bin, "ostree"), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    const result = spawnSync("bash", [verifier, "flatpak"], { cwd: destination, encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, timeout: 30000 });
+    assert.equal(result.status, 42, result.stdout + result.stderr);
   } finally { rmSync(destination, { recursive: true, force: true }); }
 });

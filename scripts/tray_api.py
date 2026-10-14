@@ -266,7 +266,7 @@ finally { closeSync(fd); }"""
     with _LOCAL_HTTP.open(request, timeout=20) as response:
       return _read_response(response)
 
-  def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+  def _request(self, method: str, path: str, body: dict[str, Any] | None = None, *, _retry_transport: bool = True) -> dict[str, Any]:
     if not self.base_url and not self.discover():
       raise RuntimeError("Cloudflare One WARP daemon is not running.")
     try:
@@ -287,6 +287,16 @@ finally { closeSync(fd); }"""
           raise RuntimeError(detail or str(retry_exc)) from retry_exc
       else:
         raise RuntimeError(detail or str(exc)) from exc
+    except (OSError, urllib.error.URLError, TimeoutError):
+      # A service restart may select another port. Reads may rediscover once;
+      # writes are never replayed after an ambiguous transport failure.
+      if method.upper() != "GET" or not _retry_transport:
+        raise
+      self.base_url = None
+      self.session = None
+      if not self.discover():
+        raise RuntimeError("Cloudflare One WARP daemon is not running.")
+      return self._request(method, path, body, _retry_transport=False)
     if not raw.strip():
       return {}
     return json.loads(raw)
@@ -313,32 +323,24 @@ finally { closeSync(fd); }"""
       return False
 
   def ensure_daemon_webui(self, launcher: str | None = None) -> None:
-    """Ensure daemon serves the Web UI; persist enable and restart if needed."""
+    """Request UI capability for this session without changing saved preferences."""
     launcher = launcher or launcher_path()
     if self.webui_enabled():
       return
-    try:
-      self.post("/api/config/webui", {"enabled": True})
-    except Exception:
-      pass
-    subprocess.run(
-      [launcher, "--stop"],
-      check=False,
-      stdout=subprocess.DEVNULL,
-      stderr=subprocess.DEVNULL,
-      timeout=10,
-    )
     env = os.environ.copy()
     env["CLOUDFLARE_ONE_WARP_WEBUI"] = "1"
+    # The launcher reuses/restarts only its managed process, or creates an
+    # additional UI-capable daemon beside an unmanaged API-only service.
     subprocess.run(
       [launcher, "--daemon"],
-      check=False,
+      check=True,
       stdout=subprocess.DEVNULL,
       stderr=subprocess.DEVNULL,
       timeout=20,
       env=env,
     )
-    self.discover()
+    if not self.discover() or not self.webui_enabled():
+      raise RuntimeError("Cloudflare One WARP Web UI could not be started.")
 
   def restart_daemon(self, launcher: str | None = None, *, webui: bool | None = None) -> None:
     launcher = launcher or launcher_path()

@@ -47,7 +47,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-cloudflare_one_warp_validate_install_dir "$INSTALL_DIR"
+cloudflare_one_warp_validate_install_dir "$INSTALL_DIR" remove
 INSTALL_DIR="$(node -e 'process.stdout.write(require("path").resolve(process.argv[1]))' "$INSTALL_DIR")"
 
 for unit in cloudflare-one-warp.service cloudflare-one-gui.service; do
