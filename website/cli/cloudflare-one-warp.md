@@ -37,7 +37,7 @@ On KDE Plasma / Wayland, left-click the tray icon opens the PyQt6 panel with the
 ```bash
 # Headless automation host
 cloudflare-one-warp --no-open
-curl -s http://127.0.0.1:4173/api/snapshot | jq '.status'
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/snapshot | jq '.status'
 
 # Quick connect from terminal
 cloudflare-one-warp --connect

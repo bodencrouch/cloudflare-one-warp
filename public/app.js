@@ -1,5 +1,5 @@
-import { apiFetch } from "./api-client.js";
-import { loadLocale, t, tip, getLocale } from "./i18n.js";
+import { apiFetch, AuthorizedEventSource } from "./api-client.js?clientRevision=8";
+import { loadLocale, t, tip, getLocale } from "./i18n.js?clientRevision=8";
 import {
   appendStatusLine,
   createDefaultLogWidgetState,
@@ -11,7 +11,7 @@ import {
   pollConsoleLogs,
   renderLogDock,
   seedStatusFromSnapshot
-} from "./log-widget.js";
+} from "./log-widget.js?clientRevision=8";
 
 const navItems = [
   ["home", "nav.home", "⌂", "pageHome"],
@@ -455,19 +455,24 @@ function patchSegmentedSelection() {
     row.querySelectorAll("button[data-value]").forEach((button) => {
       const value = String(button.getAttribute("data-value") || "").toLowerCase();
       button.classList.toggle("selected", value === current);
+      button.setAttribute("aria-pressed", String(value === current));
       button.disabled = state.busy;
     });
   });
 }
 
 async function refresh({ silent = false, preserveError = false } = {}) {
+  const requestId = refresh.requestId = (refresh.requestId || 0) + 1;
   if (!silent) {
     if (!preserveError) state.error = null;
     render();
   }
   try {
     const response = await apiFetch("/api/snapshot");
-    state.snapshot = await response.json();
+    const snapshot = await response.json();
+    if (requestId !== refresh.requestId) return;
+    if (!response.ok) throw new Error(snapshot.error || "Unable to refresh connection status.");
+    state.snapshot = snapshot;
     seedStatusFromSnapshot(state);
     if (state.view === "account") await loadAccount(false);
     if (state.view === "split") await loadDesktopApps(false);
@@ -479,6 +484,7 @@ async function refresh({ silent = false, preserveError = false } = {}) {
       await loadKillSwitch(false);
     }
   } catch (error) {
+    if (requestId !== refresh.requestId) return;
     state.error = error.message;
   }
   if (silent) {
@@ -688,6 +694,9 @@ async function createAppShortcut() {
 }
 
 async function action(actionName, value, secondary, confirmCommand = false) {
+  if (state.busy) return;
+  // Invalidate snapshots started before this mutation.
+  refresh.requestId = (refresh.requestId || 0) + 1;
   if (confirmCommand && !window.confirm(`Run warp-cli action: ${actionName}?`)) return;
 
   state.busy = true;
@@ -701,14 +710,16 @@ async function action(actionName, value, secondary, confirmCommand = false) {
     });
     const body = await response.json();
     state.lastAction = body.result || body;
-    if (!response.ok) state.error = body.error || body.result?.stderr || "Command failed.";
+    const secretField = { applyLicense: "licenseKey", registrationToken: "authToken", overrideCode: "overrideCode", overrideUnlock: "overrideCode" }[actionName];
+    if (secretField && state.forms[secretField].trim() === value) state.forms[secretField] = "";
+    if (!response.ok || body.result?.ok === false || body.ok === false) state.error = body.error || body.result?.stderr || body.stderr || "Command failed.";
   } catch (error) {
     state.error = error.message;
   }
   state.busy = false;
   await pollConsoleLogs(state);
-  if (state.error || state.toast) await refresh({ preserveError: true });
-  else await refresh({ preserveError: true, silent: true });
+  // A completed command must refresh account panels and re-enable all controls.
+  await refresh({ preserveError: true });
 }
 
 async function enableLocalProxy() {
@@ -725,6 +736,7 @@ async function enableLocalProxy() {
     });
     const body = await response.json();
     state.lastAction = body.result || body;
+
     if (!response.ok) {
       state.error = body.error || body.result?.stderr || t("tunnelGuide.enableProxyFailed");
       state.appRouting.pending = false;
@@ -988,6 +1000,7 @@ function simpleShell() {
     const button = el("button", `simple-nav-item ${state.view === id ? "active" : ""}`);
     button.innerHTML = `<span class="simple-nav-icon" aria-hidden="true">${icon}</span><span class="simple-nav-label">${t(labelKey)}</span>`;
     button.setAttribute("aria-label", t(labelKey));
+    if (state.view === id) button.setAttribute("aria-current", "page");
     button.setAttribute("data-nav", id);
     button.onclick = () => {
       state.view = id;
@@ -1025,6 +1038,7 @@ function shell() {
     const button = el("button", `nav-item ${state.view === id ? "active" : ""}`);
     button.innerHTML = `<span class="nav-icon" aria-hidden="true">${icon}</span><span>${t(labelKey)}</span>`;
     button.setAttribute("aria-label", t(labelKey));
+    if (state.view === id) button.setAttribute("aria-current", "page");
     button.setAttribute("data-nav", id);
     if (tipKey) applyTip(button, tipKey);
     button.onclick = () => {
@@ -1197,7 +1211,7 @@ function homeView() {
   primary.innerHTML = `
     <div class="status-orb ${statusKind()}"><span></span></div>
     <div class="hero-copy">
-      <div class="status-label tip" data-tip="${escapeHtml(tip("liveStatus"))}" tabindex="0">${statusText()}</div>
+      <div class="status-label tip" data-tip="${escapeHtml(tip("liveStatus"))}" tabindex="0">${escapeHtml(statusText())}</div>
       <h2 class="tip" data-tip="${escapeHtml(tip("daemon"))}" tabindex="0">${readinessHardBlocked() ? t("home.daemonMissing") : t("home.tunnelControls")}</h2>
       <p>${escapeHtml(heroMessage)}</p>
     </div>
@@ -1227,6 +1241,8 @@ function segmented(label, values, actionName, current, tipText = "", valueTips =
   const tipAttr = tipText ? ` class="tip" data-tip="${escapeHtml(tipText)}" tabindex="0"` : "";
   wrap.innerHTML = `<label${tipAttr}>${label}</label>`;
   const row = el("div", "segmented");
+  row.setAttribute("role", "group");
+  row.setAttribute("aria-label", label);
   if (settingKey) {
     row.setAttribute("data-setting-key", settingKey);
     row.setAttribute("data-testid", `segmented-${actionName}`);
@@ -1234,6 +1250,8 @@ function segmented(label, values, actionName, current, tipText = "", valueTips =
   values.forEach((value) => {
     const button = el("button", current?.toLowerCase?.() === value.toLowerCase() ? "selected" : "", value);
     button.setAttribute("data-value", value);
+    button.setAttribute("aria-pressed", String(current?.toLowerCase?.() === value.toLowerCase()));
+    button.disabled = state.busy;
     button.type = "button";
     const tipKey = valueTips && (valueTips[value] || valueTips[String(value).toLowerCase()]);
     if (tipKey) applyTip(button, tipKey);
@@ -1255,10 +1273,14 @@ function choiceSegmented(label, choices, current, tipText = "") {
   const tipAttr = tipText ? ` class="tip" data-tip="${escapeHtml(tipText)}" tabindex="0"` : "";
   wrap.innerHTML = `<label${tipAttr}>${label}</label>`;
   const row = el("div", "segmented");
+  row.setAttribute("role", "group");
+  row.setAttribute("aria-label", label);
   choices.forEach(({ value, label: choiceLabel, action: actionName, confirm = false, tipKey }) => {
     const selected = current?.toLowerCase?.() === String(value).toLowerCase();
     const button = el("button", selected ? "selected" : "", choiceLabel);
     button.type = "button";
+    button.setAttribute("aria-pressed", String(selected));
+    button.disabled = state.busy;
     if (tipKey) applyTip(button, tipKey);
     button.onclick = () => {
       if (confirm && !window.confirm(`Run warp-cli action: ${choiceLabel}?`)) return;
@@ -1379,6 +1401,7 @@ function basicAccountPanel(acct) {
   const registerBtn = el("button", "primary tip", t("account.registerFree"));
   registerBtn.setAttribute("data-tip", tip("registerFree"));
   registerBtn.setAttribute("data-testid", "account-register");
+  registerBtn.disabled = state.busy;
   registerBtn.onclick = () => action("register");
   actions.append(registerBtn);
   panel.append(actions);
@@ -1419,7 +1442,7 @@ function basicAccountPanel(acct) {
   const licenseForm = el("label", "input-row");
   licenseForm.innerHTML = `
     <span class="tip" data-tip="${escapeHtml(tip("applyLicense"))}" tabindex="0">${t("account.applyLicenseLabel")}</span>
-    <input value="${escapeHtml(state.forms.licenseKey)}" placeholder="${escapeHtml(t("account.licensePlaceholder"))}" autocomplete="off" spellcheck="false" data-testid="account-license-input" />
+    <input type="password" value="${escapeHtml(state.forms.licenseKey)}" placeholder="${escapeHtml(t("account.licensePlaceholder"))}" autocomplete="off" spellcheck="false" data-testid="account-license-input" />
     <button class="secondary" data-testid="account-apply-license">${t("account.applyLicense")}</button>
   `;
   const licenseInput = licenseForm.querySelector("input");
@@ -1481,7 +1504,7 @@ function basicAccountPanel(acct) {
   const tokenForm = el("label", "input-row token-row");
   tokenForm.innerHTML = `
     <span class="tip" data-tip="${escapeHtml(tip("authToken"))}" tabindex="0">${t("account.authToken")}</span>
-    <input value="${escapeHtml(state.forms.authToken)}" placeholder="${escapeHtml(t("account.tokenPlaceholder"))}" autocomplete="off" spellcheck="false" />
+    <input type="password" value="${escapeHtml(state.forms.authToken)}" placeholder="${escapeHtml(t("account.tokenPlaceholder"))}" autocomplete="off" spellcheck="false" />
     <button class="secondary">${t("account.completeToken")}</button>
   `;
   const tokenInput = tokenForm.querySelector("input");
@@ -1660,6 +1683,7 @@ function appRoutingPanel() {
     <li>${t("appRouting.stepLaunch")}</li>
   `;
   panel.append(steps);
+  panel.append(el("p", "routing-hint", "Shortcuts configure proxy-aware apps. Apps that ignore proxy environment variables can connect directly. Verify the app’s proxy settings and connection before relying on this routing."));
 
   const actions = el("div", "app-routing-actions");
   if (!isProxy) {
@@ -1675,6 +1699,7 @@ function appRoutingPanel() {
     pickRow.innerHTML = `<label>${t("appRouting.pickApp")}</label>`;
     const select = el("select", "app-routing-select");
     select.setAttribute("data-testid", "app-routing-select");
+    select.setAttribute("aria-label", t("appRouting.pickApp"));
     select.disabled = state.busy || state.desktopApps.loading;
     if (state.desktopApps.loading) {
       select.append(el("option", "", t("appRouting.loadingApps")));
@@ -1682,7 +1707,7 @@ function appRoutingPanel() {
       select.append(el("option", "", t("appRouting.noApps")));
     } else {
       for (const app of state.desktopApps.list) {
-        const option = el("option", "", app.name);
+        const option = el("option", "", escapeHtml(app.name));
         option.value = app.id;
         if (app.id === state.desktopApps.selectedId) option.selected = true;
         select.append(option);
@@ -1998,9 +2023,16 @@ function updatesPanel() {
   const channelSeg = el("div", "segmented");
   ["stable", "beta"].forEach((value) => {
     const button = el("button", channel === value ? "selected" : "", t(`app.${value}`));
+    button.setAttribute("aria-pressed", String(channel === value));
+    button.disabled = state.busy || Boolean(state.update.savingSource) || Boolean(state.update.savingPrefs);
     button.onclick = async () => {
-      await saveUpdatePrefs({ channel: value });
-      await runUpdateCheck();
+      state.update.savingPrefs = true;
+      render();
+      try {
+        await saveUpdatePrefs({ channel: value });
+        await runUpdateCheck();
+      } catch (error) { state.error = error.message; }
+      finally { state.update.savingPrefs = false; render(); }
     };
     channelSeg.append(button);
   });
@@ -2012,6 +2044,7 @@ function updatesPanel() {
   ownerField.innerHTML = `<span class="tip" data-tip="${escapeHtml(tip("sourceOwner"))}" tabindex="0">${t("app.sourceOwner")}</span>`;
   const ownerSelect = document.createElement("select");
   ownerSelect.className = "combo";
+  ownerSelect.disabled = state.busy || Boolean(state.update.savingSource);
   ownerSelect.setAttribute("aria-label", t("app.sourceOwner"));
   owners.forEach((name) => {
     const option = document.createElement("option");
@@ -2034,6 +2067,7 @@ function updatesPanel() {
   repoField.innerHTML = `<span class="tip" data-tip="${escapeHtml(tip("sourceRepo"))}" tabindex="0">${t("app.sourceRepo")}</span>`;
   const repoSelect = document.createElement("select");
   repoSelect.className = "combo";
+  repoSelect.disabled = state.busy || Boolean(state.update.savingSource);
   repoSelect.setAttribute("aria-label", t("app.sourceRepo"));
   if (!reposForOwner.length) {
     const option = document.createElement("option");
@@ -2063,6 +2097,7 @@ function updatesPanel() {
   releaseField.innerHTML = `<span class="tip" data-tip="${escapeHtml(tip("release"))}" tabindex="0">${t("app.release")}</span>`;
   const releaseSelect = document.createElement("select");
   releaseSelect.className = "combo";
+  releaseSelect.disabled = state.busy || Boolean(state.update.savingSource);
   releaseSelect.setAttribute("aria-label", t("app.release"));
   const channelDefault = document.createElement("option");
   channelDefault.value = "";
@@ -2104,9 +2139,9 @@ function updatesPanel() {
     let statusText = t("app.upToDate");
     if (result.updateAvailable) statusText = t("app.updateAvailable", { version: result.latest });
     if (result.downgrade) statusText = t("app.downgradeWarn");
-    card.append(el("strong", "", statusText));
-    card.append(el("p", "update-source-line", `${result.source?.owner || owner}/${result.source?.repo || repo}`));
-    card.append(el("p", "", result.release?.name || result.latest || ""));
+    card.append(el("strong", "", escapeHtml(statusText)));
+    card.append(el("p", "update-source-line", escapeHtml(`${result.source?.owner || owner}/${result.source?.repo || repo}`)));
+    card.append(el("p", "", escapeHtml(result.release?.name || result.latest || "")));
 
     const notes = el("div", "release-notes");
     const body = result.release?.body || "";
@@ -2163,7 +2198,21 @@ function compareLooseSemver(a, b) {
 async function applySelectedSource() {
   const owner = state.update.selectedOwner;
   const repo = state.update.selectedRepo;
-  if (!owner || !repo) return;
+  if (!owner || !repo || state.update.savingSource || state.busy) return;
+  const upstream = state.update.upstream || { owner: "bodencrouch", repo: "cloudflare-one-warp" };
+  const previous = state.appConfig?.updates?.source || upstream;
+  if ((owner !== upstream.owner || repo !== upstream.repo) && (owner !== previous.owner || repo !== previous.repo)
+    && !window.confirm(`Switch updates to ${owner}/${repo}? This publisher controls release downloads and installation instructions. Only continue if you trust this source.`)) {
+    state.update.selectedOwner = previous.owner;
+    state.update.selectedRepo = previous.repo;
+    render();
+    return;
+  }
+  state.update.savingSource = true;
+  state.update.selectionRequest = (state.update.selectionRequest || 0) + 1;
+  state.update.result = null;
+  state.update.confirmToken = null;
+  state.update.releases = [];
   state.update.loadingReleases = true;
   state.error = null;
   render();
@@ -2186,6 +2235,8 @@ async function applySelectedSource() {
   } catch (error) {
     state.error = error.message;
     state.update.loadingReleases = false;
+  } finally {
+    state.update.savingSource = false;
     render();
   }
 }
@@ -2197,6 +2248,7 @@ async function saveUpdatePrefs(partial) {
     body: JSON.stringify({ config: { updates: partial } })
   });
   const body = await response.json();
+  if (!response.ok || !body.config) throw new Error(body.error || "Unable to save update settings.");
   state.appConfig = body.config;
 }
 
@@ -2357,18 +2409,16 @@ async function runUpdateCheck() {
     return;
   }
   const selectedTag = state.update.selectedTag;
-  const requestId = state.update.selectionRequest;
+  const requestId = state.update.selectionRequest = (state.update.selectionRequest || 0) + 1;
+  const sourceKey = `${state.update.selectedOwner}/${state.update.selectedRepo}`;
   state.update.checking = true;
   state.error = null;
   render();
   try {
     const response = await apiFetch("/api/update/check");
     const result = await response.json();
-    if (selectedTag !== state.update.selectedTag || requestId !== state.update.selectionRequest) {
-      state.update.checking = false;
-      render();
-      return;
-    }
+    if (selectedTag !== state.update.selectedTag || requestId !== state.update.selectionRequest || sourceKey !== `${state.update.selectedOwner}/${state.update.selectedRepo}`) return;
+    if (!response.ok || result.ok === false) throw new Error(result.error || "Update check failed.");
     state.update.result = result;
     state.update.confirmToken = state.update.result?.applyConfirmToken || null;
     if (state.update.result?.source) {
@@ -2376,9 +2426,10 @@ async function runUpdateCheck() {
       state.update.selectedRepo = state.update.result.source.repo;
     }
   } catch (error) {
+    if (requestId !== state.update.selectionRequest) return;
     state.error = error.message;
   }
-  state.update.checking = false;
+  if (requestId === state.update.selectionRequest) state.update.checking = false;
   render();
 }
 
@@ -2387,6 +2438,8 @@ async function loadForks() {
 }
 
 async function loadReleases() {
+  const requestId = loadReleases.requestId = (loadReleases.requestId || 0) + 1;
+  const sourceKey = `${state.update.selectedOwner}/${state.update.selectedRepo}`;
   state.update.loadingReleases = true;
   try {
     const owner = state.update.selectedOwner;
@@ -2394,11 +2447,14 @@ async function loadReleases() {
     const query = owner && repo ? `?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}` : "";
     const response = await apiFetch(`/api/update/releases${query}`);
     const body = await response.json();
+    if (requestId !== loadReleases.requestId || sourceKey !== `${state.update.selectedOwner}/${state.update.selectedRepo}`) return;
+    if (!response.ok) throw new Error(body.error || "Unable to load releases.");
     state.update.releases = body.releases || [];
   } catch (error) {
+    if (requestId !== loadReleases.requestId) return;
     state.error = error.message;
   }
-  state.update.loadingReleases = false;
+  if (requestId === loadReleases.requestId) state.update.loadingReleases = false;
   render();
 }
 
@@ -2408,6 +2464,7 @@ async function selectUpdateRelease(tag) {
   const sourceKey = `${state.update.selectedOwner}/${state.update.selectedRepo}`;
   const stillSelected = () => state.update.selectedTag === tag && state.update.selectionRequest === requestId && `${state.update.selectedOwner}/${state.update.selectedRepo}` === sourceKey;
   state.update.selectedTag = tag;
+  state.update.checking = false;
   state.update.confirmToken = null;
   if (!state.update.result) return;
   // Clear all eligibility and commands before fetching the selected release.
@@ -2455,6 +2512,7 @@ async function selectUpdateRelease(tag) {
 }
 
 async function applySelectedUpdate() {
+  if (state.busy || state.update.savingSource || state.update.result?.canApply !== true) return;
   state.busy = true;
   render();
   try {
@@ -2501,6 +2559,7 @@ async function applySelectedUpdate() {
 }
 
 async function maybeStartupUpdateCheck() {
+  const requestId = state.update.selectionRequest;
   try {
     const configRes = await apiFetch("/api/config");
     const configBody = await configRes.json();
@@ -2508,7 +2567,8 @@ async function maybeStartupUpdateCheck() {
     if (!configBody.config?.updates?.checkOnStartup) return;
     const response = await apiFetch("/api/update/check");
     const result = await response.json();
-    if (result.updateAvailable) {
+    if (requestId !== state.update.selectionRequest || state.update.selectedTag || state.update.savingSource) return;
+    if (response.ok && result.updateAvailable) {
       state.toast = t("app.updateAvailable", { version: result.latest });
       state.update.result = result;
       render();
@@ -2576,6 +2636,7 @@ function actionPanel(title, actions, titleTipKey = "") {
     const risky = /delete|reset|rotate|allow|stop|trusted|environment|unlock|override/i.test(actionName);
     const button = el("button", risky ? "secondary danger" : "secondary", label);
     if (tipKey) applyTip(button, tipKey);
+    button.disabled = state.busy;
     button.onclick = () => {
       if (risky && !window.confirm(`Run warp-cli action: ${label}?`)) return;
       action(actionName);
@@ -2593,6 +2654,7 @@ function formPanel(title, fields, titleTipKey = "") {
     const row = el("label", "input-row");
     row.innerHTML = `<span${tipMarkup(tipKey)}>${label}</span><input value="${escapeHtml(state.forms[key])}" /><button class="secondary">${buttonLabel}</button>`;
     const input = row.querySelector("input");
+    if (key === "overrideCode") { input.type = "password"; input.autocomplete = "off"; }
     input.oninput = () => {
       state.forms[key] = input.value;
     };
@@ -2773,12 +2835,23 @@ function render() {
   captureOpenPanels();
   const scroll = captureScroll();
   const previousView = render.lastView;
+  const active = document.activeElement;
+  const focusable = "button, input, select, textarea, a, summary, [role=slider]";
+  const focusIndex = active && app.contains(active) ? [...app.querySelectorAll(focusable)].indexOf(active) : -1;
+  const focusKey = active?.getAttribute("data-testid") || active?.getAttribute("data-nav");
+  const selection = active && typeof active.selectionStart === "number" ? [active.selectionStart, active.selectionEnd] : null;
   app.innerHTML = "";
   app.append(useExpertLayout() ? shell() : simpleShell());
+  app.setAttribute("aria-busy", String(state.busy));
   if (state.busy) app.append(el("div", "busy", "Running warp-cli command..."));
-  if (state.error) app.append(el("div", "toast", escapeHtml(state.error)));
+  if (state.error) {
+    const error = el("div", "toast", escapeHtml(state.error));
+    error.setAttribute("role", "alert");
+    app.append(error);
+  }
   if (state.toast) {
     const toast = el("div", "toast info", `<pre>${escapeHtml(state.toast)}</pre><button class="ghost" data-dismiss>Dismiss</button>`);
+    toast.setAttribute("role", "status");
     toast.querySelector("[data-dismiss]").onclick = () => {
       state.toast = null;
       render();
@@ -2790,6 +2863,16 @@ function render() {
     stack.classList.add("enter");
   }
   render.lastView = state.view;
+  const controls = [...app.querySelectorAll(focusable)];
+  const focusTarget = focusKey
+    ? controls.find((node) => (node.getAttribute("data-testid") || node.getAttribute("data-nav")) === focusKey)
+    : previousView === state.view && focusIndex >= 0 ? controls[focusIndex] : null;
+  if (focusTarget && !focusTarget.disabled) {
+    focusTarget.focus({ preventScroll: true });
+    if (selection && typeof focusTarget.setSelectionRange === "function") {
+      try { focusTarget.setSelectionRange(...selection); } catch { /* Non-text inputs. */ }
+    }
+  }
   restoreScroll(scroll);
   if (state.pendingScrollId) {
     const targetId = state.pendingScrollId;
@@ -2844,7 +2927,7 @@ async function boot() {
 boot();
 
 function connectLiveEvents() {
-  if (!window.EventSource) {
+  if (!window.ReadableStream) {
     state.live.label = "Live status unavailable";
     return;
   }
@@ -2854,7 +2937,7 @@ function connectLiveEvents() {
     connectLiveEvents.source = null;
   }
 
-  const events = new EventSource("/api/events");
+  const events = new AuthorizedEventSource("/api/events");
   connectLiveEvents.source = events;
 
   events.addEventListener("ready", () => {
@@ -2865,7 +2948,9 @@ function connectLiveEvents() {
   });
 
   events.addEventListener("warp", (event) => {
-    const data = JSON.parse(event.data);
+    let data;
+    try { data = JSON.parse(event.data); } catch { return; }
+    if (!data || typeof data !== "object") return;
     const before = statusFingerprint(state.snapshot?.status);
     state.live.connected = true;
     state.live.lastEvent = Date.now();
@@ -2932,11 +3017,17 @@ window.addEventListener("pagehide", () => {
   connectLiveEvents.source = null;
 });
 
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) connectLiveEvents();
+});
+
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", () => {
+  const register = () => {
     navigator.serviceWorker.register("/service-worker.js").catch(() => {
       // Service worker support is best-effort; warp-cli state still requires the local server.
     });
-  });
+  };
+  if (document.readyState === "complete") register();
+  else window.addEventListener("load", register, { once: true });
 }

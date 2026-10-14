@@ -45,7 +45,10 @@ modules:
     build-commands:
       - |
         install -d /app/lib/cloudflare-one-warp
-        cp -a server.js package.json public assets scripts bin lib config /app/lib/cloudflare-one-warp/
+        source_stage="$(mktemp -d)"
+        bash packaging/scripts/stage-source.sh "$source_stage"
+        cp -a "$source_stage"/server.js "$source_stage"/package.json "$source_stage"/public "$source_stage"/assets "$source_stage"/scripts "$source_stage"/bin "$source_stage"/lib "$source_stage"/config /app/lib/cloudflare-one-warp/
+        rm -rf "$source_stage"
         cp cloudflare-one-warp /app/lib/cloudflare-one-warp/ 2>/dev/null || true
         chmod 0755 /app/lib/cloudflare-one-warp/bin/* /app/lib/cloudflare-one-warp/scripts/*.py /app/lib/cloudflare-one-warp/scripts/cloudflare-one-warp-nft-apply 2>/dev/null || true
         install -d /app/bin

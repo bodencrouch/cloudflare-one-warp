@@ -32,3 +32,8 @@ npm run dev
 ```
 
 Project overview: [README.md](../README.md)
+
+## Release security and quality
+
+- [Expert release review](EXPERT_REVIEW.md): concrete priorities, integrated safeguards and validation limits.
+- [Security policy](../SECURITY.md): private reporting, local authentication and trust boundaries.

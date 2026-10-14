@@ -150,7 +150,7 @@ If you revisit these, verify the kill switch end to end (`POST /api/killswitch` 
 
 CI publishes `SHA256SUMS` for every release. Optional GPG signing of `.deb`/`.rpm` can be enabled later via repository secrets and [`packaging/scripts/checksums.sh`](../packaging/scripts/checksums.sh).
 
-The daemon grants its config directory because KDE writes `kiosktarc` atomically through a sibling temporary file. It does not grant all of HOME, /home, or /tmp. The installer prepares desktop integration directories before starting the confined service. Native user namespace support is required to enforce these mount restrictions.
+The daemon grants its config directory because KDE writes `kioslaverc` atomically through a sibling temporary file. It does not grant all of HOME, /home, or /tmp. The installer prepares desktop integration directories before starting the confined service. Native user namespace support is required to enforce these mount restrictions.
 
 The fixed `ExecStartPre=+/usr/bin/mkdir` creates optional integration directories before the main process receives its filesystem sandbox. In a user manager it runs as the same user, with no root elevation. The main process retains narrow data-directory grants. The packaged unit uses the normal `~/.local/share` data home; installations with a custom `XDG_DATA_HOME` should use the local installer-generated unit or a user override for its precreation and writable paths.
 

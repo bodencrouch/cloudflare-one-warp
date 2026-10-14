@@ -6,7 +6,7 @@ Client self-update checks GitHub releases against `config/update-manifest.json`.
 
 ```bash
 SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")
-curl -s http://127.0.0.1:4173/api/update/check | jq
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/update/check | jq
 
 # AppImage apply: available only with a usable pinned release signature; prepare first, then confirm with the returned token
 TOKEN=$(curl -s -X POST http://127.0.0.1:4173/api/update/prepare \

@@ -31,8 +31,15 @@ table inet cloudflare_one_warp_killswitch {
     oifname "lo" accept
     oifname "CloudflareWARP" accept
 
-    ip daddr { 162.159.192.0/24, 162.159.193.0/24, 162.159.197.0/24, 162.159.137.105, 162.159.138.105, 162.159.36.1, 162.159.46.1 } accept
-    ip6 daddr { 2606:4700:100::/48, 2606:4700:102::/48, 2606:4700:7::a29f:8969, 2606:4700:7::a29f:8a69, 2606:4700:4700::1111, 2606:4700:4700::1001 } accept
+    # Link-local network control only; never permit general cleartext DNS.
+    ip daddr 255.255.255.255 udp sport 68 udp dport 67 accept
+    ip6 daddr ff02::1:2 udp sport 546 udp dport 547 accept
+    ip6 hoplimit 255 icmpv6 type { nd-router-solicit, nd-neighbor-solicit, nd-neighbor-advert } accept
+
+    ip daddr { 162.159.192.0/24, 162.159.193.0/24, 162.159.197.0/24, 162.159.137.105, 162.159.138.105, 162.159.36.1, 162.159.46.1 } tcp dport 443 accept
+    ip daddr { 162.159.192.0/24, 162.159.193.0/24, 162.159.197.0/24, 162.159.137.105, 162.159.138.105, 162.159.36.1, 162.159.46.1 } udp dport { 443, 500, 1701, 2408, 4500 } accept
+    ip6 daddr { 2606:4700:100::/48, 2606:4700:102::/48, 2606:4700:7::a29f:8969, 2606:4700:7::a29f:8a69, 2606:4700:4700::1111, 2606:4700:4700::1001 } tcp dport 443 accept
+    ip6 daddr { 2606:4700:100::/48, 2606:4700:102::/48, 2606:4700:7::a29f:8969, 2606:4700:7::a29f:8a69, 2606:4700:4700::1111, 2606:4700:4700::1001 } udp dport { 443, 500, 1701, 2408, 4500 } accept
 RULES
     if [[ "$2" == true ]]; then
       cat <<'RULES'

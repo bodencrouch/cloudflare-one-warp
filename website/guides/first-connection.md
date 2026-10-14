@@ -57,7 +57,7 @@ From UI: use the connect toggle in the native panel or Web UI.
 
 ```bash
 cloudflare-one-warp --warp-status
-curl -s http://127.0.0.1:4173/api/snapshot | jq '.status'
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/snapshot | jq '.status'
 ```
 
 ## Operating mode

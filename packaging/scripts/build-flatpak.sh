@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-VERSION="${PACKAGE_VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${PACKAGE_VERSION:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 OUT="${ROOT}/dist/packages"
 MANIFEST="${ROOT}/packaging/flatpak/io.github.bodencrouch.CloudflareOneWarp.yml"
 BUILD_DIR="${ROOT}/packaging/flatpak/build"

@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
+import { runBoundedChild, stopBoundedChildren } from "./lib/http/bounded-child.mjs";
+import { cleanupWebuiHandoffs } from "./scripts/webui-handoff.mjs";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,8 +109,10 @@ const MIME = {
 
 /** Serialize desktop synchronization using the latest WARP state, not stale action intent. */
 let networkSyncChain = Promise.resolve();
+let networkSyncRunning = false;
+let networkSyncRequested = false;
 const NETWORK_SYNC_ACTIONS = new Set([
-  "connect", "disconnect", "setMode", "setProtocol", "setMasqueOptions", "enableLocalProxy", "setProxyPort"
+  "connect", "disconnect", "setMode", "setProtocol", "setMasqueOptions", "enableLocalProxy", "setProxyPort", "runCustom", "reconcileDesktop"
 ]);
 function afterWarpNetworkSync(action) {
   if (process.platform !== "linux" || !NETWORK_SYNC_ACTIONS.has(action)) return Promise.resolve();
@@ -134,9 +138,16 @@ function afterWarpNetworkSync(action) {
       appRoot: root
     });
   };
-  networkSyncChain = networkSyncChain.then(synchronize, synchronize).catch((error) => {
-    console.warn(`Desktop network synchronization failed: ${error.message}`);
-  });
+  networkSyncRequested = true;
+  if (networkSyncRunning) return networkSyncChain;
+  networkSyncRunning = true;
+  networkSyncChain = (async () => {
+    do {
+      networkSyncRequested = false;
+      try { await synchronize(); }
+      catch (error) { console.warn(`Desktop network synchronization failed: ${error.message}`); }
+    } while (networkSyncRequested);
+  })().finally(() => { networkSyncRunning = false; });
   return networkSyncChain;
 }
 
@@ -234,6 +245,18 @@ function activeTrayShell() {
   }).active;
 }
 
+// Status events also originate outside this app (official client, CLI, reconnects).
+// Coalesce bursts and inspect the current state rather than trusting event text.
+let desktopSyncTimer = null;
+function scheduleDesktopNetworkSync() {
+  if (process.platform !== "linux" || desktopSyncTimer) return;
+  desktopSyncTimer = setTimeout(() => {
+    desktopSyncTimer = null;
+    void afterWarpNetworkSync("reconcileDesktop");
+  }, 200);
+  desktopSyncTimer.unref();
+}
+
 /**
  * Start, stop, or leave the notification watcher alone to match current config.
  *
@@ -291,51 +314,18 @@ function runWarp(args, options = {}) {
   const scrub = (text) => secrets.reduce((value, secret) => value.split(secret).join("[redacted]"), String(text || ""));
   const command = `warp-cli ${safeArgs.join(" ")}`;
   const startedAt = Date.now();
-  const maxOutput = 1024 * 1024;
-  return new Promise((resolve) => {
-    let child;
-    let stdout = "";
-    let stderr = "";
-    let outputBytes = 0;
-    let finished = false;
-    let overflow = false;
-    const finish = (code, error = "") => {
-      if (finished) return;
-      finished = true;
-      const result = {
-        ok: code === 0 && !overflow && !error,
-        command,
-        code,
-        stdout: scrub(stdout.trim()),
-        stderr: scrub(overflow ? "warp-cli output exceeded the 1 MiB limit." : error || stderr.trim()),
-        durationMs: Date.now() - startedAt
-      };
-      appendFromRunWarp(redactCommand(result), { source: options.source || "warp" });
-      resolve(result);
+  return runBoundedChild(() => spawnWarpCli(finalArgs, {
+    stdio: ["ignore", "pipe", "pipe"]
+  }), { timeout: options.timeout || 15000 }).then((execution) => {
+    const result = {
+      ...execution,
+      command,
+      stdout: scrub(execution.stdout.trim()),
+      stderr: scrub(execution.stderr.trim()),
+      durationMs: Date.now() - startedAt
     };
-    try {
-      child = spawnWarpCli(finalArgs, {
-        stdio: ["ignore", "pipe", "pipe"], timeout: options.timeout || 15000
-      });
-    } catch (error) {
-      finish(null, error.message);
-      return;
-    }
-    const collect = (stream, chunk) => {
-      if (overflow) return;
-      outputBytes += chunk.length;
-      if (outputBytes > maxOutput) {
-        overflow = true;
-        child.kill("SIGKILL");
-        return;
-      }
-      if (stream === "stdout") stdout += chunk.toString();
-      else stderr += chunk.toString();
-    };
-    child.stdout.on("data", (chunk) => collect("stdout", chunk));
-    child.stderr.on("data", (chunk) => collect("stderr", chunk));
-    child.on("error", (error) => finish(null, error.message));
-    child.on("close", (code) => finish(code));
+    appendFromRunWarp(redactCommand(result), { source: options.source || "warp" });
+    return result;
   });
 }
 
@@ -571,6 +561,21 @@ async function readJson(req) {
   catch { throw Object.assign(new Error("Malformed JSON request."), { status: 400 }); }
 }
 
+// Mutating CLI workflows must execute as transactions: proxy setup and enrollment
+// cannot be interleaved with a second client's mode/disconnect/registration action.
+let actionQueue = Promise.resolve();
+let pendingActions = 0;
+async function serializeWarpAction(operation) {
+  if (pendingActions >= 32) {
+    throw Object.assign(new Error("Too many pending WARP actions. Try again shortly."), { status: 429 });
+  }
+  pendingActions++;
+  const result = actionQueue.then(operation);
+  actionQueue = result.catch(() => {});
+  try { return await result; }
+  finally { pendingActions--; }
+}
+
 function actionArgs(body) {
   const { action, value, secondary } = body || {};
 
@@ -684,7 +689,7 @@ async function accountDetails() {
 async function handleApi(req, res, url) {
   try {
     if (req.method === "GET" && url.pathname === SESSION_ROUTE) {
-      // The request gate already proved this is a same-origin loopback caller.
+      // The request gate authenticated the owner credential before this route.
       json(res, 200, { ok: true, session: session.token, header: SESSION_HEADER });
       return;
     }
@@ -697,7 +702,7 @@ async function handleApi(req, res, url) {
       }
     }
 
-    if (req.method === "GET" && url.pathname === "/api/health") {
+    if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/api/health") {
       const active = getConfig();
       json(res, 200, {
         ok: true,
@@ -706,7 +711,7 @@ async function handleApi(req, res, url) {
         version: getVersion(),
         apiRevision: API_REVISION,
         webuiEnabled: Boolean(active.webui?.enabled),
-        effectivePort: Number(active.server?.port || port),
+        effectivePort: port,
         generatedAt: new Date().toISOString()
       });
       return;
@@ -735,13 +740,16 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    if (req.method === "GET" && url.pathname === "/api/version") {
-      const active = getConfig();
-      json(res, 200, {
+    if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/api/version") {
+      // Public daemon probes reveal no configured account/source metadata.
+      // A matching owner credential retains the richer API for existing clients.
+      const authenticated = Boolean(session?.token) && req.headers[SESSION_HEADER] === session.token;
+      json(res, 200, authenticated ? {
         ok: true,
-        ...getVersionInfo(active),
-        installFormat: detectInstallFormat()
-      });
+        ...getVersionInfo(getConfig()),
+        installFormat: detectInstallFormat(),
+        apiRevision: API_REVISION
+      } : { ok: true, version: getVersion(), apiRevision: API_REVISION });
       return;
     }
 
@@ -1145,74 +1153,76 @@ async function handleApi(req, res, url) {
 
     if (req.method === "POST" && url.pathname === "/api/action") {
       const body = await readJson(req);
-      if (body?.action === "enableLocalProxy") {
-        const steps = [];
-        const protocolResult = await runWarp(["tunnel", "protocol", "set", "MASQUE"], { timeout: 30000 });
-        steps.push({
-          action: "setProtocol",
-          result: redactCommand(protocolResult)
-        });
-        if (!protocolResult.ok) {
-          json(res, 502, {
-            ok: false,
-            error: protocolResult.stderr || protocolResult.stdout || "Could not set tunnel protocol to MASQUE.",
-            result: redactCommand(protocolResult),
-            steps
+      await serializeWarpAction(async () => {
+        if (body?.action === "enableLocalProxy") {
+          const steps = [];
+          const protocolResult = await runWarp(["tunnel", "protocol", "set", "MASQUE"], { timeout: 30000 });
+          steps.push({
+            action: "setProtocol",
+            result: redactCommand(protocolResult)
           });
+          if (!protocolResult.ok) {
+            json(res, 502, {
+              ok: false,
+              error: protocolResult.stderr || protocolResult.stdout || "Could not set tunnel protocol to MASQUE.",
+              result: redactCommand(protocolResult),
+              steps
+            });
+            return;
+          }
+          const modeResult = await runWarp(["mode", "proxy"], { timeout: 30000 });
+          steps.push({
+            action: "setMode",
+            result: redactCommand(modeResult)
+          });
+          const settingsResult = await runWarp(["settings", "list"], { timeout: 15000 });
+          const settings = enrichSettings(parseSettings(settingsResult.stdout || ""));
+          const proxyOk = modeResult.ok && settings.Mode === "proxy";
+          json(res, proxyOk ? 200 : 502, {
+            ok: proxyOk,
+            error: proxyOk
+              ? undefined
+              : (modeResult.stderr || modeResult.stdout || "Could not enable Local proxy mode."),
+            result: redactCommand(modeResult),
+            steps,
+            settings,
+            mode: settings.Mode
+          });
+          void afterWarpNetworkSync("enableLocalProxy");
           return;
         }
-        const modeResult = await runWarp(["mode", "proxy"], { timeout: 30000 });
-        steps.push({
-          action: "setMode",
-          result: redactCommand(modeResult)
-        });
-        const settingsResult = await runWarp(["settings", "list"], { timeout: 15000 });
-        const settings = enrichSettings(parseSettings(settingsResult.stdout || ""));
-        const proxyOk = modeResult.ok && settings.Mode === "proxy";
-        json(res, proxyOk ? 200 : 502, {
-          ok: proxyOk,
-          error: proxyOk
-            ? undefined
-            : (modeResult.stderr || modeResult.stdout || "Could not enable Local proxy mode."),
-          result: redactCommand(modeResult),
-          steps,
-          settings,
-          mode: settings.Mode
-        });
-        void afterWarpNetworkSync("enableLocalProxy");
-        return;
-      }
-      const args = actionArgs(body);
-      if (!args) {
-        json(res, 400, { ok: false, error: "Unsupported or invalid action." });
-        return;
-      }
-      const pauseForEnroll = ENROLLMENT_PAUSE_ACTIONS.has(body?.action);
-      let pauseMeta = null;
-      if (pauseForEnroll) {
-        pauseMeta = await beginEnrollmentPause();
-        if (!pauseMeta.ok) {
-          json(res, 502, {
-            ok: false,
-            error: pauseMeta.detail || "Could not pause kill switch for enrollment.",
-            killSwitchPause: pauseMeta
-          });
+        const args = actionArgs(body);
+        if (!args) {
+          json(res, 400, { ok: false, error: "Unsupported or invalid action." });
           return;
         }
-      }
-      const result = await runWarp(args, { timeout: 30000 });
-      let resumeMeta = null;
-      if (pauseForEnroll && body?.action === "registrationToken") {
-        // Token completion ends the browser/IdP window — restore KS if it was desired.
-        resumeMeta = await endEnrollmentPause({ reason: "registrationToken" });
-      }
-      json(res, result.ok ? 200 : 502, {
-        ok: result.ok,
-        result: redactCommand(result),
-        killSwitchPause: pauseMeta,
-        killSwitchResume: resumeMeta
+        const pauseForEnroll = ENROLLMENT_PAUSE_ACTIONS.has(body?.action);
+        let pauseMeta = null;
+        if (pauseForEnroll) {
+          pauseMeta = await beginEnrollmentPause();
+          if (!pauseMeta.ok) {
+            json(res, 502, {
+              ok: false,
+              error: pauseMeta.detail || "Could not pause kill switch for enrollment.",
+              killSwitchPause: pauseMeta
+            });
+            return;
+          }
+        }
+        const result = await runWarp(args, { timeout: 30000 });
+        let resumeMeta = null;
+        if (pauseForEnroll && body?.action === "registrationToken") {
+          // Token completion ends the browser/IdP window — restore KS if it was desired.
+          resumeMeta = await endEnrollmentPause({ reason: "registrationToken" });
+        }
+        json(res, result.ok ? 200 : 502, {
+          ok: result.ok,
+          result: redactCommand(result),
+          killSwitchPause: pauseMeta,
+          killSwitchResume: resumeMeta
+        });
+        void afterWarpNetworkSync(body?.action);
       });
-      void afterWarpNetworkSync(body?.action);
       return;
     }
 
@@ -1332,6 +1342,12 @@ server.listen(port, listenHost, () => {
   }
   console.log(`Local session credential: ${session.path}`);
 
+  if (process.platform === "linux") {
+    getStatusListener().subscribe((event) => {
+      if (event.kind === "warp") scheduleDesktopNetworkSync();
+    });
+    void afterWarpNetworkSync("reconcileDesktop");
+  }
   const watcher = reconcileStatusWatcher();
   if (watcher?.started) {
     console.log("Desktop notifications enabled (ui.notifications).");
@@ -1379,9 +1395,14 @@ server.listen(port, listenHost, () => {
   }
 
   const shutdown = () => {
+    clearTimeout(desktopSyncTimer);
+    stopBoundedChildren();
     notifyWatcher?.stop();
     getStatusListener().stop();
-    removeSessionToken(port, process.env, session?.token);
+    if (removeSessionToken(port, process.env, session?.token)) {
+      try { cleanupWebuiHandoffs({ all: true, port }); }
+      catch { /* A failed cleanup must not prevent daemon shutdown. */ }
+    }
     process.exit(0);
   };
   process.on("SIGINT", shutdown);

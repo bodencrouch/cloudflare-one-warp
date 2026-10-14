@@ -3,9 +3,12 @@
  * Boots the daemon with mock warp-cli, opens Chromium, checks Home + Account outcomes.
  */
 import { chromium } from "@playwright/test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
+import { readSessionToken } from "../lib/http/request-gate.mjs";
 import { createHttpJson } from "./ci-http-client.mjs";
 import { waitForPredicate } from "./ui-wait.mjs";
 
@@ -16,7 +19,9 @@ const systemChrome = ["/usr/bin/chromium-browser", "/usr/bin/chromium", "/usr/bi
   (p) => existsSync(p)
 );
 
-const httpJson = createHttpJson(`http://127.0.0.1:${port}`);
+const xdgRoot = await mkdtemp(join(tmpdir(), "cf-one-warp-ui-smoke-"));
+
+const httpJson = createHttpJson(`http://127.0.0.1:${port}`, { env: { ...process.env, HOME: xdgRoot, XDG_CONFIG_HOME: join(xdgRoot, "config") } });
 
 const child = spawn(process.execPath, ["server.js"], {
   cwd: root,
@@ -29,7 +34,12 @@ const child = spawn(process.execPath, ["server.js"], {
     CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1",
     CLOUDFLARE_ONE_WARP_TRAY_SKIP_SYSTEMD: "1",
     CLOUDFLARE_ONE_WARP_TRAY_LIVE: "0",
-    MOCK_WARP_STATE: join(root, ".tmp-mock-warp-ui.json")
+    HOME: xdgRoot,
+    XDG_CONFIG_HOME: join(xdgRoot, "config"),
+    XDG_DATA_HOME: join(xdgRoot, "data"),
+    XDG_STATE_HOME: join(xdgRoot, "state"),
+    XDG_CACHE_HOME: join(xdgRoot, "cache"),
+    MOCK_WARP_STATE: join(xdgRoot, "mock-warp.json")
   },
   stdio: "ignore"
 });
@@ -63,7 +73,7 @@ try {
   }
   browser = await chromium.launch(launchOpts);
   const page = await browser.newPage();
-  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.goto(`http://127.0.0.1:${port}/#session=${readSessionToken(port, { ...process.env, HOME: xdgRoot, XDG_CONFIG_HOME: join(xdgRoot, "config") })}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.locator("[data-testid='log-dock']").waitFor({ timeout: 20000 });
   await page.goto(`http://127.0.0.1:${port}/?shell=1`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.evaluate(() => localStorage.setItem("cloudflare-one-warp-ui-expert", "1"));
@@ -135,12 +145,11 @@ try {
   // Without this the browser keeps the event loop alive and a failing run hangs
   // instead of reporting.
   await browser?.close().catch(() => {});
-  child.kill("SIGTERM");
-  setTimeout(() => {
-    try {
-      child.kill("SIGKILL");
-    } catch {
-      /* ignore */
-    }
-  }, 500).unref();
+  await new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) return resolve();
+    const force = setTimeout(() => child.kill("SIGKILL"), 1000);
+    child.once("exit", () => { clearTimeout(force); resolve(); });
+    child.kill("SIGTERM");
+  });
+  await rm(xdgRoot, { recursive: true, force: true });
 }

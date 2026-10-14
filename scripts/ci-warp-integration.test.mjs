@@ -57,7 +57,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const httpJson = createHttpJson(baseUrl);
+const httpJson = createHttpJson(baseUrl, { env: { ...process.env, HOME: configHome, XDG_CONFIG_HOME: join(configHome, ".config") } });
 
 async function waitForHealth(timeoutMs = 20000) {
   const started = Date.now();
@@ -506,11 +506,37 @@ test("POST /api/action status via runCustom is rejected safely", async () => {
   assert.equal(res.status, 400);
 });
 
-test("GET /api/session hands the credential to a local caller", async () => {
+test("GET /api/session confirms an already authorized owner", async () => {
   const res = await httpJson("GET", "/api/session");
   assert.equal(res.status, 200);
   assert.match(res.json.session, /^[0-9a-f]{64}$/);
   assert.equal(res.json.header, "x-cloudflare-one-warp-session");
+});
+
+test("private API reads reject unauthenticated local callers without leaking credentials", async () => {
+  for (const path of ["/api/session", "/api/account", "/api/config", "/api/snapshot", "/api/diagnostics", "/api/events"]) {
+    const response = await httpJson("GET", path, null, { session: false });
+    assert.equal(response.status, 401, path);
+    assert.equal(response.json.reason, "session_required", path);
+    assert.equal(response.json.session, undefined);
+  }
+  for (const path of ["/api/health", "/api/version"]) {
+    const response = await httpJson("GET", path, null, { session: false });
+    assert.equal(response.status, 200, path);
+    assert.equal(response.json.session, undefined);
+  }
+  assert.equal((await httpJson("GET", "/api/snapshot")).status, 200);
+});
+
+test("HEAD health/version probes work without exposing owner metadata", async () => {
+  for (const path of ["/api/health", "/api/version"]) {
+    for (const session of [false, true]) {
+      const response = await httpJson("HEAD", path, null, { session });
+      assert.equal(response.status, 200, path);
+      assert.equal(response.json, null, "HEAD must not return a body");
+      assert.match(response.headers["content-type"], /application\/json/);
+    }
+  }
 });
 
 test("API responses carry no-sniff and framing protections", async () => {
@@ -563,7 +589,7 @@ test("a form-style POST is refused before the body is read", async () => {
 
 test("a POST without the session credential is refused", async () => {
   const res = await httpJson("POST", "/api/action", { action: "connect" }, { session: false });
-  assert.equal(res.status, 403);
+  assert.equal(res.status, 401);
   assert.equal(res.json.reason, "session_required");
   const snap = await httpJson("GET", "/api/snapshot");
   assert.equal(snap.json.status.disconnected, true);
@@ -576,7 +602,7 @@ test("a POST with a wrong session credential is refused", async () => {
     { action: "connect" },
     { headers: { "x-cloudflare-one-warp-session": "0".repeat(64) } }
   );
-  assert.equal(res.status, 403);
+  assert.equal(res.status, 401);
   assert.equal(res.json.reason, "session_required");
 });
 
@@ -623,13 +649,13 @@ test("cross-site writes are rejected on every mutating route", async () => {
     headers: { "content-type": "text/plain" },
     body: jsonBody
   });
-  assert.equal(formPost.status, 415);
+  assert.equal(formPost.status, 401);
 
   const urlencoded = await httpRaw("POST", "/api/config/tray-shell", {
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: "shell=cloudflare-one-warp"
   });
-  assert.equal(urlencoded.status, 415);
+  assert.equal(urlencoded.status, 401);
 });
 
 test("same-origin and non-browser writes still pass the guard", async () => {
@@ -711,7 +737,7 @@ test("excessive CLI output fails safely and remains bounded", async () => {
     WARP_CLI: fixture, CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0", CLOUDFLARE_ONE_WARP_TRAY_LIVE: "0",
     CLOUDFLARE_ONE_WARP_TRAY_SKIP_SYSTEMD: "1", CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1"
   }, stdio: "ignore" });
-  const client = createHttpJson(`http://127.0.0.1:${floodPort}`);
+  const client = createHttpJson(`http://127.0.0.1:${floodPort}`, { env: { ...process.env, HOME: dir, XDG_CONFIG_HOME: join(dir, ".config") } });
   try {
     let ready = false;
     for (let attempt = 0; attempt < 50; attempt++) {
@@ -734,4 +760,27 @@ test("excessive CLI output fails safely and remains bounded", async () => {
     await exited;
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("concurrent mode requests do not interleave local proxy setup", async () => {
+  await action("setMode", "warp");
+  const [proxy, mode] = await Promise.all([
+    action("enableLocalProxy"),
+    action("setMode", "warp")
+  ]);
+  assert.equal(proxy.status, 200, JSON.stringify(proxy.json));
+  assert.equal(proxy.json.mode, "proxy");
+  assert.equal(mode.status, 200);
+  const settings = await httpJson("GET", "/api/snapshot");
+  assert.equal(settings.json.settings.Mode, "warp");
+});
+
+
+test("saving a future server port does not advertise an unbound listener", async () => {
+  const before = await httpJson("GET", "/api/health");
+  const changed = await httpJson("POST", "/api/config/server", { port: 4188 });
+  assert.equal(changed.status, 200);
+  const after = await httpJson("GET", "/api/health");
+  assert.equal(after.json.effectivePort, before.json.effectivePort);
+  assert.equal(after.json.effectivePort, port);
 });

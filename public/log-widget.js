@@ -1,5 +1,5 @@
-import { apiFetch } from "./api-client.js";
-import { t } from "./i18n.js";
+import { apiFetch } from "./api-client.js?clientRevision=8";
+import { t } from "./i18n.js?clientRevision=8";
 
 export const LOG_WIDGET_HEIGHT_KEY = "cloudflare-one-warp-log-height";
 export const LOG_WIDGET_COLLAPSED_KEY = "cloudflare-one-warp-log-collapsed";
@@ -229,16 +229,34 @@ export function renderLogDock(state, handlers = {}) {
   if (!lw.collapsed) dock.style.height = `${lw.height}px`;
 
   const resize = el("div", "log-dock-resize");
-  resize.setAttribute("aria-hidden", "true");
+  if (lw.collapsed) resize.setAttribute("aria-hidden", "true");
   if (!lw.collapsed) {
+    resize.tabIndex = 0;
+    resize.setAttribute("role", "slider");
+    resize.setAttribute("aria-label", "Log panel height");
+    resize.setAttribute("aria-orientation", "vertical");
+    resize.setAttribute("aria-valuemin", "120");
+    resize.setAttribute("aria-valuemax", "480");
+    resize.setAttribute("aria-valuenow", String(lw.height));
+    const setHeight = (height) => {
+      lw.height = Math.min(480, Math.max(120, height));
+      dock.style.height = `${lw.height}px`;
+      resize.setAttribute("aria-valuenow", String(lw.height));
+    };
+    resize.onkeydown = (event) => {
+      const next = { ArrowUp: lw.height + 20, ArrowDown: lw.height - 20, Home: 120, End: 480 }[event.key];
+      if (next === undefined) return;
+      event.preventDefault();
+      setHeight(next);
+      localStorage.setItem(LOG_WIDGET_HEIGHT_KEY, String(lw.height));
+    };
     resize.onmousedown = (event) => {
       event.preventDefault();
       const startY = event.clientY;
       const startH = lw.height;
       const onMove = (moveEvent) => {
         const next = Math.min(480, Math.max(120, startH + (startY - moveEvent.clientY)));
-        lw.height = next;
-        dock.style.height = `${next}px`;
+        setHeight(next);
       };
       const onUp = () => {
         window.removeEventListener("mousemove", onMove);
@@ -252,6 +270,8 @@ export function renderLogDock(state, handlers = {}) {
 
   const bar = el("div", "log-dock-bar");
   const tabs = el("div", "log-dock-tabs");
+  tabs.setAttribute("role", "group");
+  tabs.setAttribute("aria-label", "Log view");
   for (const [id, labelKey] of [
     ["status", "logWidget.status"],
     ["console", "logWidget.console"],
@@ -260,6 +280,7 @@ export function renderLogDock(state, handlers = {}) {
     const tab = el("button", `log-dock-tab ${lw.tab === id ? "active" : ""}`, t(labelKey));
     tab.type = "button";
     tab.setAttribute("data-log-tab", id);
+    tab.setAttribute("aria-pressed", String(lw.tab === id));
     tab.onclick = () => handlers.onTabChange?.(id);
     tabs.append(tab);
   }
@@ -269,6 +290,8 @@ export function renderLogDock(state, handlers = {}) {
     lw.collapsed ? t("logWidget.expand") : t("logWidget.collapse")
   );
   collapseBtn.type = "button";
+  collapseBtn.setAttribute("aria-expanded", String(!lw.collapsed));
+  collapseBtn.setAttribute("aria-controls", "log-dock-body");
   collapseBtn.onclick = () => handlers.onToggleCollapse?.();
   bar.append(tabs, collapseBtn);
 
@@ -276,6 +299,7 @@ export function renderLogDock(state, handlers = {}) {
 
   if (!lw.collapsed) {
     const body = el("div", "log-dock-body");
+    body.id = "log-dock-body";
     if (lw.tab === "status") body.append(renderStatusTab(state));
     else if (lw.tab === "console") body.append(renderConsoleTab(state, handlers));
     else body.append(renderDiagnosticsTab(state, handlers));

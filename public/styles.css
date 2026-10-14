@@ -49,6 +49,7 @@ button:disabled {
   opacity: 0.55;
 }
 
+[role="slider"]:focus-visible,
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
@@ -1886,3 +1887,15 @@ body.native-shell.simple-ui .simple-shell {
   height: 100vh;
 }
 
+
+@media (max-width: 720px) {
+  body.simple-ui { min-width: 0; }
+  .simple-shell { grid-template-columns: 64px minmax(0, 1fr); }
+  .simple-sidebar { padding: 12px 4px; }
+  .simple-content { padding: 16px 12px 24px; }
+  .simple-page-head { flex-wrap: wrap; gap: 12px; }
+  .simple-page-title { font-size: 24px; }
+  .cf-row { flex-wrap: wrap; padding: 12px; }
+  .cf-row-value { overflow-wrap: anywhere; }
+  .log-dock-bar { flex-wrap: wrap; }
+}

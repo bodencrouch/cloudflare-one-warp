@@ -9,13 +9,20 @@ while [[ -L "$_script" ]]; do
 done
 APP_DIR="$(cd -- "$(dirname -- "$_script")/.." && pwd)"
 unset _script _dir
-APP_NAME="cloudflare-one-warp"
 BASE_PORT=4173
 PORT="$BASE_PORT"
 HOST="127.0.0.1"
 URL="http://${HOST}:${PORT}"
-RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/${APP_NAME}"
-CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/${APP_NAME}"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cloudflare-one-warp"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:+${XDG_RUNTIME_DIR}/cloudflare-one-warp}"
+RUNTIME_DIR="${RUNTIME_DIR:-${CACHE_DIR}/runtime}"
+# Never follow a shared runtime-directory symlink or another user's directory.
+if [[ -L "$RUNTIME_DIR" || ( -e "$RUNTIME_DIR" && ! -O "$RUNTIME_DIR" ) ]]; then
+  echo "Unsafe runtime directory: $RUNTIME_DIR" >&2
+  exit 1
+fi
+(umask 077; mkdir -p "$RUNTIME_DIR")
+chmod 700 "$RUNTIME_DIR"
 PID_FILE="${RUNTIME_DIR}/server.pid"
 PORT_FILE="${RUNTIME_DIR}/server.port"
 LOG_FILE="${CACHE_DIR}/server.log"
@@ -32,15 +39,20 @@ else
 fi
 
 # Use the daemon's layered settings, including the saved port and XDG home.
-BASE_PORT="$("$NODE_BIN" --input-type=module -e '
+LISTEN_CONFIG="$("$NODE_BIN" --input-type=module -e '
   import { pathToFileURL } from "node:url";
-  const { loadConfig, isValidServerPort } = await import(pathToFileURL(process.argv[1]));
-  const port = loadConfig().server.port;
+  const { loadConfig, isValidServerPort, effectiveBind } = await import(pathToFileURL(process.argv[1]));
+  const config = loadConfig();
+  const port = config.server.port;
   if (!isValidServerPort(port)) process.exit(1);
-  console.log(port);
+  console.log(`${port} ${effectiveBind(config)}`);
 ' "$APP_DIR/lib/config.mjs")"
+BASE_PORT="${LISTEN_CONFIG%% *}"
+HOST="${LISTEN_CONFIG#* }"
+URL_HOST="$HOST"
+[[ "$HOST" == *:* ]] && URL_HOST="[$HOST]"
 PORT="$BASE_PORT"
-URL="http://${HOST}:${PORT}"
+URL="http://${URL_HOST}:${PORT}"
 
 run_warp_cli() {
   local bin="${CLOUDFLARE_ONE_WARP_CLI:-${WARP_CLI:-warp-cli}}"
@@ -59,6 +71,7 @@ Usage:
   cloudflare-one-warp                    Start the selected desktop app (Cloudflare One Client by default)
   cloudflare-one-warp --no-open          Start/reuse the daemon (API-only by default)
   cloudflare-one-warp --daemon           Start/reuse the daemon with Web UI enabled
+  cloudflare-one-warp --webui            Open the authenticated Web UI in a browser
   cloudflare-one-warp --status           Print daemon status
   cloudflare-one-warp --stop             Stop the managed daemon
   cloudflare-one-warp --warp-action       Connect or disconnect WARP via daemon API (no browser)
@@ -80,7 +93,7 @@ is_running() {
   [[ -f "$PID_FILE" ]] || return 1
   local pid
   pid="$(cat "$PID_FILE" 2>/dev/null || true)"
-  [[ -n "$pid" ]] || return 1
+  [[ "$pid" =~ ^[0-9]+$ && "$pid" -gt 1 ]] || return 1
   kill -0 "$pid" 2>/dev/null
 }
 
@@ -104,12 +117,13 @@ daemon_pid_matches_install() {
   local pid cmdline
   [[ -f "$PID_FILE" ]] || return 1
   pid="$(cat "$PID_FILE" 2>/dev/null || true)"
-  [[ -n "$pid" ]] || return 1
+  [[ "$pid" =~ ^[0-9]+$ && "$pid" -gt 1 ]] || return 1
   if [[ -r "/proc/$pid/cmdline" ]]; then
     cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
   else
     cmdline="$(ps -p "$pid" -o command= 2>/dev/null || true)"
   fi
+  [[ "$(ps -p "$pid" -o uid= 2>/dev/null | tr -d " ")" == "$UID" ]] || return 1
   [[ -n "$cmdline" && "$cmdline" == *"$APP_DIR/server.js"* ]]
 }
 
@@ -122,7 +136,7 @@ restart_stale_daemon() {
 
 set_port() {
   PORT="$1"
-  URL="http://${HOST}:${PORT}"
+  URL="http://${URL_HOST}:${PORT}"
 }
 
 port_open() {
@@ -220,7 +234,7 @@ start_server() {
   done
 
   echo "Cloudflare One WARP daemon did not become healthy. Log: $LOG_FILE" >&2
-  if is_running; then
+  if is_running && daemon_pid_matches_install; then
     kill "$(cat "$PID_FILE")" 2>/dev/null || true
     rm -f "$PID_FILE" "$PORT_FILE"
   fi
@@ -228,6 +242,7 @@ start_server() {
 }
 
 stop_server() {
+  "$NODE_BIN" "$APP_DIR/scripts/webui-handoff.mjs" --cleanup >/dev/null 2>&1 || true
   if is_running && daemon_pid_matches_install; then
     kill "$(cat "$PID_FILE")"
     rm -f "$PID_FILE" "$PORT_FILE"
@@ -238,10 +253,30 @@ stop_server() {
 }
 
 open_gui() {
-  if command -v firefox >/dev/null 2>&1; then
-    firefox --new-window "$URL" >/dev/null 2>&1 &
+  local handoff
+  handoff="$("$NODE_BIN" "$APP_DIR/scripts/webui-handoff.mjs" "$URL")" || return 1
+  case "$(uname -s)" in
+    Darwin)
+      if command -v open >/dev/null 2>&1; then
+        open "$handoff"
+        return
+      fi
+      ;;
+    MINGW*|MSYS*|CYGWIN*)
+      if command -v powershell.exe >/dev/null 2>&1; then
+        # The URI is supplied as data, never interpolated into PowerShell code.
+        CLOUDFLARE_ONE_WARP_HANDOFF="$handoff" powershell.exe -NoProfile -NonInteractive -Command 'Start-Process -FilePath $env:CLOUDFLARE_ONE_WARP_HANDOFF'
+        return
+      fi
+      ;;
+  esac
+  if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$handoff"
+  elif command -v firefox >/dev/null 2>&1; then
+    firefox --new-window "$handoff" >/dev/null &
   else
-    xdg-open "$URL" >/dev/null 2>&1 &
+    echo "No browser opener is available. Install a desktop browser and open Cloudflare One WARP again." >&2
+    return 1
   fi
 }
 
@@ -333,6 +368,11 @@ case "${1:-}" in
   --no-open)
     start_server
     echo "$URL"
+    ;;
+  --webui)
+    export CLOUDFLARE_ONE_WARP_WEBUI=1
+    start_server
+    open_gui
     ;;
   --daemon)
     export CLOUDFLARE_ONE_WARP_WEBUI=1

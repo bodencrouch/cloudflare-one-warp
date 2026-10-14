@@ -37,7 +37,7 @@ The packaged user unit is `packaging/cloudflare-one-warp.service`; the local ins
 
 ## NetworkManager
 
-Dispatcher and VPN name stub ship in deb/rpm/AppImage when staged:
+Dispatcher and addressless dummy marker profiles ship with staged Linux integration:
 
 - `packaging/networkmanager/99-cloudflare-one-warp`
 - `packaging/networkmanager/nm-cloudflare-one-warp-service.name`

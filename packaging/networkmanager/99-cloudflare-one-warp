@@ -2,7 +2,7 @@
 # NetworkManager dispatcher: connect/disconnect Cloudflare WARP when Cloudflare One WARP VPN profiles activate.
 set -euo pipefail
 
-CONNECTION_ID="${1:-}"
+CONNECTION_ID="${CONNECTION_ID:-}"
 ACTION="${2:-}"
 
 [[ -n "$CONNECTION_ID" && -n "$ACTION" ]] || exit 0
@@ -17,16 +17,21 @@ case "$CONNECTION_ID" in
     ;;
 esac
 
-APP_ROOT="${CLOUDFLARE_ONE_WARP_HOME:-/usr/lib/cloudflare-one-warp}"
-if [[ ! -d "$APP_ROOT" && -d "$HOME/.local/share/cloudflare-one-warp" ]]; then
-  APP_ROOT="$HOME/.local/share/cloudflare-one-warp"
-fi
-
-HELPER="${APP_ROOT}/scripts/cloudflare-one-warp-connect"
-if [[ ! -x "$HELPER" ]]; then
-  echo "cloudflare-one-warp dispatcher: missing ${HELPER}" >&2
+# NetworkManager executes dispatchers as root. Never execute a user installation.
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+HELPER=/usr/local/bin/cloudflare-one-warp-connect
+[[ -x "$HELPER" ]] || HELPER=/usr/lib/cloudflare-one-warp/scripts/cloudflare-one-warp-connect
+if [[ ! -f "$HELPER" || -L "$HELPER" || ! -x "$HELPER" ]]; then
+  echo "cloudflare-one-warp dispatcher: trusted system helper missing" >&2
   exit 1
 fi
+if [[ "$(stat -c %u "$HELPER")" != 0 ]] || [[ -n "$(find "$HELPER" -maxdepth 0 -perm /022 -print)" ]]; then
+  echo "cloudflare-one-warp dispatcher: helper must be root-owned and not writable by others" >&2
+  exit 1
+fi
+# Root hooks manage the tunnel, never the root account's KDE proxy settings.
+export CLOUDFLARE_ONE_WARP_HOME=/usr/lib/cloudflare-one-warp
+export CLOUDFLARE_ONE_WARP_SKIP_KDE_PROXY=1
 
 case "$ACTION" in
   vpn-up|up)

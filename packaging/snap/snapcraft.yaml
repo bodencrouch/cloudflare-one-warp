@@ -1,6 +1,6 @@
 name: cloudflare-one-warp
 base: core24
-version: '0.1.0'
+version: '0.3.5'
 summary: Cloudflare One WARP — unofficial Cloudflare One client
 description: |
   Cloudflare One WARP wraps the host Cloudflare WARP client (warp-cli) with a local API
@@ -26,23 +26,18 @@ parts:
     source: .
     source-type: local
     build-packages:
-      - rsync
       - curl
       - xz-utils
     override-build: |
       set -euo pipefail
-      curl --fail --location --connect-timeout 30 --max-time 600 https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.xz -o /tmp/cloudflare-one-warp-node.tar.xz
-      echo "fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6  /tmp/cloudflare-one-warp-node.tar.xz" | sha256sum -c -
+      node_archive="$(mktemp)"
+      trap 'rm -f "$node_archive"' EXIT
+      curl --fail --location --connect-timeout 30 --max-time 600 https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.xz -o "$node_archive"
+      printf '%s  %s\n' fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6 "$node_archive" | sha256sum -c -
       install -d "$CRAFT_PART_INSTALL/node-runtime"
-      tar -xJf /tmp/cloudflare-one-warp-node.tar.xz -C "$CRAFT_PART_INSTALL/node-runtime" --strip-components=1
+      tar -xJf "$node_archive" -C "$CRAFT_PART_INSTALL/node-runtime" --strip-components=1
       install -d "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp"
-      rsync -a \
-        --exclude '.git' \
-        --exclude 'dist' \
-        --exclude 'node_modules' \
-        --exclude 'agentdecompile_projects' \
-        --exclude 'packaging/flatpak' \
-        "$CRAFT_PART_SRC/" "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/"
+      bash "$CRAFT_PART_SRC/packaging/scripts/stage-source.sh" "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp"
       rm -rf \
         "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/packaging" \
         "$CRAFT_PART_INSTALL/usr/lib/cloudflare-one-warp/docs" \

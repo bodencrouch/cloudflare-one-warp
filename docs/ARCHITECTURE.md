@@ -51,7 +51,7 @@ When `ui.notifications` is true (default), `server.js` starts `lib/notify/status
 
 | Route | Method | Purpose |
 |-------|--------|---------|
-| `/api/session` | GET | Local session credential for this daemon (same-origin loopback callers only) |
+| `/api/session` | GET | Authenticated session metadata; never an unauthenticated credential bootstrap |
 | `/api/health` | GET | Liveness; returns `app: "cloudflare-one-warp"` |
 | `/api/readiness` | GET | Shared readiness truth (hard blockers vs soft warnings) for tray, Web UI, and launcher |
 | `/api/diagnostics` | GET | Clipboard-ready diagnostics summary (no account secrets) |
@@ -88,14 +88,16 @@ The daemon listens on loopback, so any web page a user visits can reach it. [`li
 |-------|-----------|---------|
 | `Host` must be this daemon's loopback address and port | all requests | `403 host_not_allowed` (DNS rebinding) |
 | Peer must be loopback | all API requests | `403 remote_peer_denied` |
-| `Sec-Fetch-Site` must be `same-origin`/`none` | mutations, `/api/session` | `403 cross_site_denied` |
-| `Origin` (or `Referer` when absent) must match this daemon | mutations, `/api/session` | `403 cross_origin_denied` |
+| `Sec-Fetch-Site` must be `same-origin`/`none` | all API requests | `403 cross_site_denied` |
+| `Origin` (or `Referer` when absent) must match this daemon | all API requests | `403 cross_origin_denied` |
 | `Content-Type: application/json` | mutations | `415 json_required` |
-| `X-Cloudflare-One-Warp-Session` must match the current credential | mutations | `403 session_required` |
+| `X-Cloudflare-One-Warp-Session` must match the current credential | every API except `/api/health` and `/api/version` | `401 session_required` |
 
-Mutations are `POST`/`PUT`/`PATCH`/`DELETE` under `/api/`. Read-only requests require no credential but still require a loopback peer and valid local Host. Blocked requests are appended to the command log with source `security` — reason only, never the body or credential.
+Mutations are `POST`/`PUT`/`PATCH`/`DELETE` under `/api/`. Every private API read, including events, account details and diagnostics, also requires the owner credential. Only health and version are public. Blocked requests record a reason, never their body or credential.
 
-The credential is 32 random bytes minted at daemon start and published after socket acquisition to `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-<port>.token` with mode `0600` (removed only by its owning daemon on shutdown). The Web UI fetches it from `GET /api/session` via [`public/api-client.js`](../public/api-client.js); the tray and native settings dialog read the file (falling back to the endpoint) via `scripts/tray_api.py`. It authenticates *the local user's clients*, not a person — it replaces nothing about `warp-cli` permissions.
+The daemon publishes 32 random bytes after acquiring its socket to `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-<port>.token`, mode `0600`, using atomic replacement. Its owning daemon removes it on shutdown. Native clients read this private file; `/api/session` requires authentication and cannot bootstrap an unrelated local user. Run `cloudflare-one-warp --webui` to open the browser through a private mode-0600 HTML handoff. The URL fragment transfers the credential to tab session storage, then the browser immediately clears the fragment from history. Tokens are never passed in process arguments or HTTP queries. Event streams use authenticated fetch rather than an unauthenticated EventSource.
+
+This credential authorizes clients acting as the daemon's operating-system user. It does not replace Cloudflare enrollment or `warp-cli` permissions. Same-user malware can read the file; see [SECURITY.md](../SECURITY.md).
 
 API responses send `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and `Content-Security-Policy: default-src 'none'`; Web UI assets get a `'self'`-scoped policy that also allows the `qrc:` WebChannel bridge used by the tray shell.
 

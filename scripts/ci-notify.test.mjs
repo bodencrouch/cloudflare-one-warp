@@ -128,3 +128,34 @@ test("status watcher respects enabled=false", () => {
   assert.equal(watcher.started, false);
   assert.equal(watcher.reason, "disabled");
 });
+
+test("stopping watcher cancels pending notifications", async () => {
+  const notes = [];
+  const watcher = startStatusWatcher({ statusListener: { subscribe: () => () => {} },
+    debounceMs: 5, available: () => true, notify: note => notes.push(note) });
+  watcher._inject("Disconnected");
+  await new Promise(resolve => setTimeout(resolve, 15));
+  watcher._inject("Connected");
+  watcher.stop();
+  await new Promise(resolve => setTimeout(resolve, 15));
+  assert.deepEqual(notes, []);
+});
+
+test("degraded connected state is a warning and contradictory daemon failures are bad", () => {
+  assert.equal(parseStatus("Connected\nNetwork: Unhealthy").severity, "warn");
+  assert.equal(parseStatus("Connected\nRegistration missing").severity, "bad");
+  assert.equal(parseStatus("Connected\nUnable to connect to the CloudflareWARP daemon").severity, "bad");
+});
+
+test("asynchronous notification executable failure cannot crash the daemon", async () => {
+  const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const directory = mkdtempSync(join(tmpdir(), "warp-notify-spawn-"));
+  writeFileSync(join(directory, "notify-send"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  const child = new EventEmitter();
+  try {
+    sendDesktopNotification({ body: "test" }, { env: { PATH: directory }, spawnImpl: () => child });
+    assert.doesNotThrow(() => child.emit("error", new Error("ENOENT")));
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

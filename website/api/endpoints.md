@@ -2,7 +2,7 @@
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/session` | Session credential for local clients |
+| GET | `/api/session` | Authenticated session metadata |
 | GET | `/api/health` | Liveness (`ok`, `app`, `version`) |
 | GET | `/api/readiness` | Shared readiness truth (hard blockers vs soft warnings) |
 | GET | `/api/diagnostics` | Clipboard-ready diagnostics text (no account secrets) |
@@ -31,16 +31,16 @@
 | POST | `/api/apps/proxy-launcher` | Create `.desktop` proxy shortcut |
 | POST | `/api/action` | Whitelisted warp-cli mutation |
 
-## Requests that change something
+## Authentication
 
-Every `POST` (and any other write method) must:
+Every API request except `/api/health` and `/api/version` needs the owner credential. Write requests must also:
 
 1. come from this computer,
 2. be addressed to `127.0.0.1`, `localhost`, or `[::1]` on the daemon's port,
 3. send `content-type: application/json`, and
 4. carry the local session credential in `x-cloudflare-one-warp-session`.
 
-Read the credential from `GET /api/session` or from `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-<port>.token` (mode `0600`, published only after the daemon acquires its socket; failed duplicate starts leave it intact).
+Read the credential from `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-<port>.token` (mode `0600`, published only after the daemon acquires its socket; failed duplicate starts leave it intact).
 
 ```bash
 SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")
@@ -50,9 +50,11 @@ curl -s -X POST http://127.0.0.1:4173/api/action \
   -d '{"action":"connect"}'
 ```
 
-Refused requests return `403` (or `415` when the body is not JSON) with a `reason` field: `host_not_allowed`, `remote_peer_denied`, `cross_site_denied`, `cross_origin_denied`, `json_required`, or `session_required`. Each one is recorded in the Console log with source `security`.
+Missing or stale credentials return `401`. Other refused requests return `403` (or `415` when the body is not JSON) with a `reason` field: `host_not_allowed`, `remote_peer_denied`, `cross_site_denied`, `cross_origin_denied`, `json_required`, or `session_required`. Each one is recorded in the Console log with source `security`.
 
-Read-only endpoints need no session credential but still require a loopback peer and valid local Host. LAN diagnostics are disabled.
+Private read-only endpoints require the same credential, loopback peer and valid local Host. `/api/session` requires authentication; it does not distribute credentials to unauthenticated callers. LAN diagnostics are disabled.
+
+Open the Web UI with `cloudflare-one-warp --webui`. Its private HTML handoff puts the token in a URL fragment, which the browser consumes into tab session storage and immediately removes from history. Native clients read the private token file.
 
 ## Snapshot command keys
 

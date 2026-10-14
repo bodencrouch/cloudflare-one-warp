@@ -28,7 +28,7 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install-dir)
-      INSTALL_DIR="$2"
+      INSTALL_DIR="${2:?--install-dir requires a path}"
       shift 2
       ;;
     --purge)
@@ -47,7 +47,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-for unit in cloudflare-one-warp.service cloudflare-one-warp.service cloudflare-one-gui.service; do
+cloudflare_one_warp_validate_install_dir "$INSTALL_DIR"
+INSTALL_DIR="$(node -e 'process.stdout.write(require("path").resolve(process.argv[1]))' "$INSTALL_DIR")"
+
+for unit in cloudflare-one-warp.service cloudflare-one-gui.service; do
+  unit_file="${SYSTEMD_USER_DIR}/${unit}"
+  if [[ ! -f "$unit_file" ]] || ! { grep -Fq -- "$INSTALL_DIR" "$unit_file" || grep -Fq -- "${INSTALL_DIR//%/%%}" "$unit_file"; }; then
+    continue
+  fi
   if systemctl --user --quiet is-active "$unit" >/dev/null 2>&1; then
     systemctl --user stop "$unit" || true
   fi
@@ -57,14 +64,22 @@ for unit in cloudflare-one-warp.service cloudflare-one-warp.service cloudflare-o
   rm -f "${SYSTEMD_USER_DIR}/${unit}"
 done
 
-cloudflare_one_warp_remove_legacy_desktop_entries "$APPLICATIONS_DIR"
+for desktop in cloudflare-one-warp.desktop cloudflare-one-gui.desktop cloudflare-one-warp-settings.desktop; do
+  desktop_file="${APPLICATIONS_DIR}/${desktop}"
+  if [[ -f "$desktop_file" ]] && { grep -Fq -- "$INSTALL_DIR" "$desktop_file" || grep -Fq -- "${INSTALL_DIR//%/%%}" "$desktop_file"; }; then
+    rm -f "$desktop_file"
+  fi
+done
 
 if [[ -f "${INSTALL_DIR}/scripts/tray-shell-cli.mjs" ]]; then
   node "${INSTALL_DIR}/scripts/tray-shell-cli.mjs" stop-cloudflare-one-warp >/dev/null 2>&1 || true
 fi
 
 AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
-rm -f "${AUTOSTART_DIR}/cloudflare-one-warp-tray.desktop"
+tray_autostart="${AUTOSTART_DIR}/cloudflare-one-warp-tray.desktop"
+if [[ -f "$tray_autostart" ]] && grep -Fq -- "$INSTALL_DIR" "$tray_autostart"; then
+  rm -f "$tray_autostart"
+fi
 # The Hidden override is the marker that Cloudflare One WARP took over the desktop app.
 # It hid Cloudflare's autostart and disabled its service in the same step, so
 # hand both back — otherwise Cloudflare One Client returns at next login with no
@@ -88,11 +103,16 @@ if [[ -f "$WARP_SVC_UNIT" ]]; then
   echo "  Remove it with: systemctl --user disable --now cloudflare-one-warp-desktop-svc.service && rm ${WARP_SVC_UNIT}"
 fi
 
-for link in cloudflare-one-warp cloudflare-one-warp cloudflare-one-warp-tray; do
-  rm -f "${LOCAL_BIN}/${link}"
+for link in cloudflare-one-warp cloudflare-one-warp-tray; do
+  if [[ -L "${LOCAL_BIN}/${link}" && "$(readlink "${LOCAL_BIN}/${link}")" == "$INSTALL_DIR/bin/$link" ]]; then
+    rm -f "${LOCAL_BIN}/${link}"
+  fi
 done
 
 if [[ "$REMOVE_TREE" -eq 1 && -d "$INSTALL_DIR" ]]; then
+  if [[ -f "$INSTALL_DIR/scripts/proxy-launcher-cleanup.mjs" ]]; then
+    node "$INSTALL_DIR/scripts/proxy-launcher-cleanup.mjs"
+  fi
   rm -rf "$INSTALL_DIR"
   echo "Removed install tree ${INSTALL_DIR}"
 fi

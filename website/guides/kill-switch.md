@@ -5,7 +5,7 @@ Native **nftables** kill switch blocks non-WARP traffic when enabled and WARP is
 ## API
 
 ```bash
-curl -s http://127.0.0.1:4173/api/killswitch | jq
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/killswitch | jq
 curl -X POST http://127.0.0.1:4173/api/killswitch \
   -H 'Content-Type: application/json' \
   -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" \

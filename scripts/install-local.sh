@@ -52,7 +52,7 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install-dir)
-      INSTALL_DIR="$2"
+      INSTALL_DIR="${2:?--install-dir requires a path}"
       shift 2
       ;;
     --desktop)
@@ -116,25 +116,49 @@ if [[ "$TRAY_SHELL_EXPLICIT" -eq 0 && -t 0 ]]; then
   TRAY_SHELL_EXPLICIT=1
 fi
 
-cloudflare_one_warp_require_command rsync
 cloudflare_one_warp_require_command node
-
-RSYNC_EXCLUDES=(
-  --exclude '.git/'
-  --exclude 'node_modules/'
-  --exclude 'dist/'
-  --exclude 'agentdecompile_projects/'
-  --exclude '.cursor/'
-  --exclude '.tmp-*'
-)
-
-echo "Installing Cloudflare One WARP $(cloudflare_one_warp_version) to ${INSTALL_DIR}"
-mkdir -p "$INSTALL_DIR"
-rsync -a --delete "${RSYNC_EXCLUDES[@]}" "${ROOT}/" "${INSTALL_DIR}/"
-
+if ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)'; then
+  echo "Cloudflare One WARP requires Node.js 22 or newer" >&2; exit 1
+fi
+cloudflare_one_warp_validate_install_dir "$INSTALL_DIR"
+INSTALL_DIR="$(node -e 'process.stdout.write(require("path").resolve(process.argv[1]))' "$INSTALL_DIR")"
+mkdir -p "$(dirname "$INSTALL_DIR")"
+# Build completely before stopping or replacing a working installation.
+install_lock="${INSTALL_DIR}.install-lock"
+if ! mkdir "$install_lock" 2>/dev/null; then
+  echo "Another installation is in progress: $install_lock" >&2; exit 1
+fi
+trap 'rmdir "$install_lock"' EXIT
+stage_dir="$(mktemp -d "${INSTALL_DIR}.stage.XXXXXX")"
+backup_dir=""
+cleanup_install() {
+  rm -rf "$stage_dir"
+  rmdir "$install_lock"
+  if [[ -n "$backup_dir" && -d "$backup_dir" && ! -e "$INSTALL_DIR" ]]; then mv "$backup_dir" "$INSTALL_DIR"; fi
+}
+trap cleanup_install EXIT
+bash "${ROOT}/packaging/scripts/stage-source.sh" "$stage_dir"
+# The default app directory also holds routing shortcut metadata. Preserve that
+# user state across a source upgrade; all application code is replaced.
+if [[ -d "$INSTALL_DIR/proxy-launchers" && ! -L "$INSTALL_DIR/proxy-launchers" ]]; then
+  cp -a "$INSTALL_DIR/proxy-launchers" "$stage_dir/proxy-launchers"
+fi
+printf '%s\n' 'Cloudflare One WARP local install' > "$stage_dir/.cloudflare-one-warp-install"
+node --check "$stage_dir/server.js"
 if [[ -x "${INSTALL_DIR}/bin/cloudflare-one-warp" ]]; then
   "${INSTALL_DIR}/bin/cloudflare-one-warp" --stop >/dev/null 2>&1 || true
 fi
+if [[ -d "$INSTALL_DIR" ]]; then
+  backup_dir="$(mktemp -d "${INSTALL_DIR}.backup.XXXXXX")"
+  rmdir "$backup_dir"
+  mv "$INSTALL_DIR" "$backup_dir"
+fi
+mv "$stage_dir" "$INSTALL_DIR"
+if [[ -n "$backup_dir" ]]; then rm -rf "$backup_dir"; backup_dir=""; fi
+DESKTOP_EXEC="$(cloudflare_one_warp_desktop_exec_path "$INSTALL_DIR/bin/cloudflare-one-warp")"
+SETTINGS_EXEC="$(cloudflare_one_warp_desktop_exec_path "$INSTALL_DIR/bin/cloudflare-one-warp-tray")"
+SYSTEMD_ROOT="$(cloudflare_one_warp_systemd_path "$INSTALL_DIR")"
+SYSTEMD_SERVER="$(cloudflare_one_warp_systemd_path "$INSTALL_DIR/server.js")"
 
 ICON_THEME_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
 mkdir -p "${ICON_THEME_ROOT}/scalable/apps"
@@ -145,9 +169,9 @@ for _size in 16 22 24 32 48; do
   _png_dir="${ICON_THEME_ROOT}/${_size}x${_size}/apps"
   mkdir -p "$_png_dir"
   if command -v rsvg-convert >/dev/null 2>&1; then
-    rsvg-convert -w "$_size" -h "$_size" "$_tray_icon" -o "${_png_dir}/cloudflare-one-warp.png"
+    rsvg-convert -w "$_size" -h "$_size" "$_tray_icon" -o "${_png_dir}/cloudflare-one-warp.png" || echo "Optional ${_size}px tray icon conversion failed; using SVG icon." >&2
   elif command -v convert >/dev/null 2>&1; then
-    convert -background none "$_tray_icon" -resize "${_size}x${_size}" "${_png_dir}/cloudflare-one-warp.png"
+    convert -background none "$_tray_icon" -resize "${_size}x${_size}" "${_png_dir}/cloudflare-one-warp.png" || echo "Optional ${_size}px tray icon conversion failed; using SVG icon." >&2
   fi
 done
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
@@ -170,7 +194,7 @@ if [[ "$WITH_DESKTOP" -eq 1 ]]; then
 Type=Application
 Name=Cloudflare One WARP
 Comment=Unofficial cross-platform Cloudflare One client
-Exec=${INSTALL_DIR}/bin/cloudflare-one-warp
+Exec=${DESKTOP_EXEC}
 Icon=${INSTALL_DIR}/assets/cloudflare-one-warp.svg
 Terminal=false
 Categories=Network;
@@ -190,7 +214,7 @@ DESKTOP
 Type=Application
 Name=Cloudflare One WARP Settings
 Comment=Configure Cloudflare One WARP Web UI, port, and tray preferences
-Exec=${INSTALL_DIR}/bin/cloudflare-one-warp-tray --settings
+Exec=${SETTINGS_EXEC} --settings
 Icon=cloudflare-one-warp
 Terminal=false
 Categories=Settings;Network;
@@ -224,6 +248,16 @@ if [[ "$WITH_SERVICE" -eq 1 ]]; then
   mkdir -p "$SYSTEMD_USER_DIR" "$APPLICATIONS_DIR" "$CONFIG_HOME/autostart" "$DATA_HOME/cloudflare-one-warp/proxy-launchers"
   rm -f "${SYSTEMD_USER_DIR}/cloudflare-one-warp.service" "${SYSTEMD_USER_DIR}/cloudflare-one-gui.service"
 
+  CONFIG_PATH="$(cloudflare_one_warp_systemd_path "$CONFIG_HOME")"
+  CONFIG_ENV="$(cloudflare_one_warp_systemd_path "XDG_CONFIG_HOME=$CONFIG_HOME")"
+  DATA_ENV="$(cloudflare_one_warp_systemd_path "XDG_DATA_HOME=$DATA_HOME")"
+  ENV_PATH="$(cloudflare_one_warp_systemd_path "$CONFIG_HOME/cloudflare-one-warp/env")"
+  AUTOSTART_PATH="$(cloudflare_one_warp_systemd_path "$CONFIG_HOME/autostart")"
+  APPLICATIONS_PATH="$(cloudflare_one_warp_systemd_path "$APPLICATIONS_DIR")"
+  PROXY_PATH="$(cloudflare_one_warp_systemd_path "$DATA_HOME/cloudflare-one-warp/proxy-launchers")"
+  DATA_PATH="$(cloudflare_one_warp_systemd_path "$DATA_HOME/cloudflare-one-warp")"
+  UNIT_PATH="$(cloudflare_one_warp_systemd_path "$SYSTEMD_USER_DIR")"
+
   cat > "$SERVICE_FILE" <<SERVICE
 [Unit]
 Description=Cloudflare One WARP daemon
@@ -232,13 +266,13 @@ After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=${INSTALL_DIR}
-EnvironmentFile=-${CONFIG_HOME}/cloudflare-one-warp/env
-Environment="XDG_CONFIG_HOME=${CONFIG_HOME}"
-Environment="XDG_DATA_HOME=${DATA_HOME}"
+WorkingDirectory=${SYSTEMD_ROOT}
+EnvironmentFile=-${ENV_PATH}
+Environment=${CONFIG_ENV}
+Environment=${DATA_ENV}
 Environment=CLOUDFLARE_ONE_WARP_WEBUI=0
-ExecStartPre=+/usr/bin/mkdir -p "${APPLICATIONS_DIR}" "${DATA_HOME}/cloudflare-one-warp/proxy-launchers" "${CONFIG_HOME}/autostart" "${SYSTEMD_USER_DIR}"
-ExecStart=/usr/bin/env node ${INSTALL_DIR}/server.js
+ExecStartPre=+/usr/bin/mkdir -p ${APPLICATIONS_PATH} ${PROXY_PATH} ${AUTOSTART_PATH} ${UNIT_PATH}
+ExecStart=/usr/bin/env node ${SYSTEMD_SERVER}
 Restart=on-failure
 RestartSec=3
 
@@ -255,11 +289,11 @@ RuntimeDirectoryMode=0700
 StateDirectory=cloudflare-one-warp
 StateDirectoryMode=0700
 Environment=TMPDIR=%t/cloudflare-one-warp
-ReadWritePaths=-"${CONFIG_HOME}/autostart" -"${APPLICATIONS_DIR}"
+ReadWritePaths=-${AUTOSTART_PATH} -${APPLICATIONS_PATH}
 ReadWritePaths=-%t/cloudflare-one-warp -/run/cloudflare-warp
-ReadWritePaths=-"${DATA_HOME}/cloudflare-one-warp" -"${SYSTEMD_USER_DIR}"
-# KDE uses sibling temporary files for atomic replacement of kiosktarc.
-ReadWritePaths=-"${CONFIG_HOME}"
+ReadWritePaths=-${DATA_PATH} -${UNIT_PATH}
+# KDE uses sibling temporary files for atomic replacement of kioslaverc.
+ReadWritePaths=-${CONFIG_PATH}
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 RestrictSUIDSGID=true
 RestrictNamespaces=true

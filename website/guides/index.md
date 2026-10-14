@@ -9,7 +9,7 @@ Task-oriented docs — start with [First connection](/guides/first-connection), 
 | [Native tray](/guides/tray) | KDE PyQt6 shell |
 | [Kill switch](/guides/kill-switch) | nftables leak protection |
 | [Split tunnel & app routing](/guides/routing) | Per-app proxy shortcuts |
-| [KDE / NetworkManager](/guides/networkmanager) | VPN profiles in Plasma |
+| [KDE / NetworkManager](/guides/networkmanager) | WARP companion connections in Plasma |
 | [WARP internals](/guides/warp-internals) | warp-cli modes, MASQUE, proxy port |
 | [Updates](/guides/updates) | Client update channel |
 | [systemd](/guides/systemd) | User daemon unit |

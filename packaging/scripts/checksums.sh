@@ -2,15 +2,21 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-VERSION="${PACKAGE_VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${PACKAGE_VERSION:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 OUT="${ROOT}/dist/packages"
 
 mkdir -p "$OUT"
+cleanup_paths=()
+cleanup_secrets() {
+  if (( ${#cleanup_paths[@]} )); then rm -rf "${cleanup_paths[@]}"; fi
+}
+trap cleanup_secrets EXIT
 
 # Optional GPG signing when GPG_PRIVATE_KEY / GPG_PASSPHRASE are provided.
 if [[ -n "${GPG_PRIVATE_KEY:-}" ]]; then
   echo "Importing GPG key for package signing..."
   gnupg_home="$(mktemp -d)"
+  cleanup_paths+=( "$gnupg_home" )
   export GNUPGHOME="$gnupg_home"
   printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
   # Signing individual packages is package-format specific; checksums remain the baseline.
@@ -31,6 +37,7 @@ sign_appimages() {
 
   if [[ -n "${CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM:-}" ]]; then
     key_file="$(mktemp)"
+    cleanup_paths+=( "$key_file" )
     chmod 600 "$key_file"
     printf '%s\n' "$CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM" > "$key_file"
     cleanup_key=1
@@ -62,12 +69,18 @@ sign_appimages() {
 sign_appimages
 
 # Emit the versioned recipe before hashing it.
-sed "s/__VERSION__/${VERSION}/g" "${ROOT}/packaging/arch/PKGBUILD.in" > "${OUT}/PKGBUILD"
+source_archive="${OUT}/cloudflare-one-warp-${VERSION}-src.tar.gz"
+if [[ -f "$source_archive" ]]; then
+  source_sha="$(sha256sum "$source_archive" | awk '{print $1}')"
+  sed -e "s/__VERSION__/${VERSION}/g" -e "s/__SOURCE_SHA256__/${source_sha}/g" \
+    "${ROOT}/packaging/arch/PKGBUILD.in" > "${OUT}/PKGBUILD"
+fi
 
 (
   cd "$OUT"
   shopt -s nullglob
-  files=( *.deb *.rpm *.AppImage *.AppImage.sig *.flatpak *.snap *.pkg.tar.zst *.tar.gz PKGBUILD )
+  files=( *.deb *.rpm *.AppImage *.AppImage.sig *.flatpak *.snap *.pkg.tar.zst *.tar.gz *.cdx.json *.rb )
+  [[ ! -f PKGBUILD ]] || files+=( PKGBUILD )
   if ((${#files[@]} == 0)); then
     echo "No package artifacts found in $OUT" >&2
     exit 1

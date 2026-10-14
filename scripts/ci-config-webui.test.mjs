@@ -196,3 +196,26 @@ test("launcher reuses unmanaged API daemon and separately starts requested Web U
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("malformed saved configuration cannot destroy typed defaults or pollute merged prototypes", async () => {
+  const { deepMerge, loadConfig } = await import("../lib/config.mjs");
+  const merged = deepMerge({}, JSON.parse('{"__proto__":{"polluted":true},"constructor":{"polluted":true}}'));
+  assert.equal(Object.getPrototypeOf(merged), Object.prototype);
+  assert.equal(merged.polluted, undefined);
+  assert.equal(Object.hasOwn(merged, "constructor"), false);
+  const directory = mkdtempSync(join(tmpdir(), "warp-invalid-config-"));
+  const configHome = join(directory, "config");
+  mkdirSync(join(configHome, "cloudflare-one-warp"), { recursive: true });
+  writeFileSync(join(configHome, "cloudflare-one-warp", "config.json"), JSON.stringify({
+    server: { port: 1.5 }, ui: { notifications: "false", theme: {} }, warp: null, tray: []
+  }));
+  try {
+    const config = loadConfig({ HOME: directory, XDG_CONFIG_HOME: configHome });
+    assert.equal(config.server.port, 4173);
+    assert.equal(config.warp.cli, "warp-cli");
+    assert.equal(config.warp.killSwitch, false);
+    assert.equal(config.ui.notifications, true);
+    assert.equal(config.ui.theme, "system");
+    assert.equal(config.tray.shell, "cloudflare");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

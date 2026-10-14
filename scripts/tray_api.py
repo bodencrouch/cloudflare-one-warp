@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import stat
 import urllib.error
 import urllib.request
 from typing import Any
@@ -13,6 +14,23 @@ from typing import Any
 
 DEFAULT_PORT = 4173
 PORT_SCAN = 31
+MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+  def redirect_request(self, req, fp, code, msg, headers, newurl):
+    return None
+
+
+# Local credentials must never follow HTTP redirects or desktop proxy settings.
+_LOCAL_HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
+
+
+def _read_response(response) -> str:
+  content = response.read(MAX_RESPONSE_BYTES + 1)
+  if len(content) > MAX_RESPONSE_BYTES:
+    raise ValueError("Daemon response exceeds size limit")
+  return content.decode("utf-8")
 
 
 def session_token_path(port: int) -> str:
@@ -52,6 +70,29 @@ def configured_port() -> int:
     except ValueError:
       pass
   return port
+
+
+def configured_host() -> str:
+  """Mirror effectiveBind and its system/user/environment configuration layers."""
+  home = os.environ.get("HOME") or os.environ.get("USERPROFILE") or os.path.expanduser("~")
+  config_home = os.environ.get("XDG_CONFIG_HOME")
+  if not config_home or not os.path.isabs(config_home):
+    config_home = os.path.join(home, ".config")
+  bind = "127.0.0.1"
+  for path in ("/etc/cloudflare-one-warp/config.json",
+    os.path.join(home, ".config", "cloudflare-one-gui", "config.json"),
+    os.path.join(home, ".config", "cloudflare-one-warp", "config.json"),
+    os.path.join(config_home, "cloudflare-one-warp", "config.json")):
+    try:
+      with open(path, encoding="utf-8") as handle:
+        server = json.load(handle).get("server", {})
+      if isinstance(server, dict) and "bind" in server:
+        bind = server["bind"]
+    except (OSError, ValueError, AttributeError):
+      pass
+  bind = os.environ.get("CLOUDFLARE_ONE_WARP_BIND") or os.environ.get("CLOUDFLARE_ONE_GUI_BIND") or bind
+  bind = str(bind or "127.0.0.1").strip().lower()
+  return "::1" if bind == "::1" else "127.0.0.1"
 
 
 def app_dir() -> str:
@@ -120,8 +161,11 @@ def tray_icon_state(snapshot: dict[str, Any] | None) -> str:
 class CloudflareOneWarpClient:
   """Minimal HTTP client for the local Cloudflare One WARP daemon."""
 
-  def __init__(self, host: str = "127.0.0.1") -> None:
-    self.host = host
+  def __init__(self, host: str | None = None) -> None:
+    host = host or configured_host()
+    if host not in ("127.0.0.1", "localhost", "::1"):
+      raise ValueError("Daemon host must be loopback")
+    self.host = "[::1]" if host == "::1" else host
     self.base_port = configured_port()
     self.base_url: str | None = None
     self.session: str | None = None
@@ -130,9 +174,11 @@ class CloudflareOneWarpClient:
   def discover(self) -> bool:
     self.session = None
     ports = list(range(self.base_port, min(65536, self.base_port + PORT_SCAN)))
-    runtime = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    runtime_app = os.path.join(runtime, "cloudflare-one-warp") if runtime else os.path.join(
+      os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cloudflare-one-warp", "runtime")
     try:
-      with open(os.path.join(runtime, "cloudflare-one-warp", "server.port"), encoding="utf-8") as handle:
+      with open(os.path.join(runtime_app, "server.port"), encoding="utf-8") as handle:
         selected = int(handle.read().strip())
       if 1024 <= selected <= 65535:
         ports.insert(0, selected)
@@ -141,9 +187,11 @@ class CloudflareOneWarpClient:
     for port in dict.fromkeys(ports):
       url = f"http://{self.host}:{port}/api/health"
       try:
-        with urllib.request.urlopen(url, timeout=1.5) as response:
-          payload = json.loads(response.read().decode("utf-8"))
-      except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
+        with _LOCAL_HTTP.open(url, timeout=1.5) as response:
+          payload = json.loads(_read_response(response))
+      except (OSError, urllib.error.URLError, ValueError, TimeoutError):
+        continue
+      if not isinstance(payload, dict):
         continue
       app_id = payload.get("app")
       if payload.get("ok") and app_id in ("cloudflare-one-warp", "cloudflare-one-gui"):
@@ -154,32 +202,40 @@ class CloudflareOneWarpClient:
     return False
 
   def load_session(self, refresh: bool = False) -> str | None:
-    """Read this daemon's session credential from disk, or ask the daemon for it."""
+    """Read this owner's private daemon credential; never bootstrap over HTTP."""
     if self.session and not refresh:
       return self.session
     try:
-      with open(session_token_path(self.base_port), encoding="utf-8") as handle:
-        token = handle.read().strip()
-      if token:
+      if os.name == "nt":
+        # NTFS privacy is an ACL property, not POSIX mode bits. Use the same
+        # SID/DACL validation as the daemon; the secret travels only in a pipe.
+        root = app_dir()
+        bundled = os.path.join(root, "runtime", "node", "bin", "node")
+        node = bundled if os.path.isfile(bundled) and os.access(bundled, os.X_OK) else (
+          os.environ.get("CLOUDFLARE_ONE_WARP_NODE") or os.environ.get("CLOUDFLARE_ONE_GUI_NODE") or "node")
+        program = """import {pathToFileURL} from 'node:url';
+import {openSync,closeSync,constants,readSync} from 'node:fs';
+const {assertPrivateFile}=await import(pathToFileURL(process.argv[1]));
+assertPrivateFile(process.argv[2]);
+const fd=openSync(process.argv[2],constants.O_RDONLY|(constants.O_NOFOLLOW||0));
+try { const bytes=Buffer.alloc(129); const count=readSync(fd,bytes,0,bytes.length,0); process.stdout.write(bytes.subarray(0,count)); }
+finally { closeSync(fd); }"""
+        checked = subprocess.run([node, "--input-type=module", "-e", program,
+          os.path.join(root, "lib", "security", "private-files.mjs"), session_token_path(self.base_port)],
+          check=True, capture_output=True, text=True, timeout=10)
+        token = checked.stdout.strip()
+      else:
+        descriptor = os.open(session_token_path(self.base_port), os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
+          info = os.fstat(handle.fileno())
+          if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or (hasattr(os, "getuid") and info.st_uid != os.getuid()):
+            raise OSError("Session credential is not private")
+          token = handle.read(129).strip()
+      if len(token) == 64 and all(char in "0123456789abcdefABCDEF" for char in token):
         self.session = token
         return token
-    except OSError:
+    except (OSError, UnicodeError, subprocess.SubprocessError):
       pass
-    if self.base_url:
-      try:
-        request = urllib.request.Request(
-          f"{self.base_url}/api/session",
-          headers={"Accept": "application/json"},
-          method="GET",
-        )
-        with urllib.request.urlopen(request, timeout=5) as response:
-          payload = json.loads(response.read().decode("utf-8"))
-        token = str(payload.get("session") or "")
-        if token:
-          self.session = token
-          return token
-      except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
-        pass
     self.session = None
     return None
 
@@ -187,6 +243,11 @@ class CloudflareOneWarpClient:
     assert self.base_url
     data = None
     headers = {"Accept": "application/json"}
+    token = self.load_session()
+    if token:
+      headers["X-Cloudflare-One-Warp-Session"] = token
+    elif path.split("?", 1)[0] not in ("/api/health", "/api/version"):
+      raise RuntimeError("Daemon session credential is unavailable. Restart the daemon as this user.")
     if method.upper() == "GET":
       if body is not None:
         data = json.dumps(body).encode("utf-8")
@@ -196,17 +257,14 @@ class CloudflareOneWarpClient:
       # empty object rather than no body at all.
       data = json.dumps(body if body is not None else {}).encode("utf-8")
       headers["Content-Type"] = "application/json"
-      token = self.load_session()
-      if token:
-        headers["X-Cloudflare-One-Warp-Session"] = token
     request = urllib.request.Request(
       f"{self.base_url}{path}",
       data=data,
       headers=headers,
       method=method,
     )
-    with urllib.request.urlopen(request, timeout=20) as response:
-      return response.read().decode("utf-8")
+    with _LOCAL_HTTP.open(request, timeout=20) as response:
+      return _read_response(response)
 
   def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
     if not self.base_url and not self.discover():
@@ -214,15 +272,20 @@ class CloudflareOneWarpClient:
     try:
       raw = self._send(method, path, body)
     except urllib.error.HTTPError as exc:
-      # A restarted daemon has a new credential; refresh once before giving up.
-      if exc.code == 403 and method.upper() != "GET" and self.load_session(refresh=True):
+      # Retry only a pre-handler credential rejection, never an action failure.
+      detail = exc.read(MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
+      try:
+        rejection = json.loads(detail)
+      except (ValueError, TypeError):
+        rejection = {}
+      auth_rejected = exc.code == 401 and isinstance(rejection, dict) and rejection.get("reason") == "session_required"
+      if auth_rejected and self.load_session(refresh=True):
         try:
           raw = self._send(method, path, body)
         except urllib.error.HTTPError as retry_exc:
-          detail = retry_exc.read().decode("utf-8", errors="replace")
+          detail = retry_exc.read(MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
           raise RuntimeError(detail or str(retry_exc)) from retry_exc
       else:
-        detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(detail or str(exc)) from exc
     if not raw.strip():
       return {}
@@ -306,7 +369,13 @@ class CloudflareOneWarpClient:
     if not self.base_url and not self.discover():
       raise RuntimeError("Cloudflare One WARP daemon is not running.")
     base = self.base_url or f"http://{self.host}:{self.base_port}"
-    return f"{base}/?shell=1"
+    root = app_dir()
+    bundled = os.path.join(root, "runtime", "node", "bin", "node")
+    node = bundled if os.path.isfile(bundled) and os.access(bundled, os.X_OK) else (
+      os.environ.get("CLOUDFLARE_ONE_WARP_NODE") or os.environ.get("CLOUDFLARE_ONE_GUI_NODE") or "node")
+    result = subprocess.run([node, os.path.join(root, "scripts", "webui-handoff.mjs"), base, "--shell"],
+      check=True, capture_output=True, text=True, timeout=5)
+    return result.stdout.strip()
 
   def run_connection_action(self) -> dict[str, Any]:
     """Perform the authoritative connect or disconnect for the current snapshot."""

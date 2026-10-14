@@ -1,3 +1,13 @@
+# 0.3.5 (2026-10-14)
+
+* Require owner-file credentials for private API reads, streams and mutations; launch browser and native views through private handoffs without exposing credentials in command arguments.
+* Bound CLI execution and action queues, reconcile actual external WARP state, and report the bound port accurately.
+* Validate installed firewall structure, restrict bootstrap exceptions, preserve KDE proxy ownership and use addressless NetworkManager marker connections.
+* Secure tray process identity, normalize malformed configuration, and keep native UI and notification work responsive.
+* Harden updater signatures, redirects, metadata isolation, semantic versions and confirmation tokens.
+* Preserve keyboard focus, improve narrow layouts and accessible controls, reject stale UI responses, and mask and clear credentials.
+* Stage upgrades transactionally, preserve owned shortcut state, exclude private material, pin build tools/actions, and publish application SBOMs and artifact provenance.
+
 # 0.3.4 (2026-10-14)
 
 * Restrict the privileged firewall helper to trusted operations; redact credentials and reject malformed HTTP paths without stopping the daemon.

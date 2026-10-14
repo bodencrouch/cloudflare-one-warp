@@ -1,11 +1,12 @@
 /**
  * Shared HTTP helper for daemon tests and smokes.
  *
- * Bootstraps the local session credential the same way the Web UI does, so tests
+ * Reads the private owner credential from the daemon fixture, so tests
  * exercise the real request gate instead of a bypass.
  */
 
 import { request } from "node:http";
+import { readSessionToken } from "../lib/http/request-gate.mjs";
 
 function send(baseUrl, method, path, body, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
@@ -36,39 +37,15 @@ function send(baseUrl, method, path, body, extraHeaders = {}) {
   });
 }
 
-const MUTATIONS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-
-/**
- * @param {string} baseUrl e.g. `http://127.0.0.1:14733`
- * @returns {(method: string, path: string, body?: unknown, options?: { headers?: Record<string, string>, session?: boolean }) => Promise<{ status: number, json: any }>}
- */
-export function createHttpJson(baseUrl) {
-  let token = null;
-
-  async function session(refresh = false) {
-    if (token && !refresh) return token;
-    const res = await send(baseUrl, "GET", "/api/session", null);
-    token = res.json?.session || null;
-    return token;
-  }
-
+/** Read the owner credential from the isolated daemon fixture, never HTTP. */
+export function createHttpJson(baseUrl, { env = process.env, tokenResolver } = {}) {
   return async function httpJson(method, path, body, options = {}) {
-    const upper = String(method).toUpperCase();
     const headers = { ...(options.headers || {}) };
-    const callerSuppliedToken = "x-cloudflare-one-warp-session" in headers;
-    const wantSession = options.session !== false && MUTATIONS.has(upper) && !callerSuppliedToken;
-    if (wantSession) {
-      const value = await session();
-      if (value) headers["x-cloudflare-one-warp-session"] = value;
+    const supplied = Object.keys(headers).some((key) => key.toLowerCase() === "x-cloudflare-one-warp-session");
+    if (options.session !== false && !supplied) {
+      const token = tokenResolver ? await tokenResolver() : readSessionToken(Number(new URL(baseUrl).port), env);
+      if (token) headers["x-cloudflare-one-warp-session"] = token;
     }
-    let result = await send(baseUrl, upper, path, body, headers);
-    if (result.status === 403 && wantSession && result.json?.reason === "session_required") {
-      const value = await session(true);
-      if (value) {
-        headers["x-cloudflare-one-warp-session"] = value;
-        result = await send(baseUrl, upper, path, body, headers);
-      }
-    }
-    return result;
+    return send(baseUrl, String(method).toUpperCase(), path, body, headers);
   };
 }

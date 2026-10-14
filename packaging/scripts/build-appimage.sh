@@ -2,11 +2,15 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-VERSION="${PACKAGE_VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${PACKAGE_VERSION:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 OUT="${ROOT}/dist/packages"
 APPDIR="${ROOT}/dist/AppDir"
 NODE_VERSION="${NODE_VERSION:-24.21.0}"
 ARCH="${APPIMAGE_ARCH:-x86_64}"
+if [[ "$ARCH" != x86_64 ]]; then
+  echo "Only x86_64 AppImages are supported by the bundled Node runtime" >&2; exit 2
+fi
+APPIMAGETOOL_SHA256="${APPIMAGETOOL_SHA256:-95cbe7cce9717fce90c484e34052ee7c7f1d7635b33c12525b4776826a7d29b6}"
 
 mkdir -p "$OUT"
 export PACKAGE_VERSION="$VERSION"
@@ -41,6 +45,7 @@ ln -sf cloudflare-one-warp.svg "${APPDIR}/.DirIcon"
 tool_dir="$(mktemp -d)"
   curl --connect-timeout 30 --max-time 300 -fsSL -o "${tool_dir}/appimagetool" \
   "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCH}.AppImage"
+printf '%s  %s\n' "$APPIMAGETOOL_SHA256" "${tool_dir}/appimagetool" | sha256sum -c -
 chmod +x "${tool_dir}/appimagetool"
 
 # Extract appimagetool if FUSE is unavailable (common on CI).

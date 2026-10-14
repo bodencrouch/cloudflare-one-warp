@@ -124,7 +124,7 @@ Expert mode (Settings → Expert UI) shows the log dock at the bottom with **Sta
 
 ### KDE / NetworkManager (WARP in system network UI)
 
-Cloudflare One WARP installs three NetworkManager profiles — **MASQUE**, **WireGuard**, and **Local proxy** — so you can connect from KDE System Settings → Network or import them via **Import VPN connection**. Run once after install:
+Cloudflare One WARP installs three NetworkManager profiles — **MASQUE**, **WireGuard**, and **Local proxy** — as addressless dummy marker connections. They call the official CLI through dispatcher hooks; they are not VPN import files. Run once after install:
 
 ```bash
 ./scripts/cloudflare-one-warp-nm --user
@@ -142,7 +142,8 @@ git clone https://github.com/bodencrouch/cloudflare-one-warp.git
 cd cloudflare-one-warp
 npm install          # devDependencies only (Playwright for UI tests)
 
-npm run dev          # server + Web UI at http://127.0.0.1:4173
+npm run dev          # starts the development daemon
+# In another terminal: ./bin/cloudflare-one-warp --webui
 # or
 ./bin/cloudflare-one-warp     # launcher: starts daemon, opens browser
 ```
@@ -184,7 +185,7 @@ cloudflare-one-warp --stop
 cloudflare-one-warp --version
 ```
 
-Default URL when the daemon is running: **http://127.0.0.1:4173**
+Default endpoint when the daemon is running: **http://127.0.0.1:4173**. Open an authenticated browser tab with `cloudflare-one-warp --webui`; visiting the address directly does not grant API access.
 
 ### Web UI
 
@@ -360,7 +361,7 @@ export WARP_CLI=/full/path/to/warp-cli
 
 ### Web UI blank or 404
 
-Confirm Web UI is enabled (`CLOUDFLARE_ONE_WARP_WEBUI=1` or `webui.enabled: true`) and open **http://127.0.0.1:4173** (not https).
+Run `cloudflare-one-warp --webui` to enable the Web UI and open an authenticated tab. A plain HTTP visit cannot obtain the owner credential; use the launcher handoff.
 
 ### Kill switch / nftables
 

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${1:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 SNAP="${ROOT}/dist/packages/cloudflare-one-warp_${VERSION}_amd64.snap"
 
 if [[ ! -f "$SNAP" ]]; then

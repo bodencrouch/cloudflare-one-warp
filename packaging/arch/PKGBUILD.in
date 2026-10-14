@@ -15,7 +15,7 @@ optdepends=(
   'cloudflare-warp-bin: Cloudflare WARP client providing warp-cli (AUR)'
 )
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/bodencrouch/cloudflare-one-warp/releases/download/v${pkgver}/cloudflare-one-warp-${pkgver}-src.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('__SOURCE_SHA256__')
 
 package() {
   cd "${srcdir}"

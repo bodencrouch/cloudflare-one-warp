@@ -15,11 +15,12 @@ test("WARP profiles cover MASQUE, WireGuard, and local proxy", () => {
   assert.ok(profileBySlug("proxy"));
 });
 
-test("buildNmKeyfile uses generic CloudflareWARP binding", () => {
+test("NetworkManager owns isolated addressless markers instead of configuring the WARP tunnel", () => {
   const keyfile = buildNmKeyfile(profileBySlug("masque"));
-  assert.match(keyfile, /type=generic/);
-  assert.match(keyfile, /interface-name=CloudflareWARP/);
-  assert.match(keyfile, /type=generic/);
+  assert.match(keyfile, /type=dummy/);
+  assert.match(keyfile, /interface-name=cfw-masque/);
+  assert.doesNotMatch(keyfile, /CloudflareWARP|method=auto/);
+  assert.equal((keyfile.match(/method=disabled/g) || []).length, 2);
 });
 
 test("WireGuard profile sets WireGuard protocol", () => {

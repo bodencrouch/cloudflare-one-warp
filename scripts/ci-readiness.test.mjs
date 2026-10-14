@@ -189,3 +189,16 @@ test("empty successful status does not establish service readiness", async () =>
   const disconnected = await assessReadiness({ ...common, runStatus: async () => ({ ok: true, code: 0, stdout: "Status update: Disconnected" }) });
   assert.equal(disconnected.hardBlocked, false);
 });
+
+test("tray readiness requires WebEngine and uses the selected tray Python", async () => {
+  const calls = [];
+  const result = await probeTrayToolkit({ platform: "linux", env: { CLOUDFLARE_ONE_WARP_TRAY_PYTHON: "/selected/python" },
+    spawn: async (command, args) => {
+      calls.push([command, args]);
+      return { status: args[1]?.includes("AppIndicator3") ? 0 : 1 };
+    } });
+  assert.equal(calls[0][0], "/selected/python");
+  assert.match(calls[0][1][1], /QtWebEngineWidgets/);
+  assert.match(calls[1][1][1], /AyatanaAppIndicator3/);
+  assert.equal(result.backend, "sni");
+});

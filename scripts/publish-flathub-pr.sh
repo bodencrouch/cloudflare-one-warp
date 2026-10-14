@@ -3,9 +3,9 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${1:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 TAG="v${VERSION}"
-COMMIT="$(git rev-parse "${TAG}" 2>/dev/null || git rev-parse HEAD)"
+COMMIT="$(git rev-parse "${TAG}^{commit}" 2>/dev/null || git rev-parse HEAD)"
 MANIFEST_NAME="io.github.bodencrouch.CloudflareOneWarp.yml"
 FLATHUB_FORK="${FLATHUB_FORK:-bodencrouch/flathub}"
 FLATHUB_UPSTREAM="flathub/flathub"
@@ -19,8 +19,11 @@ fi
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
+# shellcheck source=lib/common.sh
+source "${ROOT}/scripts/lib/common.sh"
+cloudflare_one_warp_setup_git_credentials "$WORKDIR" "${FLATHUB_PAT}"
 
-git clone "https://x-access-token:${FLATHUB_PAT}@github.com/${FLATHUB_FORK}.git" "$WORKDIR/flathub"
+git clone "https://github.com/${FLATHUB_FORK}.git" "$WORKDIR/flathub"
 git -C "$WORKDIR/flathub" remote add upstream "https://github.com/${FLATHUB_UPSTREAM}.git" 2>/dev/null || true
 git -C "$WORKDIR/flathub" fetch upstream master
 git -C "$WORKDIR/flathub" checkout -B "$BRANCH" upstream/master
@@ -34,7 +37,7 @@ git -C "$WORKDIR/flathub" config user.name "bodencrouch"
 git -C "$WORKDIR/flathub" add "$MANIFEST_NAME"
 if git -C "$WORKDIR/flathub" diff --cached --quiet; then echo "No Flathub manifest changes."; exit 0; fi
 git -C "$WORKDIR/flathub" commit -m "Add Cloudflare One WARP ${VERSION}"
-git -C "$WORKDIR/flathub" push -f origin "$BRANCH"
+git -C "$WORKDIR/flathub" push --force-with-lease origin "$BRANCH"
 
 if command -v gh >/dev/null 2>&1; then
   GH_TOKEN="$FLATHUB_PAT" gh pr create \

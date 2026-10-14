@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="${ROOT}/dist/packages"
-VERSION="${PACKAGE_VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${PACKAGE_VERSION:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 SCOPE="${1:-all}"
 
 require_file() {

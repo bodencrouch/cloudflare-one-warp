@@ -76,7 +76,7 @@ SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-417
 curl -X POST http://127.0.0.1:4173/api/action \
   -H 'Content-Type: application/json' -H "x-cloudflare-one-warp-session: $SESSION" \
   -d '{"action":"enableLocalProxy"}'
-curl -s http://127.0.0.1:4173/api/apps | jq
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/apps | jq
 ```
 
 Real warp-cli reports proxy mode as `Mode: WarpProxy on port 40000` — Cloudflare One WARP normalizes that for the UI. See [WARP internals](/guides/warp-internals).
@@ -86,7 +86,7 @@ Real warp-cli reports proxy mode as `Mode: WarpProxy on port 40000` — Cloudfla
 ```bash
 cloudflare-one-warp --no-open
 curl -s http://127.0.0.1:4173/api/health | jq
-curl -s http://127.0.0.1:4173/api/snapshot | jq '.status, .settings.Mode'
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/snapshot | jq '.status, .settings.Mode'
 ```
 
 Default HTTP port is **4173** (launcher tries up to 30 ports if busy). Confirm with `cloudflare-one-warp --status` or `GET /api/config`.

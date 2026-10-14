@@ -44,12 +44,32 @@ warp_up() {
       warp-cli connect
       ;;
     "Cloudflare One WARP (Local proxy)")
+      local proxy_port="${CLOUDFLARE_ONE_WARP_PROXY_PORT:-}"
+      # Activation must preserve the official client's saved port unless explicitly requested.
+      if [[ "${CLOUDFLARE_ONE_WARP_PROXY_PORT+x}" == x ]]; then
+        [[ "$proxy_port" =~ ^[0-9]+$ && ${#proxy_port} -le 5 ]] || { echo "Invalid proxy port" >&2; exit 2; }
+        (( 10#$proxy_port >= 1 && 10#$proxy_port <= 65535 )) || { echo "Invalid proxy port" >&2; exit 2; }
+      fi
       warp-cli tunnel protocol set MASQUE
       warp-cli mode proxy
-      warp-cli proxy port "${CLOUDFLARE_ONE_WARP_PROXY_PORT:-40000}"
+      if [[ -n "$proxy_port" ]]; then warp-cli proxy port "$proxy_port"; fi
       warp-cli connect
-      if [[ -x "$KDE_PROXY" ]]; then
-        "$KDE_PROXY" on "${CLOUDFLARE_ONE_WARP_PROXY_PORT:-40000}" || true
+      if [[ "${CLOUDFLARE_ONE_WARP_SKIP_KDE_PROXY:-0}" != 1 && -x "$KDE_PROXY" ]]; then
+        if [[ -z "$proxy_port" ]]; then
+          local settings line
+          settings="$(warp-cli settings)"
+          while IFS= read -r line; do
+            if [[ "$line" =~ [Pp]roxy[[:space:]]+[Pp]ort:[[:space:]]*([0-9]+) ]]; then
+              proxy_port="${BASH_REMATCH[1]}"
+              break
+            fi
+          done <<< "$settings"
+        fi
+        if [[ "$proxy_port" =~ ^[0-9]+$ && ${#proxy_port} -le 5 ]] && (( 10#$proxy_port >= 1 && 10#$proxy_port <= 65535 )); then
+          "$KDE_PROXY" on "$proxy_port"
+        else
+          echo "KDE proxy unchanged: unable to determine the official client's proxy port." >&2
+        fi
       fi
       ;;
     *)
@@ -62,7 +82,7 @@ warp_up() {
 warp_down() {
   require_warp
   warp-cli disconnect || true
-  if [[ -x "$KDE_PROXY" ]]; then
+  if [[ "${CLOUDFLARE_ONE_WARP_SKIP_KDE_PROXY:-0}" != 1 && -x "$KDE_PROXY" ]]; then
     "$KDE_PROXY" off || true
   fi
 }

@@ -11,21 +11,25 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-packages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   release:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.release.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
       - name: Validate release

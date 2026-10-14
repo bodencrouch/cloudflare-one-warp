@@ -1,18 +1,9 @@
-# 0.3.4 maintenance release
+# Cloudflare One WARP 0.3.5
 
-This release resolves the 24 findings in the manual review, covering privileged firewall operations, credentials in logs, HTTP error handling, protection recovery, daemon lifecycle, readiness, desktop integration, updates, and package installation. See [CHANGELOG](../CHANGELOG.md) for the changes. Native Windows, Flatpak host integration and systemd namespace behavior also depend on the installed host tools.
+This release hardens account ownership, network protection, desktop integration, updates, accessibility and distribution after an independent expert review. See the [review and validation map](https://github.com/bodencrouch/cloudflare-one-warp/blob/v0.3.5/docs/EXPERT_REVIEW.md) and [changelog](https://github.com/bodencrouch/cloudflare-one-warp/blob/v0.3.5/CHANGELOG.md).
 
-Cloudflare One WARP 0.3.3 renames the client and all distribution artifacts to match the repository.
+Private API reads, writes and live events now require the owner credential. Use `cloudflare-one-warp --webui` to authorize the optional browser UI; native clients read the private token file. Restart the daemon after upgrading. Anonymous health/version probes remain available.
 
-- Product: **Cloudflare One WARP**.
-- CLI and package: `cloudflare-one-warp`; tray: `cloudflare-one-warp-tray`.
-- Environment variables: `CLOUDFLARE_ONE_WARP_*`.
-- Configuration: `~/.config/cloudflare-one-warp/config.json` and `/etc/cloudflare-one-warp/config.json`.
-- systemd service: `cloudflare-one-warp.service`.
-- App ID: `io.github.bodencrouch.CloudflareOneWarp`.
-- Fix AppImage launcher paths and Flatpak metadata/permissions.
-- Documentation: https://bodencrouch.github.io/cloudflare-one-warp/.
+Downloads include deb, rpm, Arch, AppImage, Flatpak, Snap, source, Homebrew formula, checksums and an application dependency SBOM. Release provenance and container build provenance accompany the artifacts. Automatic AppImage replacement remains disabled until a production release key is pinned; manual installation is available.
 
-This release changes installation and configuration paths. Reinstall using the renamed package and move any existing configuration to the paths above. Cloudflare's host `warp-cli` remains required.
-
-Release downloads include deb, rpm, Arch, AppImage, Flatpak, Snap, source archives, Homebrew formula, and checksums. Containers are published to GHCR.
+Cloudflare's installed host `warp-cli` remains required. [Documentation](https://bodencrouch.github.io/cloudflare-one-warp/) and [Homebrew tap](https://github.com/bodencrouch/homebrew-cloudflare-one-warp) are maintained separately from store submission channels.
