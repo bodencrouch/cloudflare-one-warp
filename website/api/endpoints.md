@@ -40,7 +40,7 @@ Every `POST` (and any other write method) must:
 3. send `content-type: application/json`, and
 4. carry the local session credential in `x-cloudflare-one-warp-session`.
 
-Read the credential from `GET /api/session` or from `~/.config/cloudflare-one-warp/session-<port>.token` (mode `0600`, published only after the daemon acquires its socket; failed duplicate starts leave it intact).
+Read the credential from `GET /api/session` or from `${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-<port>.token` (mode `0600`, published only after the daemon acquires its socket; failed duplicate starts leave it intact).
 
 ```bash
 SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")

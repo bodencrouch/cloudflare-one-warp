@@ -42,23 +42,23 @@ node scripts/generate-update-manifest.mjs --version 1.3.0-beta.1 --prerelease --
 
 | Install format | In-app apply |
 |----------------|--------------|
-| AppImage | Download matching `cloudflare-one-warp-*-x86_64.AppImage`, replace binary, prompt restart |
-| deb / rpm / Homebrew / Flatpak / Snap | Show copy-paste upgrade commands |
+| AppImage | Verified matching AppImage replacement only when a pinned key and signature are available; current empty key ring requires manual installation |
+| deb / rpm / Arch / Homebrew / Flatpak / Snap / source | Show copy-paste upgrade commands |
 
 Config keys (see [CONFIGURATION.md](CONFIGURATION.md)):
 
 - `updates.channel` — `stable` | `beta`
-- `updates.source` — `{ owner, repo }` (default upstream; change via config file/env to use a fork — **not** session-overridable)
+- `updates.source` — `{ owner, repo }` (default upstream; config/env or validated `POST /api/update/source` can select a fork; generic session patches cannot alter it)
 - `updates.checkOnStartup` — non-blocking toast when Web UI is open
 
 APIs:
 
 - `GET /api/version`
-- `GET /api/update/check` — includes one-time `applyConfirmToken` for AppImage applies
+- `GET /api/update/check` — includes `canApply` and a one-time `applyConfirmToken` when AppImage Apply is available
 - `GET /api/update/releases?owner=&repo=`
 - `GET /api/update/forks`
 - `POST /api/update/prepare` — resolve tag + issue apply token
-- `POST /api/update/apply` — AppImage only; requires `confirmToken` and a valid release signature; refused when bind is non-loopback unless `CLOUDFLARE_ONE_WARP_ALLOW_REMOTE_APPLY=1`
+- `POST /api/update/apply` — AppImage only; requires `confirmToken`, a valid pinned release signature, and the local request gate
 
 The apply confirmation token is a one-time binding between a UI prompt and a release asset — it is not authentication. Callers must also pass the [request gate](ARCHITECTURE.md#request-gate).
 
