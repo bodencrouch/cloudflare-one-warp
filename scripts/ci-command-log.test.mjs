@@ -164,3 +164,12 @@ test("enableLocalProxy while disconnected sets MASQUE and proxy mode", async () 
   const protocol = settings["Tunnel protocol"] || settings.Protocol || "";
   assert.match(String(protocol), /masque/i);
 });
+
+test("a retained entry bounds large output and command text", () => {
+  resetCommandLogForTests();
+  appendFromRunWarp({command:"x".repeat(100000),stdout:"s".repeat(100000),stderr:"e".repeat(100000)});
+  const [entry] = listEntries();
+  assert.ok(entry.command.length <= 16384);
+  assert.ok(entry.stdout.length <= 16384);
+  assert.ok(entry.stderr.length <= 16384);
+});

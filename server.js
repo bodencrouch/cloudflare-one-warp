@@ -21,7 +21,8 @@ import {
   persistUserWebUi,
   persistUserServer,
   persistUserUi,
-  isValidServerPort
+  isValidServerPort,
+  isValidServerBind
 } from "./lib/config.mjs";
 import {
   API_SECURITY_HEADERS,
@@ -478,6 +479,8 @@ function json(res, status, body) {
 }
 
 function sse(res, event, data) {
+  if (res.destroyed) return;
+  if (res.writableLength > 256 * 1024) { res.destroy(); return; }
   res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
@@ -931,6 +934,10 @@ async function handleApi(req, res, url) {
         json(res, 400, { ok: false, error: "allowRemote must be a boolean" });
         return;
       }
+      if (body?.allowRemote === true) {
+        json(res, 400, { ok: false, error: "Remote control is not available. Use local access or an authenticated SSH tunnel." });
+        return;
+      }
       if (body?.enabled == null && body?.allowRemote == null) {
         json(res, 400, { ok: false, error: "Provide enabled and/or allowRemote" });
         return;
@@ -956,8 +963,8 @@ async function handleApi(req, res, url) {
           return;
         }
       }
-      if (body?.bind != null && (typeof body.bind !== "string" || !body.bind.trim())) {
-        json(res, 400, { ok: false, error: "bind must be a non-empty string" });
+      if (body?.bind != null && (typeof body.bind !== "string" || !isValidServerBind(body.bind))) {
+        json(res, 400, { ok: false, error: "bind must be 127.0.0.1, localhost, or ::1" });
         return;
       }
       if (body?.port == null && body?.bind == null) {

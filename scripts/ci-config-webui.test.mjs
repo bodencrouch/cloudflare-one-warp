@@ -136,3 +136,11 @@ test("XDG configuration migrates prior user settings and rejects corrupt writes"
     assert.equal(readFileSync(current, "utf8"), "{broken");
   } finally { clearSessionOverrides(); reloadConfig(); rmSync(root, { recursive: true, force: true }); }
 });
+
+test("legacy remote settings cannot expose the control plane", async () => {
+  const { effectiveBind, isValidServerBind } = await import("../lib/config.mjs");
+  assert.equal(effectiveBind({server:{bind:"0.0.0.0"},webui:{enabled:true,allowRemote:true}}), "127.0.0.1");
+  assert.equal(effectiveBind({server:{bind:"localhost"}}), "127.0.0.1");
+  assert.equal(effectiveBind({server:{bind:"::1"}}), "::1");
+  assert.equal(isValidServerBind("192.168.1.2"), false);
+});
