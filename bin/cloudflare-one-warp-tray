@@ -21,7 +21,7 @@ if [[ -L "$RUNTIME_DIR" || ( -e "$RUNTIME_DIR" && ! -O "$RUNTIME_DIR" ) ]]; then
   echo "Unsafe runtime directory: $RUNTIME_DIR" >&2
   exit 1
 fi
-mkdir -p -m 700 "$RUNTIME_DIR"
+(umask 077; mkdir -p "$RUNTIME_DIR")
 chmod 700 "$RUNTIME_DIR"
 TRAY_PID_FILE="${RUNTIME_DIR}/tray.pid"
 TRAY_LOG_FILE="${CACHE_DIR}/tray.log"

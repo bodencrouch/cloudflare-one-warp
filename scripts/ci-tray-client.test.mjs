@@ -146,7 +146,8 @@ test("native client keeps credentials on loopback and rejects redirects and over
   const { promisify } = await import("node:util");
   const { execFile } = await import("node:child_process");
   const script = `
-import io, sys, threading, urllib.error, urllib.request
+import faulthandler, io, sys, threading, urllib.error, urllib.request
+faulthandler.dump_traceback_later(8)
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, ${JSON.stringify(join(root, "scripts"))})
 from tray_api import CloudflareOneWarpClient, _LOCAL_HTTP, _read_response, MAX_RESPONSE_BYTES
@@ -154,23 +155,32 @@ leaked = []
 class Target(BaseHTTPRequestHandler):
   def do_GET(self):
     leaked.append(self.headers.get("X-Cloudflare-One-Warp-Session"))
-    self.send_response(200); self.end_headers(); self.wfile.write(b"{}")
+    self.send_response(200); self.send_header("Content-Length", "2"); self.send_header("Connection", "close"); self.end_headers(); self.wfile.write(b"{}")
+    self.close_connection = True
   def log_message(self, *args): pass
 target = ThreadingHTTPServer(("127.0.0.1", 0), Target)
 class Redirect(BaseHTTPRequestHandler):
   def do_POST(self):
+    self.rfile.read(int(self.headers.get("Content-Length", "0")))
     self.send_response(302)
     self.send_header("Location", "http://127.0.0.1:%d/target" % target.server_port)
+    self.send_header("Content-Length", "0")
+    self.send_header("Connection", "close")
     self.end_headers()
+    self.close_connection = True
   def log_message(self, *args): pass
 source = ThreadingHTTPServer(("127.0.0.1", 0), Redirect)
-for server in (source, target): threading.Thread(target=server.serve_forever, daemon=True).start()
+for server in (source, target):
+  server.daemon_threads = True
+  threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
 try:
   client = CloudflareOneWarpClient.__new__(CloudflareOneWarpClient)
   client.base_url = "http://127.0.0.1:%d" % source.server_port
   client.session = "isolated-fixture-secret"
   try: client._send("POST", "/api/action", {})
-  except urllib.error.HTTPError as error: assert error.code == 302
+  except urllib.error.HTTPError as error:
+    try: assert error.code == 302
+    finally: error.close()
   else: raise AssertionError("redirect followed")
   assert not leaked
   assert not any(isinstance(handler, urllib.request.ProxyHandler) and handler.proxies for handler in _LOCAL_HTTP.handlers)
@@ -182,6 +192,8 @@ try:
   else: raise AssertionError("unbounded response accepted")
 finally:
   source.shutdown(); target.shutdown()
+  source.server_close(); target.server_close()
+  faulthandler.cancel_dump_traceback_later()
 `;
   await promisify(execFile)(python, ["-c", script], { timeout: 10000 });
 });

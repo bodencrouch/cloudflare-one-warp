@@ -9,7 +9,6 @@ while [[ -L "$_script" ]]; do
 done
 APP_DIR="$(cd -- "$(dirname -- "$_script")/.." && pwd)"
 unset _script _dir
-APP_NAME="cloudflare-one-warp"
 BASE_PORT=4173
 PORT="$BASE_PORT"
 HOST="127.0.0.1"
@@ -22,7 +21,7 @@ if [[ -L "$RUNTIME_DIR" || ( -e "$RUNTIME_DIR" && ! -O "$RUNTIME_DIR" ) ]]; then
   echo "Unsafe runtime directory: $RUNTIME_DIR" >&2
   exit 1
 fi
-mkdir -p -m 700 "$RUNTIME_DIR"
+(umask 077; mkdir -p "$RUNTIME_DIR")
 chmod 700 "$RUNTIME_DIR"
 PID_FILE="${RUNTIME_DIR}/server.pid"
 PORT_FILE="${RUNTIME_DIR}/server.port"
