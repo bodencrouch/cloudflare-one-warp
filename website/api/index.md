@@ -27,7 +27,7 @@ curl -s http://127.0.0.1:4173/api/health | jq
 
 ## Authentication
 
-Localhost-only by default (`server.bind`). Remote bind requires explicit config (`webui.allowRemote`) — not recommended without a reverse proxy and auth.
+All API routes require a loopback socket peer, including read-only routes. `server.bind` accepts loopback addresses only; the legacy `webui.allowRemote` setting does not enable LAN diagnostics. Mutations additionally require the local session credential and JSON content type. An explicit trusted local tunnel is needed for remote administration.
 
 ## OpenAPI
 

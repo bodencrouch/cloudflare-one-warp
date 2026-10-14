@@ -4,7 +4,7 @@ Cloudflare One WARP wraps the host **warp-cli** binary. Install Cloudflare WARP 
 
 ## Requirements
 
-- **Node.js** 18+ (20 recommended)
+- **Node.js** 22+ (24 LTS recommended; bundled in AppImage, Flatpak and Snap)
 - **warp-cli** from [Cloudflare WARP](https://developers.cloudflare.com/cloudflare-one/connections/connect-devices/warp/download-warp/)
 - **Linux** for tray, kill switch, and NetworkManager helpers (macOS/Windows: daemon + Web UI)
 - **PyQt6** + **PyQt6-WebEngine** for the native KDE tray (`pip install PyQt6 PyQt6-WebEngine`)
@@ -21,9 +21,9 @@ Cloudflare One WARP wraps the host **warp-cli** binary. Install Cloudflare WARP 
 ## After install
 
 ```bash
-cloudflare-one-warp              # tray + native panel (default)
+cloudflare-one-warp              # official Cloudflare One Client tray by default
 cloudflare-one-warp --no-open    # daemon only, no browser/shell
 cloudflare-one-warp --status     # is the daemon running?
 ```
 
-User-facing product name is always **Cloudflare One WARP** (not bare "Cloudflare One WARP").
+Use Settings to select the optional Cloudflare One WARP tray or Web UI.

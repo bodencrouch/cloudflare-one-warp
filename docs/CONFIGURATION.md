@@ -91,7 +91,7 @@ See [UPDATES.md](UPDATES.md) for the release → client pipeline.
 | `CLOUDFLARE_ONE_WARP_PORT` | `server.port` | `4173` |
 | `CLOUDFLARE_ONE_WARP_BIND` | `server.bind` | `127.0.0.1` |
 | `CLOUDFLARE_ONE_WARP_WEBUI` | `webui.enabled` | `1` / `0` |
-| `CLOUDFLARE_ONE_WARP_WEBUI_ALLOW_REMOTE` | `webui.allowRemote` | `1` / `0` |
+| `CLOUDFLARE_ONE_WARP_WEBUI_ALLOW_REMOTE` | Legacy compatibility variable | Remote access remains disabled |
 | `CLOUDFLARE_ONE_WARP_CLI` | `warp.cli` | `/usr/bin/warp-cli` |
 | `WARP_CLI` | `warp.cli` | CI mock scripts |
 | `CLOUDFLARE_ONE_WARP_LOCALE` | `ui.locale` | `en` |
@@ -197,7 +197,7 @@ curl -s -X POST http://127.0.0.1:4173/api/config/session \
   -d '{"clear":true}'
 ```
 
-**Restart required** after changing `server.port`, `server.bind`, `webui.enabled`, or `webui.allowRemote`.
+**Restart required** after changing `server.port`, `server.bind`, `webui.enabled`.
 
 Persist Web UI, server, UI notifications, desktop app, and tray autostart:
 

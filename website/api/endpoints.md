@@ -23,8 +23,8 @@
 | GET | `/api/update/releases` | List releases for source |
 | GET | `/api/update/forks` | Fork list for update source UI |
 | POST | `/api/update/source` | Set update GitHub source |
-| POST | `/api/update/prepare` | Stage update download |
-| POST | `/api/update/apply` | Apply staged update (AppImage) |
+| POST | `/api/update/prepare` | Prepare update details and confirmation token |
+| POST | `/api/update/apply` | Download, verify and replace AppImage |
 | GET | `/api/events` | SSE stream of warp-cli live output |
 | GET | `/api/logs` | In-memory command log (`?since=timestamp`) |
 | GET | `/api/apps` | Desktop apps for proxy launcher |
@@ -40,10 +40,10 @@ Every `POST` (and any other write method) must:
 3. send `content-type: application/json`, and
 4. carry the local session credential in `x-cloudflare-one-warp-session`.
 
-Read the credential from `GET /api/session` or from `~/.config/cloudflare-one-warp/session-<port>.token` (mode `0600`, replaced each time the daemon starts).
+Read the credential from `GET /api/session` or from `~/.config/cloudflare-one-warp/session-<port>.token` (mode `0600`, published only after the daemon acquires its socket; failed duplicate starts leave it intact).
 
 ```bash
-SESSION=$(cat ~/.config/cloudflare-one-warp/session-4173.token)
+SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")
 curl -s -X POST http://127.0.0.1:4173/api/action \
   -H 'content-type: application/json' \
   -H "x-cloudflare-one-warp-session: $SESSION" \
@@ -52,7 +52,7 @@ curl -s -X POST http://127.0.0.1:4173/api/action \
 
 Refused requests return `403` (or `415` when the body is not JSON) with a `reason` field: `host_not_allowed`, `remote_peer_denied`, `cross_site_denied`, `cross_origin_denied`, `json_required`, or `session_required`. Each one is recorded in the Console log with source `security`.
 
-Read-only endpoints need no credential, so `webui.allowRemote` still allows LAN diagnostics — but never changes.
+Read-only endpoints need no session credential but still require a loopback peer and valid local Host. LAN diagnostics are disabled.
 
 ## Snapshot command keys
 

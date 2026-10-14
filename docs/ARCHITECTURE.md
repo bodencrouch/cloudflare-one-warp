@@ -112,7 +112,7 @@ Windows Cloudflare One exposes **Always On** in the client. Linux `warp-cli` has
 ## Configuration flow
 
 1. **Boot** — `reloadConfig()` merges layers (see [CONFIGURATION.md](CONFIGURATION.md)).
-2. **Listen** — `effectiveBind()` returns `127.0.0.1` unless `webui.enabled && webui.allowRemote`.
+2. **Listen** — `effectiveBind()` permits only loopback addresses; legacy remote settings resolve to `127.0.0.1`.
 3. **Runtime** — Session overrides mutate an in-memory layer; GET `/api/config` reflects changes immediately for keys that do not require restart.
 4. **WARP** — `warp.cli` selects binary; Flatpak sets `FLATPAK_ID` and uses `flatpak-spawn --host`.
 
@@ -131,7 +131,7 @@ Windows Cloudflare One exposes **Always On** in the client. Linux `warp-cli` has
 - Binds to loopback unless explicitly configured for remote Web UI.
 - No shell when invoking `warp-cli`; argument allow-lists for `/api/action`.
 - Destructive operations require GUI confirmation.
-- Every mutation passes the [request gate](#request-gate): local Host, loopback peer, same-origin, JSON body, and the per-daemon session credential. A page the user visits cannot drive WARP, and a remote peer cannot mutate anything even when `webui.allowRemote` or a `0.0.0.0` bind is configured.
+- Every mutation passes the [request gate](#request-gate): local Host, loopback peer, same-origin, JSON body, and the per-daemon session credential. Every API read also requires a loopback peer. Legacy remote settings cannot expose the control plane.
 - **Cross-site guard:** inside the API handler, every non-GET request also passes `crossSiteRejection()` — `Sec-Fetch-Site`, `Origin`, and a required `application/json` content type — as a second check behind the request gate.
 - AppImage self-updates require a valid Ed25519 signature from a pinned key and refuse downgrades (see [UPDATES.md](UPDATES.md)).
 - **Gap:** the kill-switch helper still elevates through `pkexec`, so the systemd units cannot set `NoNewPrivileges=true` yet (see [PACKAGING.md](PACKAGING.md)).

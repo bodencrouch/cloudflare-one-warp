@@ -9,7 +9,7 @@ cloudflare-one-warp --no-open
 Reading is open to anything on this computer. Anything that **changes** state needs the local session credential, so load it once per shell:
 
 ```bash
-SESSION=$(cat ~/.config/cloudflare-one-warp/session-4173.token)
+SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")
 ```
 
 See [endpoints](./endpoints.md#requests-that-change-something) for the full rules.

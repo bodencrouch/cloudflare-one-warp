@@ -1,6 +1,6 @@
 # Distribution channels
 
-Cloudflare One WARP ships through several channels. See [DISTRIBUTION](https://github.com/bodencrouch/cloudflare-one-warp/blob/main/docs/DISTRIBUTION.md) in the repo for maintainer details.
+Direct artifacts are available through GitHub Releases. Store recipes and publishing scripts do not establish that an app is listed in a store; the store channels below require their separate publishing/review steps. See [DISTRIBUTION](https://github.com/bodencrouch/cloudflare-one-warp/blob/main/docs/DISTRIBUTION.md) in the repo for maintainer details.
 
 ## Build from source
 
@@ -10,24 +10,33 @@ Cloudflare One WARP ships through several channels. See [DISTRIBUTION](https://g
 ./cloudflare-one-warp build rpm
 ./cloudflare-one-warp build flatpak
 ./cloudflare-one-warp build snap
-./cloudflare-one-warp build all          # staged artifacts under packaging/dist/
+./cloudflare-one-warp build all          # artifacts under dist/packages/
 ```
 
 ## Channels
 
 | Channel | Notes |
 |---------|-------|
-| **GitHub Releases** | AppImage and source tarballs |
-| **AppImageHub** | Community AppImage index |
-| **Flathub** | Flatpak (sandboxed) |
-| **Snap Store** | Strict confinement |
-| **COPR / AUR** | RPM and Arch packaging (see docs) |
-| **Homebrew** | `homebrew-tap` branch — tap formula |
+| **GitHub Releases** | AppImage, deb, rpm, Arch, Flatpak, Snap and source artifacts |
+| **AppImageHub** | Community index; available after listing acceptance |
+| **Flathub** | Requires Flathub submission acceptance; direct Flatpak bundles come from GitHub Releases |
+| **Snap Store** | Classic confinement; store upload and classic review required |
+| **COPR / AUR** | Require configured COPR/AUR publishing; direct rpm/Arch artifacts remain available |
+| **Homebrew** | Dedicated `bodencrouch/homebrew-cloudflare-one-warp` repository |
 | **GHCR Docker** | Container images for headless/API use |
 
-## npm package
+## Homebrew (macOS)
 
-The repo publishes the `cloudflare-one-warp` npm package name for programmatic installs; primary UX remains the native CLI launchers above.
+```bash
+brew tap bodencrouch/cloudflare-one-warp
+brew install cloudflare-one-warp
+```
+
+The tap is updated after release assets are published. If tap installation is unavailable, download the generated Formula artifact from the package workflow and run `brew install ./Formula/cloudflare-one-warp.rb`.
+
+## npm commands
+
+The repository is private in npm metadata and is not published as an npm installable package. Clone it and use the documented npm scripts to run checks or build artifacts.
 
 ## WARP prerequisite
 
