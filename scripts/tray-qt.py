@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import os
 import signal
+import re
+import stat
 import subprocess
 import sys
 
@@ -15,6 +17,7 @@ from tray_api import (
   launcher_path,
   snapshot_label,
   tray_icon_state,
+  session_token_path,
 )
 
 
@@ -85,8 +88,9 @@ def _write_png_icon(source: str, target: str, size: int) -> None:
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        timeout=5,
       )
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
       continue
     if completed.returncode == 0 and os.path.isfile(target):
       return
@@ -162,6 +166,70 @@ def notify_status(root: str, launcher: str) -> None:
     pass
 
 
+def create_native_page(parent=None, open_external=None):
+  """Restrict WebEngine navigation to one owner handoff and its daemon origin."""
+  from PyQt6.QtCore import QUrl
+  from PyQt6.QtGui import QDesktopServices
+  from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings, QWebEngineProfile
+  open_external = open_external or QDesktopServices.openUrl
+
+  class OwnerPage(QWebEnginePage):
+    def __init__(self):
+      self._private_profile = QWebEngineProfile(parent)
+      super().__init__(self._private_profile, parent)
+      self._private_profile.setParent(self)
+      self._handoff = None
+      self._origin = None
+      self.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, False)
+      self.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False)
+      self.newWindowRequested.connect(self._new_window)
+
+    def set_authenticated_target(self, handoff_uri, daemon_base):
+      handoff = QUrl(handoff_uri)
+      daemon = QUrl(daemon_base)
+      if daemon.scheme() != "http" or daemon.host() not in ("127.0.0.1", "localhost", "::1") or not 1024 <= daemon.port() <= 65535:
+        raise ValueError("Native Web UI requires a loopback daemon")
+      if daemon.userInfo() or daemon.path() not in ("", "/") or daemon.hasQuery() or daemon.hasFragment():
+        raise ValueError("Invalid daemon origin")
+      expected = os.path.join(os.path.dirname(session_token_path(daemon.port())), "webui-handoff")
+      path = handoff.toLocalFile()
+      if not handoff.isLocalFile() or handoff.host() or handoff.hasQuery() or handoff.hasFragment() or os.path.dirname(path) != expected:
+        raise ValueError("Native Web UI requires its private browser handoff")
+      if not re.fullmatch(r"handoff-%d-[a-f0-9-]+\.html" % daemon.port(), os.path.basename(path)):
+        raise ValueError("Invalid browser handoff filename")
+      for candidate, directory in ((expected, True), (path, False)):
+        info = os.lstat(candidate)
+        if stat.S_ISLNK(info.st_mode) or info.st_mode & 0o077 or (hasattr(os, "getuid") and info.st_uid != os.getuid()):
+          raise ValueError("Browser handoff is not private")
+        if directory and not stat.S_ISDIR(info.st_mode) or not directory and not stat.S_ISREG(info.st_mode):
+          raise ValueError("Invalid browser handoff path")
+      self._handoff = handoff.toString()
+      self._origin = (daemon.scheme(), daemon.host(), daemon.port())
+      # Only this verified, owner-written redirect file may navigate to HTTP.
+      self.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+
+    def _external(self, url):
+      if url.scheme() == "https" and url.host() and not url.userInfo():
+        open_external(url)
+
+    def _new_window(self, request):
+      if request.isUserInitiated():
+        self._external(request.requestedUrl())
+
+    def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
+      if not is_main_frame:
+        return False
+      if self._handoff and url.toString() == self._handoff:
+        return True
+      if self._origin and (url.scheme(), url.host(), url.port()) == self._origin and url.path() in ("", "/") and not url.userInfo():
+        return True
+      if navigation_type == QWebEnginePage.NavigationType.NavigationTypeLinkClicked:
+        self._external(url)
+      return False
+
+  return OwnerPage()
+
+
 def run_tray_app(show_window_on_start: bool = False) -> int:
   from PyQt6.QtCore import Qt, QTimer, QUrl
   from tray_workers import AsyncRunner
@@ -202,6 +270,7 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
       self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
 
       self._view = QWebEngineView(self)
+      self._view.setPage(create_native_page(self._view))
       self.setCentralWidget(self._view)
 
       from PyQt6.QtCore import QObject, pyqtSlot
@@ -244,11 +313,15 @@ def run_tray_app(show_window_on_start: bool = False) -> int:
         if error:
           print(f"Cloudflare One WARP window failed: {error}", file=sys.stderr)
           return
-        if force_reload or not self._loaded:
-          self._view.setUrl(QUrl(target))
-          self._loaded = True
-        else:
-          self._view.reload()
+        try:
+          self._view.page().set_authenticated_target(target, client.base_url)
+        except (OSError, ValueError) as rejected:
+          print(f"Native Web UI authentication failed: {rejected}", file=sys.stderr)
+          return
+        # A daemon restart rotates the credential; reload through the new private
+        # handoff rather than reusing a stale sessionStorage credential.
+        self._view.setUrl(QUrl(target))
+        self._loaded = True
 
       runner.submit(prepare, ready)
 

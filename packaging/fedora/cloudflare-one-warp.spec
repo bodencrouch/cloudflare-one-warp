@@ -1,5 +1,5 @@
 Name:           cloudflare-one-warp
-Version:        0.3.4
+Version:        0.3.5
 Release:        1%{?dist}
 Summary:        Cloudflare One WARP — unofficial Cloudflare One client via warp-cli
 
@@ -42,9 +42,17 @@ PAYLOAD_DIR="%{buildroot}" PACKAGE_VERSION="%{version}" bash packaging/scripts/s
 /etc/cloudflare-one-warp/config.json.example
 /etc/NetworkManager/dispatcher.d/99-cloudflare-one-warp
 /etc/sysctl.d/99-cloudflare-one-warp.conf
-/usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name
 /usr/share/cloudflare-one-warp/
 /usr/share/doc/cloudflare-one-warp/CHANGELOG.md
+/usr/share/doc/cloudflare-one-warp/SECURITY.md
+
+%post
+legacy_vpn=/usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name
+if [ -f "$legacy_vpn" ] && [ ! -L "$legacy_vpn" ] &&
+   grep -Fxq 'name=Cloudflare One WARP' "$legacy_vpn" &&
+   grep -Fxq 'service=org.cloudflare.one.warp' "$legacy_vpn"; then
+  rm -f "$legacy_vpn"
+fi
 
 %changelog
 * Sat Jul 18 2026 Cloudflare One WARP contributors - %{version}-1

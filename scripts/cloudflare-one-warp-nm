@@ -15,13 +15,14 @@ usage() {
 Install Cloudflare WARP NetworkManager profiles (MASQUE, WireGuard, local proxy).
 
 These appear in KDE System Settings → Network and the Plasma Networks widget.
-Use "Import VPN connection" or connect from the connection list.
+These are addressless NetworkManager connections; select them from the connection list.
+The system dispatcher starts and stops the official WARP client.
 
 Usage:
   $(basename "$0") [options]
 
 Options:
-  --user          Install to ~/.config/NetworkManager (default)
+  --user          Install under XDG_CONFIG_HOME/NetworkManager (default)
   --system        Install dispatcher + sysctl via pkexec (requires admin)
   --install-dir   Cloudflare One WARP app root (default: local install dir)
   --no-reload     Skip nmcli reload
@@ -46,14 +47,14 @@ if ! command -v nmcli >/dev/null 2>&1; then
   exit 1
 fi
 
-NM_USER_DIR="${HOME}/.config/NetworkManager/system-connections"
+CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
+[[ "$CONFIG_HOME" == /* ]] || CONFIG_HOME="${HOME}/.config"
+NM_USER_DIR="${CONFIG_HOME}/NetworkManager/system-connections"
 NM_SHARE_DIR="${INSTALL_DIR}/packaging/networkmanager/profiles"
 DISPATCHER_SRC="${INSTALL_DIR}/packaging/networkmanager/99-cloudflare-one-warp"
 DISPATCHER_DST="/etc/NetworkManager/dispatcher.d/99-cloudflare-one-warp"
 SYSCTL_SRC="${INSTALL_DIR}/packaging/sysctl/99-cloudflare-one-warp.conf"
 SYSCTL_DST="/etc/sysctl.d/99-cloudflare-one-warp.conf"
-VPN_NAME_SRC="${INSTALL_DIR}/packaging/networkmanager/nm-cloudflare-one-warp-service.name"
-VPN_NAME_DST="/usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name"
 
 chmod +x "${INSTALL_DIR}/scripts/cloudflare-one-warp-connect" 2>/dev/null || true
 chmod +x "${INSTALL_DIR}/scripts/cloudflare-one-warp-kde-proxy-sync" 2>/dev/null || true
@@ -68,15 +69,18 @@ if [[ "$SCOPE" == "system" ]]; then
     echo "pkexec required for --system install" >&2
     exit 1
   fi
-  pkexec env CLOUDFLARE_ONE_WARP_HOME="$INSTALL_DIR" bash -c "
+  # Pass paths as positional arguments rather than interpolating privileged shell code.
+  pkexec /bin/bash -c '
     set -euo pipefail
-    install -D -m 0755 '${INSTALL_DIR}/scripts/cloudflare-one-warp-connect' '/usr/local/bin/cloudflare-one-warp-connect'
-    install -D -m 0755 '${DISPATCHER_SRC}' '${DISPATCHER_DST}'
-    install -D -m 0644 '${SYSCTL_SRC}' '${SYSCTL_DST}'
-    install -D -m 0644 '${VPN_NAME_SRC}' '${VPN_NAME_DST}'
-    sysctl --system >/dev/null 2>&1 || sysctl -p '${SYSCTL_DST}' >/dev/null 2>&1 || true
-    echo 'Installed system NetworkManager dispatcher and sysctl drop-in.'
-  "
+    install -D -m 0755 "$1" /usr/local/bin/cloudflare-one-warp-connect
+    install -D -m 0755 "$2" /etc/NetworkManager/dispatcher.d/99-cloudflare-one-warp
+    install -D -m 0644 "$3" /etc/sysctl.d/99-cloudflare-one-warp.conf
+    # Remove the legacy descriptor: no custom NetworkManager VPN plugin exists.
+    rm -f /usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name
+    sysctl -p /etc/sysctl.d/99-cloudflare-one-warp.conf
+  ' cloudflare-one-warp-install \
+    "${INSTALL_DIR}/scripts/cloudflare-one-warp-connect" "$DISPATCHER_SRC" "$SYSCTL_SRC"
+
 else
   echo "Tip: run $(basename "$0") --system once (with pkexec) so KDE connect/disconnect hooks work system-wide."
 fi
@@ -90,6 +94,6 @@ if [[ "$RELOAD_NM" -eq 1 ]]; then
 fi
 
 echo "Cloudflare One WARP network profiles ready."
-echo "  Import: System Settings → Network → + → Import VPN connection…"
+echo "  Select the addressless Cloudflare One WARP connection in NetworkManager."
 echo "  Or pick: Cloudflare One WARP (MASQUE | WireGuard | Local proxy) in the connection list."
 echo "  Docs: ${INSTALL_DIR}/docs/NETWORKING.md"

@@ -68,6 +68,17 @@ const name = require('node:path').basename(process.argv[1]);
     }
   } else if (name === 'kwriteconfig6' && args[0] !== '--help') {
     fs.appendFileSync(process.env.WARP_TEST_KDE_LOG, JSON.stringify(args) + '\\n');
+    const file = require('node:path').join(process.env.XDG_CONFIG_HOME, 'kioslaverc');
+    let entries = {};
+    if (fs.existsSync(file)) for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
+      const equals = line.indexOf('=');
+      if (equals >= 0) entries[line.slice(0, equals)] = line.slice(equals + 1);
+    }
+    const key = args[args.indexOf('--key') + 1];
+    if (args.includes('--delete')) delete entries[key]; else entries[key] = args[args.length - 1];
+    fs.mkdirSync(process.env.XDG_CONFIG_HOME, { recursive: true });
+    fs.writeFileSync(file, '[Proxy Settings]\\n' + Object.entries(entries).map(([k,v]) => k + '=' + v).join('\\n') + '\\n');
+
   }
 })();
 `;
@@ -76,16 +87,34 @@ const name = require('node:path').basename(process.argv[1]);
   for (const name of ["nft", "pkexec", "notify-send", "dbus-send"]) {
     await writeFile(join(bin, name), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
   }
+  const cliWrapper = join(directory, "cli-wrapper.mjs");
+  await writeFile(cliWrapper, `
+import { spawnSync } from "node:child_process";
+const mock = ${JSON.stringify(join(root, "scripts/mock-warp-cli.mjs"))};
+const args = process.argv.slice(2);
+if (args.includes("--listen")) {
+  let previous = "";
+  const poll = () => {
+    const result = spawnSync(process.execPath, [mock, "status"], { encoding: "utf8" });
+    if (result.stdout !== previous) { previous = result.stdout; process.stdout.write(previous); }
+  };
+  poll(); setInterval(poll, 200);
+} else {
+  const result = spawnSync(process.execPath, [mock, ...args], { encoding: "utf8" });
+  process.stdout.write(result.stdout || ""); process.stderr.write(result.stderr || "");
+  process.exitCode = result.status ?? 1;
+}
+`);
   const port = await unusedPort();
   const baseUrl = `http://127.0.0.1:${port}`;
-  const httpJson = createHttpJson(baseUrl);
+  const httpJson = createHttpJson(baseUrl, { env: { ...process.env, HOME: directory, XDG_CONFIG_HOME: join(directory, "config") } });
   daemon = spawn(process.execPath, ["server.js"], {
     cwd: root, stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env, HOME: directory, XDG_CONFIG_HOME: join(directory, "config"),
       XDG_RUNTIME_DIR: join(directory, "runtime"), PATH: bin + ":" + process.env.PATH,
       CLOUDFLARE_ONE_WARP_PORT: String(port), CLOUDFLARE_ONE_WARP_BIND: "127.0.0.1",
-      WARP_CLI: join(root, "scripts/mock-warp-cli.mjs"),
+      WARP_CLI: cliWrapper,
       CLOUDFLARE_ONE_WARP_WEBUI: "0", CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0",
       CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1", MOCK_WARP_STATE: join(directory, "warp.json"),
       WARP_TEST_NM_LOG: nmLog, WARP_TEST_KDE_LOG: kdeLog,
@@ -122,4 +151,19 @@ const name = require('node:path').basename(process.argv[1]);
   assert.equal(proxyWrites.at(-1).at(-1), "127.0.0.1:42421");
   const settings = await httpJson("GET", "/api/snapshot");
   assert.equal(settings.json.settings["Proxy port"], "42421");
+  const restored = async () => (await writes()).filter(args => args.includes("http_proxy") && args.includes("--delete")).length;
+  const initialRestores = await restored();
+  await action("runCustom", "disconnect");
+  await waitUntil(async () => (await restored()) > initialRestores, "custom disconnect did not restore KDE");
+  const previousProxyWrites = (await writes()).filter(args => args.includes("http_proxy") && args.at(-1) === "127.0.0.1:42421").length;
+  await action("connect");
+  await waitUntil(async () => (await writes()).filter(args => args.includes("http_proxy") && args.at(-1) === "127.0.0.1:42421").length > previousProxyWrites,
+    "reconnect did not re-enable KDE");
+  await sleep(500); // Let the isolated mock listener observe the connected state.
+
+  const beforeExternal = await restored();
+  const external = spawn(process.execPath, [join(root, "scripts/mock-warp-cli.mjs"), "disconnect"], { env: { ...process.env, MOCK_WARP_STATE: join(directory, "warp.json") } });
+  await once(external, "close");
+  await waitUntil(async () => (await restored()) > beforeExternal, "external CLI disconnect did not restore KDE");
+
 });

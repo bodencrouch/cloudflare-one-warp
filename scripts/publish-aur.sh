@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${1:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 AUR_DIR="$(mktemp -d)"
 AUR_PKG="${AUR_PACKAGE_NAME:-cloudflare-one-warp}"
 AUR_REMOTE="${AUR_REMOTE:-ssh://aur.archlinux.org/${AUR_PKG}.git}"

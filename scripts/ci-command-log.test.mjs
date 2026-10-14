@@ -30,7 +30,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const httpJson = createHttpJson(baseUrl);
+const httpJson = createHttpJson(baseUrl, { env: { ...process.env, HOME: logsConfigHome, XDG_CONFIG_HOME: join(logsConfigHome, ".config") } });
 
 before(async () => {
   serverProc = spawn(process.execPath, ["server.js"], {

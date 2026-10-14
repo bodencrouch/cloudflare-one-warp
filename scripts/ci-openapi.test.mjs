@@ -27,7 +27,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const httpJson = createHttpJson(baseUrl);
+const httpJson = createHttpJson(baseUrl, { env: { ...process.env, HOME: configHome, XDG_CONFIG_HOME: join(configHome, ".config") } });
 
 function assertRequired(obj, required, label) {
   for (const key of required) {

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${1:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 TAG="v${VERSION}"
 APPIMAGE="cloudflare-one-warp-${VERSION}-x86_64.AppImage"
 BASE="https://github.com/bodencrouch/cloudflare-one-warp/releases/download/${TAG}/${APPIMAGE}"
@@ -40,12 +40,19 @@ if [[ -z "${GH_PAT:-}" ]]; then
   exit 0
 fi
 
+if [[ ! "$SHA" =~ ^[0-9a-fA-F]{64}$ ]]; then
+  echo "Refusing to publish AppImageHub listing without a valid SHA-256" >&2; exit 1
+fi
+
 HUB_FORK="${APPIMAGEHUB_FORK:-bodencrouch/appimage.github.io}"
 BRANCH="cloudflare-one-warp-${VERSION}"
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
+# shellcheck source=lib/common.sh
+source "${ROOT}/scripts/lib/common.sh"
+cloudflare_one_warp_setup_git_credentials "$WORKDIR" "${GH_PAT}"
 
-git clone "https://x-access-token:${GH_PAT}@github.com/${HUB_FORK}.git" "$WORKDIR/hub"
+git clone "https://github.com/${HUB_FORK}.git" "$WORKDIR/hub"
 git -C "$WORKDIR/hub" checkout -B "$BRANCH"
 mkdir -p "$WORKDIR/hub/data"
 cp "$OUT" "$WORKDIR/hub/data/cloudflare-one-warp.yml"
@@ -54,7 +61,7 @@ git -C "$WORKDIR/hub" config user.name "bodencrouch"
 git -C "$WORKDIR/hub" add "data/cloudflare-one-warp.yml"
 if git -C "$WORKDIR/hub" diff --cached --quiet; then echo "No AppImageHub changes."; exit 0; fi
 git -C "$WORKDIR/hub" commit -m "Add Cloudflare One WARP ${VERSION}"
-git -C "$WORKDIR/hub" push -f origin "$BRANCH"
+git -C "$WORKDIR/hub" push --force-with-lease origin "$BRANCH"
 
 if command -v gh >/dev/null 2>&1; then
   GH_TOKEN="$GH_PAT" gh pr create \

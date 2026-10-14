@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 FORMAT="${1:-}"
-VERSION="${PACKAGE_VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${PACKAGE_VERSION:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 OUT="${ROOT}/dist/packages"
 NFPM_VERSION="${NFPM_VERSION:-2.41.3}"
 
@@ -19,8 +19,13 @@ bash "${ROOT}/packaging/scripts/stage-payload.sh"
 if ! command -v nfpm >/dev/null 2>&1; then
   echo "Installing nfpm ${NFPM_VERSION}..."
   tmp="$(mktemp -d)"
-  curl --connect-timeout 30 --max-time 300 -fsSL "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz" \
-    | tar -xz -C "$tmp" nfpm
+  nfpm_sha256="${NFPM_SHA256:-22aa6d3bc2ec239d62d3d190bcb036a47f2b24e0c3c6edfccebb6a55fbb2078e}"
+  if [[ "$NFPM_VERSION" != "2.41.3" && -z "${NFPM_SHA256:-}" ]]; then
+    echo "NFPM_SHA256 is required when overriding NFPM_VERSION" >&2; exit 1
+  fi
+  curl --connect-timeout 30 --max-time 300 -fsSL "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz" -o "$tmp/nfpm.tar.gz"
+  printf '%s  %s\n' "$nfpm_sha256" "$tmp/nfpm.tar.gz" | sha256sum -c -
+  tar -xzf "$tmp/nfpm.tar.gz" -C "$tmp" nfpm
   install -m 0755 "${tmp}/nfpm" /usr/local/bin/nfpm 2>/dev/null \
     || install -m 0755 "${tmp}/nfpm" "${HOME}/.local/bin/nfpm"
   export PATH="${HOME}/.local/bin:${PATH}"

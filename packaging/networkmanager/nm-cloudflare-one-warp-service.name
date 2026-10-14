@@ -1,9 +1,0 @@
-[VPN Connection]
-name=Cloudflare One WARP
-description=Cloudflare WARP via warp-cli — import MASQUE, WireGuard, or local proxy profiles
-service=org.cloudflare.one.warp
-supports-multiple-connections=true
-
-[GNOME]
-properties=org.cloudflare.one.warp
-supports-hints=true

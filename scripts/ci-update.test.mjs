@@ -875,3 +875,136 @@ test("release picker only offers Apply after selected release prepare supplies a
   assert.equal(state.update.confirmToken, "selected-release-token");
   assert.equal(state.update.result.recommendedAsset.name, ASSET_NAME);
 });
+
+test("release version precedence follows semver including hyphens and large numeric identifiers", () => {
+  assert.ok(lt("1.0.0-9", "1.0.0-alpha"));
+  assert.ok(gt("1.0.0-beta-z", "1.0.0-beta-a"));
+  assert.ok(gt("1.0.0-beta.999999999999999999999", "1.0.0-beta.999999999999999999998"));
+  assert.equal(coerce("1.0.0junk"), null);
+  assert.equal(coerce("1.0.0-beta.01"), null);
+  assert.equal(coerce("1.0.0-beta-z+build.7"), "1.0.0-beta-z");
+});
+
+test("download trust excludes wildcard hosts, embedded credentials and alternate ports", async () => {
+  const { isTrustedAssetUrl } = await import("../lib/update/github.mjs");
+  for (const url of ["https://api.github.com/x", "https://raw.githubusercontent.com/x", "https://user:secret@github.com/x", "https://github.com:8443/x", "https://github.com/x#fragment"]) {
+    assert.equal(isTrustedAssetUrl(url), false, url);
+  }
+  assert.equal(isTrustedAssetUrl("https://release-assets.githubusercontent.com/x?token=example"), true);
+});
+
+test("asset redirects never forward credentials to another origin", async () => {
+  const { fetchTrustedAsset } = await import("../lib/update/apply-appimage.mjs");
+  let calls = 0;
+  await fetchTrustedAsset(ASSET_URL, {
+    headers: { authorization: "Bearer secret", cookie: "private=value", "proxy-authorization": "Basic secret", "user-agent": "test" },
+    fetchImpl: async (url, options) => {
+      calls++;
+      if (calls === 1) return new Response(null, { status: 302, headers: { location: "https://release-assets.githubusercontent.com/release" } });
+      assert.equal(options.headers.get("authorization"), null);
+      assert.equal(options.headers.get("cookie"), null);
+      assert.equal(options.headers.get("proxy-authorization"), null);
+      assert.equal(options.headers.get("user-agent"), "test");
+      return new Response("asset");
+    }
+  });
+  assert.equal(calls, 2);
+});
+
+test("raw binary detached signatures survive network decoding", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "warp-raw-signature-"));
+  const target = join(dir, "warp.AppImage");
+  writeFileSync(target, "old");
+  const payload = Buffer.from("signed update");
+  const { privateKey, trusted } = releaseKeypair();
+  const signature = sign(null, payload, privateKey);
+  try {
+    const result = await applyAppImageUpdate({ name: ASSET_NAME, url: ASSET_URL }, {
+      targetPath: target, trustedKeys: trusted,
+      releaseAssets: [{ name: `${ASSET_NAME}.sig`, url: `${ASSET_URL}.sig` }],
+      fetchImpl: async (url) => new Response(String(url).endsWith(".sig") ? signature : payload)
+    });
+    assert.equal(result.signatureVerified, true);
+    assert.deepEqual(readFileSync(target), payload);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("authenticated release metadata is never reused for other credentials or anonymous requests", async () => {
+  const { listReleases } = await import("../lib/update/github.mjs");
+  clearGithubCache();
+  const source = { owner: "test", repo: "private-metadata" };
+  let calls = 0;
+  const fetchImpl = async () => { calls++; return new Response(JSON.stringify([{ tag_name: `v1.0.${calls}`, assets: [] }])); };
+  await listReleases(source, { fetchImpl, env: { GITHUB_TOKEN: "first" } });
+  await listReleases(source, { fetchImpl, env: { GITHUB_TOKEN: "second" } });
+  await listReleases(source, { fetchImpl, env: {} });
+  await listReleases(source, { fetchImpl, env: {} });
+  assert.equal(calls, 3);
+  clearGithubCache();
+});
+
+test("confirmation token issuance bounds outstanding approvals and retains single-use binding", async () => {
+  const { issueApplyConfirmToken, consumeApplyConfirmToken, clearApplyConfirmTokens } = await import("../lib/update/confirm.mjs");
+  clearApplyConfirmTokens();
+  const binding = { owner: "o", repo: "r", tag: "v1", assetUrl: ASSET_URL };
+  const oldest = issueApplyConfirmToken(binding);
+  let newest;
+  for (let i = 0; i < 128; i++) newest = issueApplyConfirmToken(binding);
+  assert.equal(consumeApplyConfirmToken(oldest, binding), false);
+  assert.equal(consumeApplyConfirmToken(newest, binding), true);
+  assert.equal(consumeApplyConfirmToken(newest, binding), false);
+  clearApplyConfirmTokens();
+});
+
+test("async package detection stays responsive and caches probes without caching environment overrides", { skip: process.platform === "win32" }, async () => {
+  const { execFile } = await import("node:child_process");
+  const dir = mkdtempSync(join(tmpdir(), "warp-format-probe-"));
+  const log = join(dir, "calls");
+  // Force a genuinely slow external package query, isolated from the host.
+  writeFileSync(join(dir, "rpm"), `#!${process.execPath}\nrequire('node:fs').appendFileSync(${JSON.stringify(log)}, 'rpm\\n'); setTimeout(() => process.exit(0), 180);\n`, { mode: 0o755 });
+  const moduleUrl = new URL("../lib/update/detect-format.mjs", import.meta.url).href;
+  const program = `
+    import { detectInstallFormatAsync } from ${JSON.stringify(moduleUrl)};
+    let beats = 0;
+    const heartbeat = setInterval(() => beats++, 5);
+    const first = await detectInstallFormatAsync({});
+    const second = await detectInstallFormatAsync({});
+    const override = await detectInstallFormatAsync({ CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "snap" });
+    clearInterval(heartbeat);
+    console.log(JSON.stringify({ first, second, override, beats }));
+  `;
+  try {
+    const stdout = await new Promise((resolve, reject) => execFile(process.execPath, ["--input-type=module", "-e", program], {
+      env: { ...process.env, PATH: dir }, timeout: 5000
+    }, (error, stdout) => error ? reject(error) : resolve(stdout)));
+    const result = JSON.parse(stdout.trim());
+    assert.equal(result.first, "rpm");
+    assert.equal(result.second, "rpm");
+    assert.equal(result.override, "snap");
+    assert.ok(result.beats >= 10, `event loop heartbeat count ${result.beats}`);
+    assert.equal(readFileSync(log, "utf8"), "rpm\n");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("stable manifest pointers cannot select prerelease builds", async () => {
+  clearGithubCache();
+  const result = await checkForUpdate({ updates: { channel: "stable", source: { owner: "test", repo: "channel-policy" } } }, {
+    env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "source" },
+    fetchImpl: async (url) => new Response(JSON.stringify(String(url).includes("update-manifest.json")
+      ? { stable: { version: "9.0.0-beta.1", tag: "v9.0.0-beta.1" } }
+      : [
+        { tag_name: "v9.0.0-beta.1", prerelease: true, assets: [] },
+        { tag_name: "v8.0.0", prerelease: false, assets: [] }
+      ]))
+  });
+  assert.equal(result.release.tag, "v8.0.0");
+  assert.equal(result.latest, "8.0.0");
+  clearGithubCache();
+});
+
+test("versions reject leading zero core identifiers and source paths reject traversal segments", async () => {
+  assert.equal(coerce("01.2.3"), null);
+  const { isSafeGithubRef } = await import("../lib/update/detect-format.mjs");
+  assert.equal(isSafeGithubRef(".."), false);
+  assert.equal(isSafeGithubRef("."), false);
+});

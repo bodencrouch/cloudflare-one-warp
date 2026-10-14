@@ -6,10 +6,48 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
+
+
+class BackgroundRefresh:
+  """Coalesce slow refreshes and deliver results through the GUI dispatcher."""
+  def __init__(self, dispatch):
+    self.dispatch = dispatch
+    self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="warp-sni-io")
+    self.pending = False
+    self.closed = False
+
+  def submit(self, operation, callback):
+    if self.closed or self.pending:
+      return False
+    self.pending = True
+    future = self.pool.submit(operation)
+
+    def completed(result):
+      try:
+        value, error = result.result(), None
+      except Exception as exc:
+        value, error = None, exc
+
+      def deliver():
+        self.pending = False
+        if not self.closed:
+          callback(value, error)
+        return False
+
+      if not self.closed:
+        self.dispatch(deliver)
+
+    future.add_done_callback(completed)
+    return True
+
+  def close(self):
+    self.closed = True
+    self.pool.shutdown(wait=False, cancel_futures=True)
+
 
 ICON_NAME = "cloudflare-one-warp"
 TRAY_ICON_SIZES = (16, 22, 24, 32, 48)
-SNI_OBJECT_PATH = "/org/ayatana/NotificationItem/cloudflare_one_warp"
 
 
 def _require_gi():
@@ -82,8 +120,9 @@ def _write_png_icon(source: str, target: str, size: int) -> None:
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        timeout=5,
       )
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
       continue
     if completed.returncode == 0 and os.path.isfile(target):
       return
@@ -123,66 +162,6 @@ def ensure_tray_icon(root: str) -> str:
     except (OSError, subprocess.TimeoutExpired):
       pass
   return ICON_NAME
-
-
-def apply_kde_icon_pixmap() -> None:
-  """Push a raster IconPixmap over D-Bus for Plasma when theme lookup fails."""
-  png = tray_icon_png(22)
-  if not os.path.isfile(png):
-    png = tray_icon_png(24)
-  if not os.path.isfile(png):
-    return
-
-  import gi
-
-  gi.require_version("GdkPixbuf", "2.0")
-  gi.require_version("GLib", "2.0")
-  from gi.repository import Gio, GLib, GdkPixbuf
-
-  pixbuf = GdkPixbuf.Pixbuf.new_from_file(png)
-  width = pixbuf.get_width()
-  height = pixbuf.get_height()
-  ok, data = pixbuf.save_to_bufferv("png", [], [])
-  if not ok:
-    return
-
-  bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-  watcher = Gio.DBusProxy.new_sync(
-    bus,
-    Gio.DBusProxyFlags.NONE,
-    None,
-    "org.kde.StatusNotifierWatcher",
-    "/StatusNotifierWatcher",
-    "org.kde.StatusNotifierWatcher",
-    None,
-  )
-  items = watcher.get_cached_property("RegisteredStatusNotifierItems")
-  if items is None:
-    return
-
-  service_name = None
-  for entry in items.unpack():
-    if entry.endswith(SNI_OBJECT_PATH):
-      service_name = entry.split("/", 1)[0]
-      break
-  if not service_name:
-    return
-
-  pixmaps = GLib.Variant("a(iiay)", [(width, height, data)])
-  try:
-    bus.call_sync(
-      service_name,
-      SNI_OBJECT_PATH,
-      "org.freedesktop.DBus.Properties",
-      "Set",
-      GLib.Variant("(ssv)", ("org.kde.StatusNotifierItem", "IconPixmap", pixmaps)),
-      None,
-      Gio.DBusCallFlags.NONE,
-      2000,
-      None,
-    )
-  except GLib.Error:
-    pass
 
 
 def run_cmd(command: list[str], env: dict[str, str] | None = None) -> None:
@@ -245,6 +224,7 @@ def add_menu_item(menu, Gtk, label: str, callback) -> None:
 
 
 def configure_indicator_icon(indicator, icon_name: str) -> None:
+  indicator.set_icon_theme_path(icon_theme_root())
   indicator.set_icon(icon_name)
 
 
@@ -275,33 +255,42 @@ def main() -> int:
   menu = Gtk.Menu()
   menu.set_reserve_toggle_size(False)
 
-  warp_script = os.path.join(root, "scripts", "tray-warp-action.py")
-
   add_menu_item(
     menu,
     Gtk,
     "Show Cloudflare One WARP",
-    lambda: run_cmd([os.path.join(root, "bin", "cloudflare-one-warp-tray"), "--panel"]),
+    lambda: run_cmd([launcher, "--webui"]),
   )
 
   connection_item = Gtk.MenuItem.new_with_label("Connect")
   menu.append(connection_item)
 
-  def refresh_connection_item() -> bool:
-    try:
-      from tray_api import CloudflareOneWarpClient, connection_control, ensure_daemon
+  from tray_api import CloudflareOneWarpClient, connection_control, snapshot_label
+  background = BackgroundRefresh(GLib.idle_add)
+  actions = BackgroundRefresh(GLib.idle_add)
 
-      ensure_daemon(launcher)
-      ctrl = connection_control(CloudflareOneWarpClient().snapshot())
-      connection_item.set_label(str(ctrl["label"]))
-      connection_item.set_sensitive(bool(ctrl["enabled"]))
-    except Exception:
+  def read_snapshot():
+    return CloudflareOneWarpClient().snapshot()
+
+  def refreshed(snapshot, error):
+    if error:
       connection_item.set_label("Connect")
       connection_item.set_sensitive(False)
+      indicator.set_title("Cloudflare One WARP - daemon unavailable")
+      return
+    ctrl = connection_control(snapshot)
+    connection_item.set_label(str(ctrl["label"]))
+    connection_item.set_sensitive(bool(ctrl["enabled"]) and not actions.pending)
+    indicator.set_title(f"Cloudflare One WARP - {snapshot_label(snapshot)}")
+
+  def refresh_connection_item() -> bool:
+    background.submit(read_snapshot, refreshed)
     return True
 
   def on_connection(_item) -> None:
-    run_cmd([sys.executable, "-u", warp_script], env={"CLOUDFLARE_ONE_WARP_APP_DIR": root})
+    connection_item.set_sensitive(False)
+    actions.submit(lambda: CloudflareOneWarpClient().run_connection_action(),
+      lambda _value, _error: refresh_connection_item())
 
   connection_item.connect("activate", on_connection)
   menu.connect("show", lambda *_args: refresh_connection_item())
@@ -318,16 +307,10 @@ def main() -> int:
   indicator.set_menu(menu)
 
   def refresh_title() -> bool:
-    indicator.set_title(f"Cloudflare One WARP - {status_text(launcher)}")
     refresh_connection_item()
     return True
 
-  def push_pixmap() -> bool:
-    apply_kde_icon_pixmap()
-    return False
-
   GLib.timeout_add_seconds(30, refresh_title)
-  GLib.timeout_add(500, push_pixmap)
 
   print(
     "Cloudflare One WARP tray started (StatusNotifierItem). "
@@ -339,7 +322,12 @@ def main() -> int:
     file=sys.stderr,
   )
 
-  Gtk.main()
+  refresh_connection_item()
+  try:
+    Gtk.main()
+  finally:
+    background.close()
+    actions.close()
   return 0
 
 

@@ -1,93 +1,44 @@
 # KDE Plasma and NetworkManager integration
 
-Cloudflare One WARP integrates Cloudflare WARP with **NetworkManager** and **KDE Plasma** so you can connect from the same places as Wi‑Fi and other networks.
+Cloudflare One WARP controls the official `warp-cli`; `warp-svc` owns the tunnel, keys, routes and DNS. NetworkManager companion profiles provide connect/disconnect controls without configuring the vendor tunnel interface.
 
-WARP is **not** a traditional OpenVPN/WireGuard file you paste into NetworkManager — the official client uses the **`CloudflareWARP`** tunnel interface and **`warp-cli`**. Cloudflare One WARP ships ready-made profiles and hooks that call `warp-cli` for you.
+## Companion profiles
 
-Research note: the [warp-docker](https://github.com/cmj2002/warp-docker) project documents low-level WARP behaviour (TUN device, MASQUE vs WireGuard, local proxy on port 40000, policy routing). Cloudflare One WARP follows those same `warp-cli` commands on native Linux.
+| Connection | Marker interface | WARP mode |
+|---|---|---|
+| Cloudflare One WARP (MASQUE) | `cfw-masque` | MASQUE full tunnel |
+| Cloudflare One WARP (WireGuard) | `cfw-wireguard` | WireGuard full tunnel |
+| Cloudflare One WARP (Local proxy) | `cfw-proxy` | MASQUE local proxy |
 
-## Profiles (MASQUE, WireGuard, local proxy)
+These are `type=dummy` connections with IPv4 and IPv6 disabled and autoconnect off. They never run DHCP on `CloudflareWARP`. They are not importable VPN configurations and require no NetworkManager VPN plugin.
 
-| Profile | Protocol | Mode | Use when |
-|---------|----------|------|----------|
-| **Cloudflare One WARP (MASQUE)** | MASQUE (HTTP/3) | Full tunnel | Default; works on restrictive networks |
-| **Cloudflare One WARP (WireGuard)** | WireGuard | Full tunnel | You prefer UDP WireGuard to the edge |
-| **Cloudflare One WARP (Local proxy)** | MASQUE | Local proxy | Only apps using the proxy / WARP shortcuts use the tunnel |
-
-Full-tunnel profiles bind to interface **`CloudflareWARP`** (created by `warp-svc` when connected). Local proxy listens on **`127.0.0.1:40000`** (SOCKS/HTTP).
-
-## Install integration
-
-After `./cloudflare-one-warp install` or `./scripts/install-local.sh`:
+## Install and use
 
 ```bash
-# User profiles (~/.config/NetworkManager/system-connections/)
 ./scripts/cloudflare-one-warp-nm --user
-
-# Dispatcher + sysctl (recommended once; prompts for admin)
-./scripts/cloudflare-one-warp-nm --system
+./scripts/cloudflare-one-warp-nm --system  # privileged dispatcher and sysctl installation
 ```
 
-If `nmcli` reports **access denied** when loading profiles, open **System Settings → Network → + → Import VPN connection…** and choose a file from `~/.config/NetworkManager/system-connections/Cloudflare One WARP-WARP-*.nmconnection`, then log out and back in (or restart NetworkManager) if they do not appear immediately.
-
-Packaged `.deb` / `.rpm` installs include dispatcher, sysctl drop-in, and importable profiles under `/usr/share/cloudflare-one-warp/networkmanager/profiles/`.
-
-### Sysctl
-
-WARP policy routing needs:
-
-```ini
-net.ipv4.conf.all.src_valid_mark=1
-```
-
-Installed to `/etc/sysctl.d/99-cloudflare-one-warp.conf` with `--system` or packages.
-
-## Using KDE Plasma
-
-1. **System Settings → Network** — connect **Cloudflare One WARP (MASQUE)**, **WireGuard**, or **Local proxy**.
-2. **Import VPN connection…** (bottom of the “Add connection” dialog) — pick a file from:
-   - `~/.config/NetworkManager/system-connections/Cloudflare One WARP-WARP-*.nmconnection`
-   - `/usr/share/cloudflare-one-warp/networkmanager/profiles/` (packages)
-3. **Plasma Networks widget** — configured WARP profiles appear alongside other connections.
-4. **Local proxy mode** — Cloudflare One WARP can sync **System Settings → Proxy** to `127.0.0.1:40000` when the local proxy profile is active.
-
-Connecting from KDE runs `scripts/cloudflare-one-warp-connect`, which executes the same steps as the official client:
+The user installer generates keyfiles under `${XDG_CONFIG_HOME:-$HOME/.config}/NetworkManager/system-connections` and loads them individually with `nmcli connection load`. NetworkManager authorization is required; resolve authorization failures before trying to activate a connection. Packaged profiles are supplied under `/usr/share/cloudflare-one-warp/networkmanager/profiles/`.
 
 ```bash
-# MASQUE full tunnel
-warp-cli tunnel protocol set MASQUE
-warp-cli mode warp
-warp-cli connect
-
-# WireGuard full tunnel
-warp-cli tunnel protocol set WireGuard
-warp-cli mode warp
-warp-cli connect
-
-# Local proxy (MASQUE required)
-warp-cli tunnel protocol set MASQUE
-warp-cli mode proxy
-warp-cli proxy port 40000
-warp-cli connect
+nmcli connection up 'Cloudflare One WARP (MASQUE)'
+nmcli connection down 'Cloudflare One WARP (MASQUE)'
 ```
 
-Disconnecting from KDE runs `warp-cli disconnect` and clears KDE proxy settings when applicable.
+With the dispatcher installed, marker activation runs the official CLI to set protocol and mode and connect. Deactivation disconnects WARP. Plasma may show these companion connections in its connection list; their presentation depends on the desktop and NetworkManager version.
 
-## Cloudflare One WARP app ↔ NetworkManager sync
+The sysctl drop-in sets `net.ipv4.conf.all.src_valid_mark=1` for policy-routing compatibility. It does not replace the routing policy maintained by `warp-svc`.
 
-When you connect or disconnect from the Cloudflare One WARP UI, the daemon tries to activate or deactivate the matching NetworkManager profile (`nmcli`). Requires `nmcli` on `PATH`.
+## KDE proxy ownership
 
-## Requirements
+Local proxy integration uses the actual configured proxy port. `scripts/cloudflare-one-warp-kde-proxy-sync` writes `kioslaverc`, journals previous settings under the app's private configuration directory, and restores settings it owns when disabling the proxy. It refuses existing active or immutable KDE proxy policy and relinquishes ownership when another application changes it. Failed writes retain recovery information instead of discarding the user's prior policy.
 
-- **NetworkManager** (`nmcli`)
-- **Cloudflare WARP** (`warp-cli`, `warp-svc`) on the host
-- Linux (KDE Plasma, GNOME, etc.)
-- For dispatcher hooks: write access to `/etc/NetworkManager/dispatcher.d/` (via `pkexec` or package install)
+```bash
+./scripts/cloudflare-one-warp-kde-proxy-sync on 40000
+./scripts/cloudflare-one-warp-kde-proxy-sync off
+```
 
-## Limitations
+The default port is 40000; use the port shown by `warp-cli settings list` when changed. Local proxy mode routes applications that actually use the proxy and does not tunnel general UDP traffic. Use full tunnel mode for that requirement.
 
-- WARP cannot appear as a native **WireGuard peer editor** in NetworkManager — Cloudflare owns keys and endpoints inside `warp-svc`.
-- A full **NetworkManager VPN plugin** (`.so`) would be needed for a custom row in the “Add VPN” type list without import; Cloudflare One WARP uses importable profiles + generic connections instead.
-- Local proxy mode does not tunnel UDP; use full tunnel profiles when you need UDP through WARP.
-
-See also [GETTING_STARTED.md](GETTING_STARTED.md) and [CONFIGURATION.md](CONFIGURATION.md).
+See [GETTING_STARTED.md](GETTING_STARTED.md) and [CONFIGURATION.md](CONFIGURATION.md).

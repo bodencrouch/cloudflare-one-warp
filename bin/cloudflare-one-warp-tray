@@ -13,8 +13,16 @@ LAUNCHER="$APP_DIR/bin/cloudflare-one-warp"
 ICON="$APP_DIR/assets/cloudflare-one-warp.svg"
 SNI_TRAY="$APP_DIR/scripts/tray-sni.py"
 QT_TRAY="$APP_DIR/scripts/tray-qt.py"
-RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/cloudflare-one-warp"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cloudflare-one-warp"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:+${XDG_RUNTIME_DIR}/cloudflare-one-warp}"
+RUNTIME_DIR="${RUNTIME_DIR:-${CACHE_DIR}/runtime}"
+# Never follow a shared runtime-directory symlink or another user's directory.
+if [[ -L "$RUNTIME_DIR" || ( -e "$RUNTIME_DIR" && ! -O "$RUNTIME_DIR" ) ]]; then
+  echo "Unsafe runtime directory: $RUNTIME_DIR" >&2
+  exit 1
+fi
+mkdir -p -m 700 "$RUNTIME_DIR"
+chmod 700 "$RUNTIME_DIR"
 TRAY_PID_FILE="${RUNTIME_DIR}/tray.pid"
 TRAY_LOG_FILE="${CACHE_DIR}/tray.log"
 
@@ -111,8 +119,8 @@ run_cloudflare_one_warp_tray() {
 }
 
 tray_python_bin() {
-  if [[ -n "${CLOUDFLARE_ONE_WARP_TRAY_PYTHON:-}" && -x "${CLOUDFLARE_ONE_WARP_TRAY_PYTHON}" ]]; then
-    printf '%s\n' "${CLOUDFLARE_ONE_WARP_TRAY_PYTHON}"
+  if [[ -n "${CLOUDFLARE_ONE_WARP_TRAY_PYTHON:-${CLOUDFLARE_ONE_WARP_PYTHON:-}}" ]]; then
+    printf '%s\n' "${CLOUDFLARE_ONE_WARP_TRAY_PYTHON:-$CLOUDFLARE_ONE_WARP_PYTHON}"
     return 0
   fi
   if [[ -x /usr/bin/python3 ]]; then
@@ -217,7 +225,7 @@ tray_diagnose() {
     printf '%s\n' "missing-display"
     return 1
   fi
-  if [[ "${XDG_SESSION_TYPE:-}" == wayland && -z "${DISPLAY:-}" ]] && ! tray_sni_available; then
+  if [[ "${XDG_SESSION_TYPE:-}" == wayland && -z "${DISPLAY:-}" ]] && ! tray_qt_available && ! tray_sni_available; then
     printf '%s\n' "missing-sni-wayland"
     return 1
   fi
@@ -316,9 +324,21 @@ ensure_daemon_api_only() {
   CLOUDFLARE_ONE_WARP_WEBUI=0 "$LAUNCHER" --no-open >/dev/null
 }
 
+process_pattern() {
+  printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g'
+}
+
 tray_process_running() {
-  pgrep -f "${QT_TRAY}" >/dev/null 2>&1 && return 0
-  pgrep -f "${SNI_TRAY}" >/dev/null 2>&1
+  pgrep -u "$UID" -f -- "$(process_pattern "$QT_TRAY")" >/dev/null 2>&1 && return 0
+  pgrep -u "$UID" -f -- "$(process_pattern "$SNI_TRAY")" >/dev/null 2>&1
+}
+
+tray_pid_matches() {
+  local pid="$1" command_line
+  [[ "$pid" =~ ^[0-9]+$ && "$pid" -gt 1 ]] || return 1
+  [[ "$(ps -p "$pid" -o uid= 2>/dev/null | tr -d " ")" == "$UID" ]] || return 1
+  command_line="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  [[ "$command_line" == *"$QT_TRAY"* || "$command_line" == *"$SNI_TRAY"* ]]
 }
 
 tray_already_running() {
@@ -328,7 +348,7 @@ tray_already_running() {
   if [[ -f "$TRAY_PID_FILE" ]]; then
     local pid
     pid="$(cat "$TRAY_PID_FILE" 2>/dev/null || true)"
-    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    if tray_pid_matches "$pid" && kill -0 "$pid" 2>/dev/null; then
       return 0
     fi
     clear_tray_pid
@@ -348,13 +368,13 @@ clear_tray_pid() {
 stop_tray() {
   local pid
   if tray_process_running; then
-    pkill -f "${QT_TRAY}" 2>/dev/null || true
-    pkill -f "${SNI_TRAY}" 2>/dev/null || true
-    pkill -f "yad --notification.*cloudflare-one-warp" 2>/dev/null || true
+    pkill -u "$UID" -f -- "$(process_pattern "$QT_TRAY")" 2>/dev/null || true
+    pkill -u "$UID" -f -- "$(process_pattern "$SNI_TRAY")" 2>/dev/null || true
+    pkill -u "$UID" -f -- "yad --notification.*cloudflare-one-warp" 2>/dev/null || true
     echo "Stopped Cloudflare One WARP tray."
   elif [[ -f "$TRAY_PID_FILE" ]]; then
     pid="$(cat "$TRAY_PID_FILE" 2>/dev/null || true)"
-    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    if tray_pid_matches "$pid" && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
     fi
     echo "Stopped Cloudflare One WARP tray."
@@ -475,7 +495,7 @@ show_tray_panel() {
   if tray_already_running; then
     if [[ -f "$TRAY_PID_FILE" ]]; then
       pid="$(cat "$TRAY_PID_FILE" 2>/dev/null || true)"
-      if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      if tray_pid_matches "$pid" && kill -0 "$pid" 2>/dev/null; then
         kill -USR1 "$pid" 2>/dev/null || true
         echo "Cloudflare One WARP control panel requested (tray pid $pid)." >&2
         return 0

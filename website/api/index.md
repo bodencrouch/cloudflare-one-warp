@@ -27,7 +27,7 @@ curl -s http://127.0.0.1:4173/api/health | jq
 
 ## Authentication
 
-All API routes require a loopback socket peer, including read-only routes. `server.bind` accepts loopback addresses only; the legacy `webui.allowRemote` setting does not enable LAN diagnostics. Mutations additionally require the local session credential and JSON content type. An explicit trusted local tunnel is needed for remote administration.
+All API routes require a loopback socket peer, including read-only routes. `server.bind` accepts loopback addresses only; the legacy `webui.allowRemote` setting does not enable LAN diagnostics. Every API except health and version requires the owner’s private local session credential. Mutations additionally require JSON content type. An explicit trusted local tunnel is needed for remote administration.
 
 ## OpenAPI
 
@@ -43,3 +43,7 @@ npm run test:openapi
 - [Actions catalog](/api/actions)
 - [curl cookbook](/api/cookbook)
 - [OpenAPI details](/api/openapi)
+
+## Browser access
+
+Run `cloudflare-one-warp --webui` to open an authenticated tab through the launcher’s private HTML handoff. Visiting the HTTP address directly does not distribute a credential. The handoff fragment is consumed into tab session storage and immediately cleared; native tools read the owner-private token file.

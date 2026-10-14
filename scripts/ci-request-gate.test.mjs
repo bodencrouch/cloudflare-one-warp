@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync, readFileSync, mkdirSync, chmodSync, chownSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import {
   API_SECURITY_HEADERS,
@@ -140,7 +140,7 @@ test("JSON content type with charset is accepted", () => {
 test("mutations without the session header are rejected", () => {
   const missing = evaluate({ headers: { [SESSION_HEADER]: undefined } });
   assert.equal(missing.allowed, false);
-  assert.equal(missing.status, 403);
+  assert.equal(missing.status, 401);
   assert.equal(missing.reason, "session_required");
 
   const wrong = evaluate({ headers: { [SESSION_HEADER]: "b".repeat(64) } });
@@ -158,13 +158,26 @@ test("mutations from non-loopback peers are rejected even with a valid session",
   assert.equal(verdict.reason, "remote_peer_denied");
 });
 
-test("read-only requests do not need a session token", () => {
+test("private reads require an owner session", () => {
   const verdict = evaluate({
     method: "GET",
     pathname: "/api/snapshot",
     headers: { origin: undefined, "content-type": undefined, [SESSION_HEADER]: undefined }
   });
-  assert.equal(verdict.allowed, true);
+  assert.equal(verdict.allowed, false);
+  assert.equal(verdict.status, 401);
+});
+
+test("public health/version probes require no owner while private HEAD requests do", () => {
+  for (const method of ["GET", "HEAD"]) {
+    for (const pathname of ["/api/health", "/api/version"]) {
+      assert.equal(evaluate({ method, pathname, headers: { [SESSION_HEADER]: undefined } }).allowed, true);
+    }
+    for (const pathname of ["/api/session", "/api/account", "/api/config", "/api/diagnostics", "/api/events"]) {
+      const verdict = evaluate({ method, pathname, headers: { [SESSION_HEADER]: undefined } });
+      assert.equal(verdict.status, 401, `${method} ${pathname}`);
+    }
+  }
 });
 
 test("remote read-only requests are denied even with a forged localhost Host", () => {
@@ -178,11 +191,11 @@ test("remote read-only requests are denied even with a forged localhost Host", (
   assert.equal(verdict.reason, "remote_peer_denied");
 });
 
-test("session bootstrap requires a same-origin loopback caller", () => {
+test("session confirmation requires a same-origin loopback owner", () => {
   const ok = evaluate({
     method: "GET",
     pathname: SESSION_ROUTE,
-    headers: { "content-type": undefined, [SESSION_HEADER]: undefined, "sec-fetch-site": "same-origin" }
+    headers: { "content-type": undefined, [SESSION_HEADER]: TOKEN, "sec-fetch-site": "same-origin" }
   });
   assert.equal(ok.allowed, true);
 
@@ -247,4 +260,74 @@ test("cleanup does not remove another daemon's token", () => {
     assert.equal(readSessionToken(PORT, env), second.token);
     assert.equal(removeSessionToken(PORT, env, second.token), true);
   } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+
+test("token publishing replaces a symlink without overwriting its target", { skip: process.platform === "win32" }, () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-token-link-"));
+  const env = { HOME: root, XDG_CONFIG_HOME: root };
+  const first = createSessionToken(PORT, env);
+  const victim = join(root, "unrelated-file");
+  writeFileSync(victim, "keep me");
+  rmSync(first.path);
+  symlinkSync(victim, first.path);
+  try {
+    const next = createSessionToken(PORT, env);
+    assert.equal(readFileSync(victim, "utf8"), "keep me");
+    assert.equal(readSessionToken(PORT, env), next.token);
+    assert.equal(statSync(next.path).mode & 0o777, 0o600);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("JSON content type must be the exact media type", () => {
+  for (const type of ["application/json-invalid", "application/jsonp", "application/json.foo"]) {
+    assert.equal(evaluate({ headers: { "content-type": type } }).status, 415);
+  }
+  assert.equal(evaluate({ headers: { "content-type": "application/json; charset=utf-8" } }).allowed, true);
+});
+
+
+test("publishing makes only the dedicated credential directory private", { skip: process.platform === "win32" }, () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-private-dir-"));
+  const env = { HOME: root, XDG_CONFIG_HOME: root };
+  const directory = dirname(sessionTokenPath(PORT, env));
+  try {
+    chmodSync(root, 0o755);
+    mkdirSync(directory, { mode: 0o755 });
+    createSessionToken(PORT, env);
+    assert.equal(statSync(directory).mode & 0o777, 0o700);
+    assert.equal(statSync(root).mode & 0o777, 0o755);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("credential directory symlinks are rejected for publish, read and cleanup", { skip: process.platform === "win32" }, () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-dir-link-"));
+  const env = { HOME: root, XDG_CONFIG_HOME: root };
+  const directory = dirname(sessionTokenPath(PORT, env));
+  const victim = join(root, "victim");
+  try {
+    mkdirSync(victim, { mode: 0o700 });
+    const victimToken = join(victim, `session-${PORT}.token`);
+    writeFileSync(victimToken, "keep me", { mode: 0o600 });
+    symlinkSync(victim, directory);
+    assert.throws(() => createSessionToken(PORT, env), /Unsafe private credential path/);
+    assert.equal(readSessionToken(PORT, env), null);
+    assert.equal(removeSessionToken(PORT, env), false);
+    assert.equal(readFileSync(victimToken, "utf8"), "keep me");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("credentials cannot use another OS user's app directory", {
+  skip: !process.getuid || process.getuid() !== 0
+}, () => {
+  const root = mkdtempSync(join(tmpdir(), "warp-foreign-dir-"));
+  const env = { HOME: root, XDG_CONFIG_HOME: root };
+  const directory = dirname(sessionTokenPath(PORT, env));
+  try {
+    mkdirSync(directory, { mode: 0o700 });
+    chownSync(directory, 1, 1);
+    assert.throws(() => createSessionToken(PORT, env), /belongs to another user/);
+    assert.equal(readSessionToken(PORT, env), null);
+    assert.equal(removeSessionToken(PORT, env), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

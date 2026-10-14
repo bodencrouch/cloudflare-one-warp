@@ -77,3 +77,12 @@ Run `npm run check` and `npm run test:all` before handoff. See **[docs/CI.md](do
 - Native nftables kill-switch lives under `lib/killswitch/` and is exposed via `/api/killswitch`.
 - KDE Plasma / NetworkManager integration: prebuilt WARP profiles (MASQUE, WireGuard, local proxy), dispatcher hooks, and optional KDE proxy sync — see `docs/NETWORKING.md` and `scripts/cloudflare-one-warp-nm`.
 - Outstanding native gaps often tracked: self-contained native shell (Tauri/Electron or bundled Qt in AppImage), and Windows visual parity. Tray packaging and polkit kill-switch helper ship in deb/rpm/AppImage payloads as of 0.2.x.
+
+## Security and ownership invariants
+
+- All API routes except health/version require the owner credential, including reads and event streams. Never add an unauthenticated session bootstrap.
+- Browser authentication uses the launcher's private HTML handoff and a promptly cleared fragment; never put credentials in command arguments, HTTP queries, logs, fixtures or documentation output.
+- NetworkManager profiles are IP-disabled dummy marker connections on `cfw-*` interfaces. Do not configure DHCP or routes on the vendor-owned `CloudflareWARP` interface or advertise VPN import support.
+- KDE proxy writes target `kioslaverc`, respect immutable/existing policy, and preserve recoverable ownership journals on failure.
+- Preserve transactional installation, scoped deletion, bounded subprocess execution and serialized mutating CLI workflows when extending features.
+- Document validation evidence accurately: mock success is not native certification; an application dependency SBOM is not a complete bundled-runtime SBOM.

@@ -27,7 +27,7 @@ See [`config/config.example.json`](https://github.com/bodencrouch/cloudflare-one
 ## Inspect effective config
 
 ```bash
-curl -s http://127.0.0.1:4173/api/config | jq
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/config | jq
 ```
 
 Returns merged `config` plus `sources` showing which layer set each key.

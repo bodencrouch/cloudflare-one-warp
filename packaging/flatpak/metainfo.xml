@@ -27,9 +27,9 @@
     <category>Utility</category>
   </categories>
   <releases>
-    <release version="0.2.6" date="2026-07-18">
+    <release version="0.3.5" date="2026-10-14">
       <description>
-        <p>Cloudflare One WARP packaging and Flathub-ready app ID.</p>
+        <p>Authenticated local control, safer networking integration, and verified distribution builds.</p>
       </description>
     </release>
   </releases>

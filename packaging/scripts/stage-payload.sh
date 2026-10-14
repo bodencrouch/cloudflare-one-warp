@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-VERSION="${PACKAGE_VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${PACKAGE_VERSION:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 DIST="${ROOT}/dist"
 PAYLOAD="${PAYLOAD_DIR:-${DIST}/payload}"
 LIB="${PAYLOAD}/usr/lib/cloudflare-one-warp"
@@ -31,6 +31,7 @@ install -m 0644 "${ROOT}/packaging/cloudflare-one-warp.default" "${PAYLOAD}/etc/
 install -m 0644 "${ROOT}/README.md" "${PAYLOAD}/usr/share/doc/cloudflare-one-warp/README.md"
 install -m 0644 "${ROOT}/LICENSE" "${PAYLOAD}/usr/share/licenses/cloudflare-one-warp/LICENSE"
 install -m 0644 "${ROOT}/CHANGELOG.md" "${PAYLOAD}/usr/share/doc/cloudflare-one-warp/CHANGELOG.md"
+install -m 0644 "${ROOT}/SECURITY.md" "${PAYLOAD}/usr/share/doc/cloudflare-one-warp/SECURITY.md"
 
 cp -a "${ROOT}/public" "${LIB}/public"
 cp -a "${ROOT}/assets" "${LIB}/assets"
@@ -40,6 +41,8 @@ install -m 0755 "${ROOT}/scripts/daemon-ready.mjs" "${LIB}/scripts/daemon-ready.
 install -m 0755 "${ROOT}/scripts/port-open.mjs" "${LIB}/scripts/port-open.mjs"
 install -m 0755 "${ROOT}/scripts/cloudflare-one-warp-nft-apply" "${LIB}/scripts/cloudflare-one-warp-nft-apply"
 install -m 0755 "${ROOT}/scripts/health-webui-check.mjs" "${LIB}/scripts/health-webui-check.mjs"
+install -m 0755 "${ROOT}/scripts/webui-handoff.mjs" "${LIB}/scripts/webui-handoff.mjs"
+install -m 0755 "${ROOT}/scripts/proxy-launcher-cleanup.mjs" "${LIB}/scripts/proxy-launcher-cleanup.mjs"
 install -m 0755 "${ROOT}/scripts/tray-settings.py" "${LIB}/scripts/tray-settings.py"
 install -m 0755 "${ROOT}/scripts/tray-qt.py" "${LIB}/scripts/tray-qt.py"
 install -m 0755 "${ROOT}/scripts/tray-sni.py" "${LIB}/scripts/tray-sni.py"
@@ -75,14 +78,11 @@ install -m 0644 "${ROOT}/packaging/cloudflare-one-warp.service" \
 mkdir -p \
   "${PAYLOAD}/usr/share/cloudflare-one-warp/networkmanager/profiles" \
   "${PAYLOAD}/etc/NetworkManager/dispatcher.d" \
-  "${PAYLOAD}/etc/sysctl.d" \
-  "${PAYLOAD}/usr/lib/NetworkManager/VPN"
+  "${PAYLOAD}/etc/sysctl.d"
 install -m 0755 "${ROOT}/packaging/networkmanager/99-cloudflare-one-warp" \
   "${PAYLOAD}/etc/NetworkManager/dispatcher.d/99-cloudflare-one-warp"
 install -m 0644 "${ROOT}/packaging/sysctl/99-cloudflare-one-warp.conf" \
   "${PAYLOAD}/etc/sysctl.d/99-cloudflare-one-warp.conf"
-install -m 0644 "${ROOT}/packaging/networkmanager/nm-cloudflare-one-warp-service.name" \
-  "${PAYLOAD}/usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name"
 CLOUDFLARE_ONE_WARP_NM_SHARE="${PAYLOAD}/usr/share/cloudflare-one-warp/networkmanager/profiles" \
 CLOUDFLARE_ONE_WARP_NM_USER="${PAYLOAD}/usr/share/cloudflare-one-warp/networkmanager/profiles" \
   node "${ROOT}/scripts/sync-nm-profiles.mjs"

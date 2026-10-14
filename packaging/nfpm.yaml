@@ -54,8 +54,6 @@ contents:
       mode: 0755
   - src: ./dist/payload/etc/sysctl.d/99-cloudflare-one-warp.conf
     dst: /etc/sysctl.d/99-cloudflare-one-warp.conf
-  - src: ./dist/payload/usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name
-    dst: /usr/lib/NetworkManager/VPN/nm-cloudflare-one-warp-service.name
   - src: ./dist/payload/usr/share/cloudflare-one-warp/networkmanager/profiles
     dst: /usr/share/cloudflare-one-warp/networkmanager/profiles
 depends:

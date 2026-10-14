@@ -4,6 +4,8 @@ Unofficial [Cloudflare One](https://developers.cloudflare.com/cloudflare-one/) c
 
 > **Not affiliated with Cloudflare.** Install [Cloudflare WARP](https://developers.cloudflare.com/warp-client/get-started/linux/) separately. Cloudflare trademarks belong to Cloudflare, Inc.
 
+**Security:** [Reporting and trust boundaries](SECURITY.md). [Expert release review](docs/EXPERT_REVIEW.md).
+
 **Documentation:** [bodencrouch.github.io/cloudflare-one-warp](https://bodencrouch.github.io/cloudflare-one-warp/) — install, CLI, app routing, API, and WARP internals.
 
 ## Quick start

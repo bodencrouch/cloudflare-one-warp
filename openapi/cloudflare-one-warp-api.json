@@ -16,7 +16,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-Cloudflare-One-Warp-Session",
-        "description": "Per-daemon credential minted at startup and written to a private file only this user can read."
+        "description": "Owner-readable private-file credential required for every private API read, stream and mutation. Launch the browser with cloudflare-one-warp --webui; credentials never appear in HTTP URLs."
       }
     },
     "responses": {
@@ -56,6 +56,38 @@
             }
           }
         }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid owner credential. Reopen the client to authorize this browser or reload the private token file.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "ok",
+                "error",
+                "reason"
+              ],
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "enum": [
+                    false
+                  ]
+                },
+                "error": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "session_required"
+                  ]
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -63,7 +95,7 @@
     "/api/session": {
       "get": {
         "summary": "Session credential for local clients",
-        "description": "Returns this daemon's session credential. Answered only for same-origin loopback callers; cross-site requests are refused.",
+        "description": "Returns the current credential only after the same owner credential is supplied in the header. This endpoint cannot bootstrap an unauthenticated client.",
         "responses": {
           "200": {
             "description": "OK",
@@ -96,6 +128,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Blocked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -138,6 +173,16 @@
                 }
               }
             }
+          }
+        },
+        "security": []
+      },
+      "head": {
+        "summary": "Public metadata probe without a response body",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The daemon is listening; no response body."
           }
         }
       }
@@ -201,6 +246,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -233,6 +281,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -250,8 +301,7 @@
                   "required": [
                     "ok",
                     "version",
-                    "channel",
-                    "source"
+                    "apiRevision"
                   ],
                   "properties": {
                     "ok": {
@@ -265,11 +315,25 @@
                     },
                     "source": {
                       "type": "object"
+                    },
+                    "apiRevision": {
+                      "type": "integer"
                     }
                   }
                 }
               }
             }
+          }
+        },
+        "security": [],
+        "description": "Anonymous callers receive only ok, version and apiRevision. Authenticated owners additionally receive channel, source and installation metadata."
+      },
+      "head": {
+        "summary": "Public metadata probe without a response body",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The daemon is listening; no response body."
           }
         }
       }
@@ -312,6 +376,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -345,43 +412,51 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
     },
     "/api/killswitch": {
-      "get": {
-        "summary": "Kill-switch state",
+      "post": {
+        "summary": "Enable or disable the nftables kill switch",
         "responses": {
-          "200": {
-            "description": "OK",
+          "403": {
+            "description": "Cross-site write rejected (no CSRF token; loopback only)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "desired",
-                    "interface",
-                    "enrollmentPause"
+                    "ok",
+                    "error"
                   ],
                   "properties": {
-                    "desired": {
+                    "ok": {
                       "type": "boolean"
                     },
-                    "active": {},
-                    "allowLan": {
-                      "type": "boolean"
-                    },
-                    "interface": {
+                    "error": {
                       "type": "string"
-                    },
-                    "enrollmentPause": {
-                      "type": "object"
                     }
                   }
                 }
               }
             }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -414,6 +489,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -428,10 +506,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -443,17 +528,33 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "config"],
+                  "required": [
+                    "ok",
+                    "config"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "config": { "type": "object" },
-                    "sync": { "type": "object" },
-                    "liveSwap": { "type": "object" },
-                    "notifications": { "type": "object" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "config": {
+                      "type": "object"
+                    },
+                    "sync": {
+                      "type": "object"
+                    },
+                    "liveSwap": {
+                      "type": "object"
+                    },
+                    "notifications": {
+                      "type": "object"
+                    }
                   }
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -494,6 +595,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -527,6 +631,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -541,10 +648,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -556,17 +670,37 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "config"],
+                  "required": [
+                    "ok",
+                    "config"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "config": { "type": "object" },
-                    "sync": { "type": "object" },
-                    "active": { "type": "string", "enum": ["cloudflare", "cloudflare-one-warp"] },
-                    "effective": { "type": "boolean" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "config": {
+                      "type": "object"
+                    },
+                    "sync": {
+                      "type": "object"
+                    },
+                    "active": {
+                      "type": "string",
+                      "enum": [
+                        "cloudflare",
+                        "cloudflare-one-warp"
+                      ]
+                    },
+                    "effective": {
+                      "type": "boolean"
+                    }
                   }
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -581,10 +715,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -594,9 +735,14 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -611,10 +757,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -624,9 +777,14 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -641,10 +799,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -654,9 +819,14 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -671,10 +841,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -684,9 +861,14 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -701,10 +883,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -714,9 +903,14 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -731,10 +925,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -744,9 +945,14 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -761,10 +967,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -774,9 +987,14 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -791,10 +1009,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -802,41 +1027,16 @@
           },
           "200": {
             "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": { "type": "object" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/killswitch": {
-      "post": {
-        "summary": "Enable or disable the nftables kill switch",
-        "responses": {
-          "403": {
-            "description": "Cross-site write rejected (no CSRF token; loopback only)",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "required": ["ok", "error"],
-                  "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
-                  }
+                  "type": "object"
                 }
               }
             }
           },
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": { "type": "object" }
-              }
-            }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -851,10 +1051,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "error"],
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "error": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -864,12 +1071,22 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "object" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
     }
-  }
+  },
+  "security": [
+    {
+      "localSession": []
+    }
+  ]
 }

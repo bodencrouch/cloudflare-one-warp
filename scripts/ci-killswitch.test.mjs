@@ -140,8 +140,13 @@ function fakeFirewall() {
 const fs = require('node:fs');
 const args = process.argv.slice(2);
 const state = ${JSON.stringify(state)}, failure = ${JSON.stringify(failure)}, events = ${JSON.stringify(events)};
-if (args[0] === 'list') {
-  if (fs.existsSync(state)) process.exit(0);
+if (args.includes('list')) {
+  if (fs.existsSync(state)) {
+    const table = 'cloudflare_one_warp_killswitch';
+    const chain = {family:'inet',table,name:'output',type:'filter',hook:'output',policy:'drop'};
+    const rules = ['lo','CloudflareWARP'].map(name => ({rule:{family:'inet',table,chain:'output',expr:[{match:{op:'==',left:{meta:{key:'oifname'}},right:name}},{accept:null}]}}));
+    console.log(JSON.stringify({nftables:[{chain},...rules]})); process.exit(0);
+  }
   console.error('No such file'); process.exit(1);
 }
 const script = fs.readFileSync(args[1], 'utf8');

@@ -1,55 +1,101 @@
 #!/usr/bin/env bash
-# Sync KDE / Plasma system proxy with Cloudflare One WARP local proxy mode.
+# Change only proxy settings owned by this app; preserve existing user policy.
 set -euo pipefail
-
 MODE="${1:-}"
 PORT="${2:-40000}"
-PROXY_HOST="127.0.0.1:${PORT}"
-
-kwriteconfig() {
-  if command -v kwriteconfig6 >/dev/null 2>&1; then
-    kwriteconfig6 "$@"
-  elif command -v kwriteconfig5 >/dev/null 2>&1; then
-    kwriteconfig5 "$@"
-  else
-    return 1
-  fi
-}
-
-apply_proxy_on() {
-  kwriteconfig --file kiosktarc --group "Proxy Settings" --key ProxyType 1
-  kwriteconfig --file kiosktarc --group "Proxy Settings" --key http_proxy "$PROXY_HOST"
-  kwriteconfig --file kiosktarc --group "Proxy Settings" --key https_proxy "$PROXY_HOST"
-  kwriteconfig --file kiosktarc --group "Proxy Settings" --key ftp_proxy "$PROXY_HOST"
-  kwriteconfig --file kiosktarc --group "Proxy Settings" --key socks_proxy "$PROXY_HOST"
-  kwriteconfig --file kiosktarc --group "Proxy Settings" --key NoProxyFor "localhost,127.0.0.0/8,::1"
-  if command -v dbus-send >/dev/null 2>&1; then
-    dbus-send --type=signal /KIO/Scheduler org.kde.KIO.Scheduler.reparseSlaveConfiguration string:"" 2>/dev/null || true
-  fi
-}
-
-apply_proxy_off() {
-  kwriteconfig --file kiosktarc --group "Proxy Settings" --key ProxyType 0
-  if command -v dbus-send >/dev/null 2>&1; then
-    dbus-send --type=signal /KIO/Scheduler org.kde.KIO.Scheduler.reparseSlaveConfiguration string:"" 2>/dev/null || true
-  fi
-}
-
-case "$MODE" in
-  on)
-    if ! kwriteconfig --help >/dev/null 2>&1; then
-      exit 2
-    fi
-    apply_proxy_on
-    ;;
-  off)
-    if ! kwriteconfig --help >/dev/null 2>&1; then
-      exit 2
-    fi
-    apply_proxy_off
-    ;;
-  *)
-    echo "Usage: $(basename "$0") on|off [port]" >&2
-    exit 2
-    ;;
-esac
+[[ "$MODE" == on || "$MODE" == off ]] || exit 2
+[[ "$PORT" =~ ^[0-9]+$ && ${#PORT} -le 5 ]] || exit 2
+(( 10#$PORT >= 1 && 10#$PORT <= 65535 )) || exit 2
+if command -v kwriteconfig6 >/dev/null 2>&1; then
+  WRITER=kwriteconfig6
+elif command -v kwriteconfig5 >/dev/null 2>&1; then
+  WRITER=kwriteconfig5
+else
+  exit 2
+fi
+command -v python3 >/dev/null 2>&1 || exit 2
+python3 - "$MODE" "$PORT" "$WRITER" <<'PY'
+import configparser, fcntl, json, os, pathlib, subprocess, sys, tempfile
+mode, port, writer = sys.argv[1:]
+base = pathlib.Path(os.environ.get('XDG_CONFIG_HOME', ''))
+if not base.is_absolute():
+    base = pathlib.Path.home() / '.config'
+state_dir = base / 'cloudflare-one-warp'
+state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+state_file = state_dir / 'kde-proxy-owner.json'
+keys = ['ProxyType', 'http_proxy', 'https_proxy', 'ftp_proxy', 'socks_proxy', 'NoProxyFor']
+def current():
+    parser = configparser.RawConfigParser(strict=False, interpolation=None)
+    parser.optionxform = str
+    parser.read(base / 'kioslaverc')
+    if parser.has_section('Proxy Settings][$i') or (parser.has_section('Proxy Settings') and any(key.endswith('[$i]') for key in parser['Proxy Settings'])):
+        raise RuntimeError('KDE proxy policy is immutable; no changes made')
+    return {key: parser.get('Proxy Settings', key, fallback=None) for key in keys}
+def write(key, value):
+    args = [writer, '--file', 'kioslaverc', '--group', 'Proxy Settings', '--key', key]
+    subprocess.run(args + (['--delete'] if value is None else [value]), check=True, timeout=10)
+def save(state):
+    fd, temp = tempfile.mkstemp(dir=state_dir)
+    try:
+        with os.fdopen(fd, 'w') as output:
+            json.dump(state, output)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temp, state_file)
+    finally:
+        if os.path.exists(temp): os.unlink(temp)
+with open(state_dir / 'kde-proxy-owner.lock', 'a') as lock:
+    os.chmod(lock.name, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    existing = current()
+    state = json.loads(state_file.read_text()) if state_file.exists() else None
+    if state and state.get('pending'):
+        # Resume interrupted writes by restoring only keys still equal to our attempted values.
+        for key in keys:
+            if existing[key] == state['applied'][key]:
+                write(key, state.get('rollback', state['original'])[key])
+        previous = state.get('previous')
+        if previous: save(previous)
+        else: state_file.unlink()
+        state = previous
+        existing = current()
+    if state and existing != state['applied']:
+        # Another application/user changed policy; relinquish ownership without overwriting it.
+        for key in keys:
+            if existing[key] == state['applied'][key]: write(key, state['original'][key])
+        state_file.unlink()
+        sys.exit(0 if mode == 'off' else 3)
+    if mode == 'off':
+        if state:
+            state['pending'] = True
+            state['rollback'] = state['applied']
+            save(state)
+            for key in keys: write(key, state['original'][key])
+            state_file.unlink()
+    else:
+        if not state and existing['ProxyType'] not in (None, '', '0'):
+            print('Existing KDE proxy policy is active; refusing to replace it.', file=sys.stderr)
+            sys.exit(3)
+        applied = {key: '127.0.0.1:' + port for key in keys}
+        applied.update(ProxyType='1', NoProxyFor='localhost,127.0.0.0/8,::1')
+        original = state['original'] if state else existing
+        # Journal first so a failed write never loses the previous configuration.
+        previous = state
+        save({'original': original, 'applied': applied, 'pending': True, 'rollback': existing, 'previous': previous})
+        try:
+            for key in keys: write(key, applied[key])
+            if current() != applied:
+                raise RuntimeError('KDE proxy write did not take effect')
+            save({'original': original, 'applied': applied, 'pending': False})
+        except Exception:
+            actual = current()
+            for key in keys:
+                if actual[key] == applied[key]: write(key, existing[key])
+            # If rollback throws, the pending journal remains for the next invocation.
+            if previous: save(previous)
+            else: state_file.unlink(missing_ok=True)
+            raise
+PY
+if command -v dbus-send >/dev/null 2>&1; then
+  dbus-send --type=signal /KIO/Scheduler org.kde.KIO.Scheduler.reparseSlaveConfiguration string:"" 2>/dev/null || true
+fi

@@ -54,8 +54,7 @@ on:
         default: true
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 concurrency:
   group: package-${{ github.event.release.tag_name || inputs.tag || github.run_id }}
@@ -70,7 +69,7 @@ jobs:
       checkout_ref: ${{ steps.ver.outputs.checkout_ref }}
       prerelease: ${{ steps.ver.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - id: ver
         env:
@@ -109,11 +108,11 @@ jobs:
     needs: resolve-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.resolve-version.outputs.checkout_ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
 
@@ -133,7 +132,7 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: packages-nfpm
           path: dist/packages/*
@@ -143,11 +142,11 @@ jobs:
     needs: resolve-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.resolve-version.outputs.checkout_ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
 
@@ -164,7 +163,7 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: packages-appimage
           path: dist/packages/*.AppImage
@@ -174,38 +173,40 @@ jobs:
     needs: resolve-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.resolve-version.outputs.checkout_ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
 
       - name: Build source archives and PKGBUILD
         run: |
+          npm ci --ignore-scripts --no-audit --no-fund
           bash packaging/scripts/build-source.sh
-          sed "s/__VERSION__/${PACKAGE_VERSION}/g" packaging/arch/PKGBUILD.in > dist/packages/PKGBUILD
+          npm sbom --omit=dev --sbom-format=cyclonedx > "dist/packages/cloudflare-one-warp-${PACKAGE_VERSION}.cdx.json"
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: packages-source
           path: |
             dist/packages/*.tar.gz
             dist/packages/PKGBUILD
+            dist/packages/*.cdx.json
           retention-days: 14
 
   flatpak:
     needs: resolve-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.resolve-version.outputs.checkout_ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
 
@@ -228,7 +229,7 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: packages-flatpak
           path: dist/packages/*.flatpak
@@ -238,7 +239,7 @@ jobs:
     needs: resolve-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.resolve-version.outputs.checkout_ref }}
 
@@ -248,7 +249,7 @@ jobs:
           mkdir -p snap
           sed "s/^version: .*/version: '${VERSION}'/" packaging/snap/snapcraft.yaml > snap/snapcraft.yaml
 
-      - uses: snapcore/action-build@v1
+      - uses: snapcore/action-build@3bdaa03e1ba6bf59a65f84a751d943d549a54e79 # v1
         id: snapcraft
         with:
           snapcraft-args: --verbose
@@ -272,37 +273,42 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: packages-snap
           path: dist/packages/*.snap
           retention-days: 14
 
   docker:
+    permissions:
+      contents: read
+      packages: write
     needs: resolve-version
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || inputs.publish_ghcr != false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.resolve-version.outputs.checkout_ref }}
 
       - name: Log in to ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build and push runtime image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: Dockerfile
           push: true
+          provenance: mode=max
+          sbom: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ needs.resolve-version.outputs.version }}
@@ -311,11 +317,13 @@ jobs:
             org.opencontainers.image.version=${{ needs.resolve-version.outputs.version }}
 
       - name: Build and push CI builder image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: Dockerfile.ci
           push: true
+          provenance: mode=max
+          sbom: true
           tags: |
             ghcr.io/${{ github.repository }}-ci:latest
             ghcr.io/${{ github.repository }}-ci:${{ needs.resolve-version.outputs.version }}
@@ -324,15 +332,15 @@ jobs:
     needs: [resolve-version, source]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.resolve-version.outputs.checkout_ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: packages-source
           path: dist/packages
@@ -342,7 +350,7 @@ jobs:
           bash packaging/scripts/generate-homebrew-formula.sh "${{ needs.resolve-version.outputs.version }}"
           test -f homebrew-tap/Formula/cloudflare-one-warp.rb
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: packages-homebrew
           path: homebrew-tap/**/*
@@ -350,13 +358,19 @@ jobs:
 
 
   publish:
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     needs: [resolve-version, deb-rpm-arch, appimage, source, flatpak, snap, homebrew]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || inputs.publish_release || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.resolve-version.outputs.checkout_ref }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           path: artifacts
           pattern: packages-*
@@ -374,12 +388,18 @@ jobs:
           # The bootstrap release has no pinned key; manual installation stays available.
           CLOUDFLARE_ONE_WARP_ALLOW_UNSIGNED: ${{ secrets.CLOUDFLARE_ONE_WARP_SIGNING_KEY_PEM == '' && '1' || '0' }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: packages-all
           path: |
             dist/packages/*
           retention-days: 30
+
+      - name: Attest release artifact provenance
+        if: github.event_name == 'release' || inputs.publish_release
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-checksums: dist/packages/SHA256SUMS
 
       - name: Upload to GitHub Release
         if: github.event_name == 'release' || inputs.publish_release
@@ -401,7 +421,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || (inputs.publish_release && inputs.update_homebrew_tap)
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: packages-homebrew
           path: homebrew-tap
@@ -432,6 +452,8 @@ jobs:
           fi
 
   sync-manifest:
+    permissions:
+      contents: write
     needs: [resolve-version, publish]
     runs-on: ubuntu-latest
     if: |
@@ -440,12 +462,12 @@ jobs:
       (github.event_name == 'release' || (inputs.publish_release == true && inputs.sync_manifest != false)) &&
       startsWith(needs.resolve-version.outputs.tag, 'v')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
 

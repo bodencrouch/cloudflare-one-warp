@@ -6,7 +6,7 @@ Start daemon:
 cloudflare-one-warp --no-open
 ```
 
-Reading is open to anything on this computer. Anything that **changes** state needs the local session credential, so load it once per shell:
+Only health and version are public. All other API requests require the owner’s private local session credential. Load it once per shell:
 
 ```bash
 SESSION=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")
@@ -24,8 +24,8 @@ curl -s http://127.0.0.1:4173/api/version | jq
 ## Status snapshot
 
 ```bash
-curl -s http://127.0.0.1:4173/api/snapshot | jq '.status'
-curl -s http://127.0.0.1:4173/api/account | jq
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/snapshot | jq '.status'
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/account | jq
 ```
 
 ## Connect / disconnect
@@ -55,7 +55,7 @@ curl -X POST http://127.0.0.1:4173/api/action \
 ## Kill switch
 
 ```bash
-curl -s http://127.0.0.1:4173/api/killswitch | jq
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/killswitch | jq
 
 curl -X POST http://127.0.0.1:4173/api/killswitch \
   -H 'Content-Type: application/json' -H "x-cloudflare-one-warp-session: $SESSION" \
@@ -65,7 +65,7 @@ curl -X POST http://127.0.0.1:4173/api/killswitch \
 ## Config session override
 
 ```bash
-curl -s http://127.0.0.1:4173/api/config | jq
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/config | jq
 
 curl -X POST http://127.0.0.1:4173/api/config/session \
   -H 'Content-Type: application/json' -H "x-cloudflare-one-warp-session: $SESSION" \
@@ -75,19 +75,19 @@ curl -X POST http://127.0.0.1:4173/api/config/session \
 ## Command log
 
 ```bash
-curl -s 'http://127.0.0.1:4173/api/logs?since=0' | jq '.entries[-5:]'
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s 'http://127.0.0.1:4173/api/logs?since=0' | jq '.entries[-5:]'
 ```
 
 ## Live events (SSE)
 
 ```bash
-curl -N http://127.0.0.1:4173/api/events
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -N http://127.0.0.1:4173/api/events
 ```
 
 ## App routing shortcut
 
 ```bash
-curl -s http://127.0.0.1:4173/api/apps | jq
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/apps | jq
 curl -X POST http://127.0.0.1:4173/api/apps/proxy-launcher \
   -H 'Content-Type: application/json' -H "x-cloudflare-one-warp-session: $SESSION" \
   -d '{"appId":"firefox"}'
@@ -96,5 +96,5 @@ curl -X POST http://127.0.0.1:4173/api/apps/proxy-launcher \
 ## Updates
 
 ```bash
-curl -s http://127.0.0.1:4173/api/update/check | jq
+curl -H "x-cloudflare-one-warp-session: $(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cloudflare-one-warp/session-4173.token")" -s http://127.0.0.1:4173/api/update/check | jq
 ```

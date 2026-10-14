@@ -30,7 +30,7 @@ Environment=TMPDIR=%t/cloudflare-one-warp
 ReadWritePaths=-%E/autostart -%h/.local/share/applications
 ReadWritePaths=-%t/cloudflare-one-warp -/run/cloudflare-warp
 ReadWritePaths=-%h/.local/share/cloudflare-one-warp -%E/systemd/user
-# KDE uses sibling temporary files for atomic replacement of kiosktarc.
+# KDE uses sibling temporary files for atomic replacement of kioslaverc.
 ReadWritePaths=-%E
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 RestrictSUIDSGID=true

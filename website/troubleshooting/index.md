@@ -52,7 +52,7 @@ Applying nftables rules needs elevation. If pkexec fails, run from a polkit-enab
 
 ## NetworkManager access denied
 
-`nmcli connection load` may fail for system keyfiles. Use KDE **Import VPN connection** — see [KDE / NetworkManager](/guides/networkmanager).
+`nmcli connection load` requires NetworkManager authorization. Install the dispatcher with `cloudflare-one-warp-nm --system` and load the generated keyfiles using an authorized `nmcli` session. These dummy marker profiles cannot be imported as VPN files. See [KDE / NetworkManager](/guides/networkmanager).
 
 ## OpenAPI / port confusion
 

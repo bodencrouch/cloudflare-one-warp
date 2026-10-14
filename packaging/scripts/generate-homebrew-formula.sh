@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-VERSION="${PACKAGE_VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
+VERSION="${PACKAGE_VERSION:-$(node -e 'process.stdout.write(require(process.argv[1]).version)' "${ROOT}/package.json")}"
 OUT="${ROOT}/homebrew-tap/Formula/cloudflare-one-warp.rb"
 TEMPLATE="${ROOT}/packaging/homebrew/cloudflare-one-warp.rb.in"
 TARBALL="${ROOT}/dist/packages/cloudflare-one-warp-${VERSION}-src.tar.gz"

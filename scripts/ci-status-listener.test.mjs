@@ -80,3 +80,21 @@ test("late close/data from previous child do not affect a replacement", async ()
   assert.deepEqual(lines, []);
   listener.stop();
 });
+
+test("synchronous spawn failure is reported and retried without breaking subscribe", async () => {
+  let count = 0;
+  const lines = [];
+  const proc = new EventEmitter();
+  proc.kill = () => {};
+  const listener = createStatusListener({ spawnWarpCli() {
+    if (++count === 1) throw new Error("spawn unavailable");
+    return proc;
+  }, restartDelayMs: 5 });
+  listener.subscribe(payload => lines.push(payload.line));
+  await new Promise(resolve => setTimeout(resolve, 15));
+  assert.deepEqual(lines, ["spawn unavailable"]);
+  assert.equal(listener.listenerActive, true);
+  listener.stop();
+  listener.subscribe(() => {});
+  assert.equal(listener.subscriberCount, 0);
+});
