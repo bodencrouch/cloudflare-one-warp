@@ -142,7 +142,7 @@ test("Flatpak readiness probes the host CLI instead of sandbox PATH", async () =
 test("slow toolkit probing yields to the event loop", async () => {
   let timerRan = false;
   const timer = new Promise(resolve => setTimeout(() => { timerRan = true; resolve(); }, 5));
-  const pending = probeTrayToolkit({ spawn: async () => {
+  const pending = probeTrayToolkit({ platform: "linux", spawn: async () => {
     await new Promise(resolve => setTimeout(resolve, 30));
     return { status: 0 };
   } });

@@ -60,7 +60,7 @@ test("persistUserKillSwitch writes user config and survives reload via HOME", ()
   const userPath = join(root, ".config", "cloudflare-one-warp", "config.json");
   mkdirSync(join(root, ".config", "cloudflare-one-warp"), { recursive: true });
   writeFileSync(userPath, `${JSON.stringify({ ui: { locale: "en" } }, null, 2)}\n`);
-  const env = { ...process.env, HOME: root, CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0" };
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, ".config"), CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0" };
 
   try {
     clearSessionOverrides();
