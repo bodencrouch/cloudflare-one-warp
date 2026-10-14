@@ -14,7 +14,7 @@ function filesBelow(directory, prefix = '') {
     : [`${prefix}${entry.name}`]);
 }
 for (const recipe of ['packaging/arch/PKGBUILD.in', 'packaging/aur/PKGBUILD', 'packaging/fedora/cloudflare-one-warp.spec']) {
-  test(`${recipe} actually stages the complete runnable payload`, { skip: process.platform === 'win32' }, () => {
+  test(`${recipe} actually stages the complete runnable payload`, { skip: process.platform !== 'linux' }, () => {
     const destination = mkdtempSync(join(tmpdir(), 'warp-recipe-'));
     try {
       const source = readFileSync(join(root, recipe), 'utf8');
