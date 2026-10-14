@@ -8,6 +8,7 @@ Type=simple
 WorkingDirectory=/usr/lib/cloudflare-one-warp
 EnvironmentFile=-/etc/default/cloudflare-one-warp
 Environment=CLOUDFLARE_ONE_WARP_WEBUI=0
+ExecStartPre=+/usr/bin/mkdir -p %h/.local/share/applications %h/.local/share/cloudflare-one-warp/proxy-launchers %E/autostart %E/systemd/user
 ExecStart=/usr/bin/env node /usr/lib/cloudflare-one-warp/server.js
 Restart=on-failure
 RestartSec=3
@@ -21,8 +22,16 @@ ConfigurationDirectory=cloudflare-one-warp
 ConfigurationDirectoryMode=0700
 CacheDirectory=cloudflare-one-warp
 CacheDirectoryMode=0700
-ReadWritePaths=-%h/.config/autostart -%h/.local/share/applications
-ReadWritePaths=-%t -/run/cloudflare-warp
+RuntimeDirectory=cloudflare-one-warp
+RuntimeDirectoryMode=0700
+StateDirectory=cloudflare-one-warp
+StateDirectoryMode=0700
+Environment=TMPDIR=%t/cloudflare-one-warp
+ReadWritePaths=-%E/autostart -%h/.local/share/applications
+ReadWritePaths=-%t/cloudflare-one-warp -/run/cloudflare-warp
+ReadWritePaths=-%h/.local/share/cloudflare-one-warp -%E/systemd/user
+# KDE uses sibling temporary files for atomic replacement of kiosktarc.
+ReadWritePaths=-%E
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 RestrictSUIDSGID=true
 RestrictNamespaces=true

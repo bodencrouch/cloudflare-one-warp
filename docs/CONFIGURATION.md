@@ -38,7 +38,7 @@ sudo cp packaging/cloudflare-one-warp.default /etc/default/cloudflare-one-warp
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `false` | Serve static Web UI and PWA assets |
-| `allowRemote` | boolean | `false` | When enabled, bind `0.0.0.0` for LAN access |
+| `allowRemote` | boolean | `false` | Legacy compatibility key; remote control is unavailable and binding stays on loopback |
 
 **Defaults:** systemd daemon runs with Web UI **off** (`CLOUDFLARE_ONE_WARP_WEBUI=0`). The native tray and `cloudflare-one-warp --daemon` start with Web UI **on** (`CLOUDFLARE_ONE_WARP_WEBUI=1`). When enabled, the daemon always serves static assets — there is no runtime disable toggle.
 
@@ -155,7 +155,7 @@ For shared machines, install unit files under `/etc/systemd/system/` and point `
 Reading state is open to anything on this computer, but **changing** state requires a credential so a web page you visit cannot drive WARP behind your back. Each daemon mints one at startup and writes it to a private file:
 
 ```
-~/.config/cloudflare-one-warp/session-<port>.token   # mode 0600, removed on shutdown
+${XDG_CONFIG_HOME:-~/.config}/cloudflare-one-warp/session-<port>.token   # mode 0600, removed on shutdown
 ```
 
 The Web UI, tray, and settings dialog handle this for you. For scripts, send it as `x-cloudflare-one-warp-session` on every `POST`:
@@ -164,7 +164,7 @@ The Web UI, tray, and settings dialog handle this for you. For scripts, send it 
 SESSION=$(cat ~/.config/cloudflare-one-warp/session-4173.token)
 ```
 
-Requests that change something must also come from this computer, be addressed to `127.0.0.1` / `localhost`, and send `content-type: application/json`. Anything else is refused with `403` (or `415` for a non-JSON body) and logged in the Console tab. Setting `webui.allowRemote` or a `0.0.0.0` bind still only exposes read-only endpoints to the LAN.
+Requests that change something must also come from this computer, be addressed to `127.0.0.1` / `localhost`, and send `content-type: application/json`. Anything else is refused with `403` (or `415` for a non-JSON body) and logged in the Console tab. All API reads and writes require a loopback peer. Legacy remote-bind settings fall back to `127.0.0.1`; the settings API rejects new remote binds. For access from another computer, use an authenticated SSH tunnel with the same local and remote port, for example `ssh -L 4173:127.0.0.1:4173 user@host`, then open `http://127.0.0.1:4173` locally.
 
 ## In-app session overrides
 

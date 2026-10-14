@@ -14,6 +14,8 @@ tar -C "${ROOT}/dist/payload" -czf "${OUT}/cloudflare-one-warp-${VERSION}.tar.gz
 tar -C "$ROOT" \
   --exclude='.git' \
   --exclude='dist' \
+  --exclude='__pycache__' \
+  --exclude='*.pyc' \
   --exclude='node_modules' \
   --exclude='agentdecompile_projects' \
   --exclude='packaging/flatpak/.flatpak-builder' \

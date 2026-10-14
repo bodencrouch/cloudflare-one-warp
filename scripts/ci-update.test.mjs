@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, chmodSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, chmodSync, existsSync, rmSync, readdirSync, statSync, mkdirSync } from "node:fs";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { compare, coerce, gt, lt, isPrerelease } from "../lib/update/semver.mjs";
 import { buildManifest, parseManifest, pointerForChannel } from "../lib/update/manifest.mjs";
 import { pickAsset, pickChannelRelease, findReleaseByTag, clearGithubCache } from "../lib/update/github.mjs";
@@ -63,7 +66,7 @@ test("pickAsset matches naming conventions", () => {
       { name: "cloudflare-one-warp-1.2.0-x86_64.AppImage", url: "https://github.com/o/r/releases/download/v1.2.0/cloudflare-one-warp-1.2.0-x86_64.AppImage" }
     ]
   };
-  assert.equal(pickAsset(release, "appimage").url, "https://github.com/o/r/releases/download/v1.2.0/cloudflare-one-warp-1.2.0-x86_64.AppImage");
+  assert.equal(pickAsset(release, "appimage", "x64").url, "https://github.com/o/r/releases/download/v1.2.0/cloudflare-one-warp-1.2.0-x86_64.AppImage");
   assert.equal(pickAsset(release, "deb").url, "https://github.com/o/r/releases/download/v1.2.0/cloudflare-one-warp_1.2.0_all.deb");
   assert.equal(findReleaseByTag([{ tag: "v1.2.0" }], "1.2.0").tag, "v1.2.0");
 });
@@ -137,10 +140,13 @@ test("checkForUpdate with mocked GitHub", async () => {
           source: { owner: "bodencrouch", repo: "cloudflare-one-warp" }
         }
       },
-      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } }
+      { arch: "x64", env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } }
     );
     assert.equal(result.latest, "9.9.9");
     assert.equal(result.updateAvailable, gt("9.9.9", getVersion()));
+    assert.equal(result.canApply, false);
+    assert.equal(result.applyConfirmToken, null);
+    assert.match(result.applyUnavailableReason, /signing key/i);
     assert.equal(result.recommendedAsset.url, "https://github.com/bodencrouch/cloudflare-one-warp/releases/download/v9.9.9/cloudflare-one-warp-9.9.9-x86_64.AppImage");
   } finally {
     globalThis.fetch = originalFetch;
@@ -406,7 +412,7 @@ test("applyUpdate rejects client-supplied assetUrl", async () => {
   const result = await applyUpdate(
     { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } },
     { assetUrl: "https://evil.example/x.AppImage", assetName: "cloudflare-one-warp.AppImage" },
-    { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } }
+    { arch: "x64", env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } }
   );
   assert.equal(result.ok, false);
   assert.match(result.error, /not allowed/i);
@@ -435,7 +441,7 @@ test("applyUpdate requires confirmation token for AppImage", async () => {
           published_at: "2026-01-01T00:00:00Z",
           body: "",
           html_url: "https://github.com/example/releases/tag/v9.9.9",
-          assets: [{
+          assets: [{ name: "cloudflare-one-warp-9.9.9-x86_64.AppImage.sig", browser_download_url: `${assetUrl}.sig`, size: 88 }, {
             name: "cloudflare-one-warp-9.9.9-x86_64.AppImage",
             browser_download_url: assetUrl,
             size: 10,
@@ -452,7 +458,7 @@ test("applyUpdate requires confirmation token for AppImage", async () => {
     const denied = await applyUpdate(
       { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } },
       {},
-      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, bindHost: "127.0.0.1" }
+      { arch: "x64", env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, bindHost: "127.0.0.1" }
     );
     assert.equal(denied.ok, false);
     assert.match(denied.error, /confirmation token/i);
@@ -460,14 +466,14 @@ test("applyUpdate requires confirmation token for AppImage", async () => {
     const prep = await prepareApply(
       { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } },
       {},
-      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } }
+      { arch: "x64", env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, trustedKeys: releaseKeypair().trusted }
     );
     assert.ok(prep.applyConfirmToken);
 
     const remoteDenied = await applyUpdate(
       { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } },
       { confirmToken: prep.applyConfirmToken },
-      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, bindHost: "0.0.0.0" }
+      { arch: "x64", env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, bindHost: "0.0.0.0" }
     );
     assert.equal(remoteDenied.ok, false);
     assert.match(remoteDenied.error, /loopback/i);
@@ -513,13 +519,13 @@ test("applyUpdate refuses to install an older version", async () => {
     const { applyUpdate, prepareApply, clearApplyConfirmTokens } = await import("../lib/update/index.mjs");
     clearApplyConfirmTokens();
     const config = { updates: { channel: "stable", source: { owner: "bodencrouch", repo: "cloudflare-one-warp" } } };
-    const prep = await prepareApply(config, {}, { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" } });
+    const prep = await prepareApply(config, {}, { arch: "x64", env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, trustedKeys: releaseKeypair().trusted });
     assert.equal(prep.signatureAvailable, true);
 
     const result = await applyUpdate(
       config,
       { confirmToken: prep.applyConfirmToken },
-      { env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, bindHost: "127.0.0.1" }
+      { arch: "x64", env: { CLOUDFLARE_ONE_WARP_INSTALL_FORMAT: "appimage" }, bindHost: "127.0.0.1" }
     );
     assert.equal(result.ok, false);
     assert.match(result.error, /older than the version you have installed/i);
@@ -634,4 +640,237 @@ test("isTrustedAssetUrl allowlists GitHub hosts only", async () => {
   assert.equal(isTrustedAssetUrl("https://objects.githubusercontent.com/foo"), true);
   assert.equal(isTrustedAssetUrl("https://evil.example/x.AppImage"), false);
   assert.equal(isTrustedAssetUrl("http://github.com/x"), false);
+});
+
+function updateFixture() {
+  const dir = mkdtempSync(join(tmpdir(), "cloudflare-one-warp-update-safe-"));
+  const target = join(dir, "client.AppImage");
+  writeFileSync(target, "old-binary");
+  const payload = Buffer.from("verified-new-binary");
+  const key = releaseKeypair();
+  const release = signedRelease(payload, key);
+  return { dir, target, payload, key, options: { targetPath: target, trustedKeys: key.trusted, ...release } };
+}
+
+test("verified AppImage replacement works when cache is on a different filesystem", async (t) => {
+  if (!existsSync("/dev/shm") || statSync(tmpdir()).dev === statSync("/dev/shm").dev) {
+    t.skip("Two writable filesystem mounts are needed for this regression");
+    return;
+  }
+  const fixture = updateFixture();
+  const cache = mkdtempSync("/dev/shm/cloudflare-one-warp-cache-");
+  try {
+    await applyAppImageUpdate({ name: ASSET_NAME, url: ASSET_URL }, {
+      ...fixture.options, env: { XDG_CACHE_HOME: cache }
+    });
+    assert.equal(readFileSync(fixture.target, "utf8"), fixture.payload.toString());
+    assert.equal(readFileSync(`${fixture.target}.bak`, "utf8"), "old-binary");
+    assert.deepEqual(readdirSync(cache), []);
+    assert.deepEqual(readdirSync(fixture.dir).sort(), ["client.AppImage", "client.AppImage.bak"]);
+  } finally {
+    rmSync(cache, { recursive: true, force: true });
+    rmSync(fixture.dir, { recursive: true, force: true });
+  }
+});
+
+test("AppImage updates serialize downloads and replacements", async () => {
+  const fixture = updateFixture();
+  let started = 0;
+  let unblock;
+  const blocked = new Promise((resolve) => { unblock = resolve; });
+  const fetchImpl = async (url) => {
+    if (!String(url).endsWith(".sig")) {
+      started++;
+      if (started === 1) await blocked;
+    }
+    return fixture.options.fetchImpl(url);
+  };
+  try {
+    const first = applyAppImageUpdate({ name: ASSET_NAME, url: ASSET_URL }, { ...fixture.options, fetchImpl });
+    const second = applyAppImageUpdate({ name: ASSET_NAME, url: ASSET_URL }, { ...fixture.options, fetchImpl });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(started, 1);
+    unblock();
+    await Promise.all([first, second]);
+    assert.equal(started, 2);
+    assert.equal(readFileSync(`${fixture.target}.bak`, "utf8"), fixture.payload.toString());
+  } finally {
+    unblock();
+    rmSync(fixture.dir, { recursive: true, force: true });
+  }
+});
+
+test("oversize AppImage stream is stopped without replacing target or leaving staging", async () => {
+  const fixture = updateFixture();
+  try {
+    await assert.rejects(applyAppImageUpdate({ name: ASSET_NAME, url: ASSET_URL }, {
+      ...fixture.options, maxBytes: 5
+    }), { code: "DOWNLOAD_TOO_LARGE" });
+    assert.equal(readFileSync(fixture.target, "utf8"), "old-binary");
+    assert.deepEqual(readdirSync(fixture.dir), ["client.AppImage"]);
+  } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
+});
+
+test("stalled AppImage body times out and removes staging", async () => {
+  const fixture = updateFixture();
+  const fetchImpl = async (url) => String(url).endsWith(".sig")
+    ? fixture.options.fetchImpl(url)
+    : { ok: true, status: 200, body: new Readable({ read() {} }) };
+  // AbortSignal.timeout is unref'd; keep the synthetic no-I/O stream test alive.
+  const keepAlive = setInterval(() => {}, 1000);
+  try {
+    await assert.rejects(applyAppImageUpdate({ name: ASSET_NAME, url: ASSET_URL }, {
+      ...fixture.options, fetchImpl, timeoutMs: 30
+    }), { name: "AbortError" });
+    assert.equal(readFileSync(fixture.target, "utf8"), "old-binary");
+    assert.deepEqual(readdirSync(fixture.dir), ["client.AppImage"]);
+  } finally {
+    clearInterval(keepAlive);
+    rmSync(fixture.dir, { recursive: true, force: true });
+  }
+});
+
+test("checksum network failure leaves installed AppImage and no temporary files", async () => {
+  const fixture = updateFixture();
+  const fetchImpl = async (url) => {
+    if (String(url).endsWith("SHA256SUMS")) throw new Error("checksum network failure");
+    return fixture.options.fetchImpl(url);
+  };
+  try {
+    await assert.rejects(applyAppImageUpdate({ name: ASSET_NAME, url: ASSET_URL }, {
+      ...fixture.options, fetchImpl,
+      releaseAssets: [...fixture.options.releaseAssets, { name: "SHA256SUMS", url: "https://github.com/o/r/releases/download/v1/SHA256SUMS" }]
+    }), /checksum network failure/);
+    assert.equal(readFileSync(fixture.target, "utf8"), "old-binary");
+    assert.deepEqual(readdirSync(fixture.dir), ["client.AppImage"]);
+  } finally { rmSync(fixture.dir, { recursive: true, force: true }); }
+});
+
+test("asset selection cannot recommend an incompatible AppImage architecture", () => {
+  const release = { assets: [
+    { name: ASSET_NAME, url: ASSET_URL },
+    { name: "cloudflare-one-warp-1.0.0-aarch64.AppImage", url: "https://github.com/o/r/releases/download/v1/arm.AppImage" }
+  ] };
+  assert.equal(pickAsset(release, "appimage", "arm64").name, "cloudflare-one-warp-1.0.0-aarch64.AppImage");
+  assert.equal(pickAsset({ assets: [release.assets[0]] }, "appimage", "arm64"), null);
+});
+
+test("direct bundle upgrade guidance uses release artifacts rather than unpublished stores", () => {
+  const release = { owner: "bodencrouch", repo: "cloudflare-one-warp", version: "1.0.0", tag: "v1.0.0" };
+  assert.match(guidedCommands("flatpak", release).join("\n"), /cloudflare-one-warp-1\.0\.0-x86_64\.flatpak/);
+  assert.doesNotMatch(guidedCommands("flatpak", release).join("\n"), /install flathub/);
+  assert.match(guidedCommands("snap", release).join("\n"), /refresh --dangerous --classic .*1\.0\.0_amd64\.snap/);
+  assert.match(guidedCommands("arch", release).join("\n"), /pacman -U/);
+});
+
+test("update JSON metadata rejects an oversize body", async () => {
+  const { readUpdateJson } = await import("../lib/update/network.mjs");
+  await assert.rejects(readUpdateJson(new Response("x".repeat(128)), { maxBytes: 32 }), /size limit/);
+});
+
+function selectionHarness(prepare) {
+  const source = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+  const start = source.indexOf("async function selectUpdateRelease(tag) {");
+  const end = source.indexOf("async function applySelectedUpdate()", start);
+  const state = { update: {
+    selectedOwner: "bodencrouch", selectedRepo: "cloudflare-one-warp", selectedTag: "",
+    result: { current: "1.0.0", canApply: true, applyConfirmToken: "old-token", guidedCommands: ["old command"] },
+    releases: [
+      { tag: "v2.0.0", htmlUrl: "https://github.com/bodencrouch/cloudflare-one-warp/releases/tag/v2.0.0" },
+      { tag: "v3.0.0", htmlUrl: "https://github.com/bodencrouch/cloudflare-one-warp/releases/tag/v3.0.0" }
+    ]
+  } };
+  let checks = 0;
+  const select = runInNewContext(`${source.slice(start, end)}; selectUpdateRelease;`, {
+    state, render() {}, compareLooseSemver: compare,
+    async runUpdateCheck() { checks++; },
+    async apiFetch(url, options) {
+      assert.equal(url, "/api/update/prepare");
+      return { json: () => prepare(JSON.parse(options.body).tag) };
+    }
+  });
+  return { state, select, checkCount: () => checks };
+}
+
+test("release picker removes Apply eligibility for unsigned or untrusted selected release", async () => {
+  const { state, select } = selectionHarness(async () => ({ ok: false, error: "No trusted release signing key" }));
+  const pending = select("v2.0.0");
+  assert.equal(state.update.result.canApply, false);
+  assert.equal(state.update.confirmToken, null);
+  assert.equal(state.update.result.guidedCommands.length, 0);
+  await pending;
+  assert.equal(state.update.result.canApply, false);
+  assert.match(state.update.result.applyUnavailableReason, /signing key/);
+  assert.equal(state.update.result.release.tag, "v2.0.0");
+});
+
+test("release picker uses selected release's guided commands instead of cached channel commands", async () => {
+  const { state, select } = selectionHarness(async (tag) => ({ ok: true, mode: "guided", commands: [`install ${tag}`] }));
+  await select("v3.0.0");
+  assert.equal(state.update.result.canApply, false);
+  assert.equal(state.update.result.guidedCommands.join("\n"), "install v3.0.0");
+});
+
+test("late release picker response cannot authorize a newer selection", async () => {
+  let unblock;
+  const delayed = new Promise((resolve) => { unblock = resolve; });
+  const { state, select } = selectionHarness(async (tag) => {
+    if (tag === "v2.0.0") await delayed;
+    return tag === "v2.0.0"
+      ? { ok: true, mode: "appimage", applyConfirmToken: "signed-v2-token" }
+      : { ok: false, error: "v3 is unsigned" };
+  });
+  const first = select("v2.0.0");
+  await select("v3.0.0");
+  unblock();
+  await first;
+  assert.equal(state.update.result.release.tag, "v3.0.0");
+  assert.equal(state.update.result.canApply, false);
+  assert.equal(state.update.confirmToken, null);
+});
+
+test("choosing channel default rechecks channel and removes selected release credentials", async () => {
+  const { state, select, checkCount } = selectionHarness(async () => ({ ok: true }));
+  await select("");
+  assert.equal(checkCount(), 1);
+  assert.equal(state.update.result.canApply, false);
+  assert.equal(state.update.result.applyConfirmToken, null);
+});
+
+test("source upgrade guidance works from a copied install and unrelated working directory", (t) => {
+  if (process.platform === "win32") { t.skip("POSIX source installer"); return; }
+  const dir = mkdtempSync(join(tmpdir(), "cloudflare-one-warp-source-guide-"));
+  const bin = join(dir, "bin");
+  const capture = join(dir, "install-args");
+  mkdirSync(bin);
+  const gitStub = `#!/usr/bin/env bash
+set -eu
+for arg in "$@"; do target="$arg"; done
+mkdir -p "$target/scripts"
+cat > "$target/scripts/install-local.sh" <<'INSTALL'
+#!/usr/bin/env bash
+printf '%s\\n' "$@" > "$UPDATE_CAPTURE"
+INSTALL
+`;
+  writeFileSync(join(bin, "git"), gitStub, { mode: 0o755 });
+  writeFileSync(join(bin, "npm"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+  try {
+    const commands = guidedCommands("source", { version: "2.0.0", tag: "v2.0.0", owner: "bodencrouch", repo: "cloudflare-one-warp" });
+    execFileSync("bash", ["-eu", "-c", commands.join("\n")], {
+      cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, UPDATE_CAPTURE: capture }
+    });
+    const args = readFileSync(capture, "utf8").trim().split("\n");
+    assert.equal(args[0], "--install-dir");
+    assert.equal(args[1], fileURLToPath(new URL("../", import.meta.url)));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("release picker only offers Apply after selected release prepare supplies a token", async () => {
+  const { state, select } = selectionHarness(async () => ({
+    ok: true, mode: "appimage", applyConfirmToken: "selected-release-token", recommendedAsset: { name: ASSET_NAME }
+  }));
+  await select("v2.0.0");
+  assert.equal(state.update.result.canApply, true);
+  assert.equal(state.update.confirmToken, "selected-release-token");
+  assert.equal(state.update.result.recommendedAsset.name, ASSET_NAME);
 });

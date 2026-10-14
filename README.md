@@ -62,7 +62,7 @@ Full contributor guide: **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)**
 | Component | Notes |
 |-----------|--------|
 | Cloudflare WARP | `warp-cli` on `PATH` — [Linux](https://developers.cloudflare.com/warp-client/get-started/linux/) · [macOS](https://developers.cloudflare.com/warp-client/get-started/macos/) |
-| Node.js 20+ | Host Node for deb/rpm; bundled in AppImage / Flatpak / Snap |
+| Node.js 22+ (24 LTS recommended) | Host Node for deb/rpm; bundled in AppImage / Flatpak / Snap |
 | Browser | For the Web UI when enabled |
 
 ## CLI reference
@@ -123,7 +123,7 @@ Prebuilt packages: **[GitHub Releases](https://github.com/bodencrouch/cloudflare
 docker pull ghcr.io/bodencrouch/cloudflare-one-warp:latest
 
 # macOS Homebrew
-brew tap bodencrouch/cloudflare-one-warp homebrew-tap
+brew tap bodencrouch/cloudflare-one-warp
 brew install cloudflare-one-warp
 ```
 

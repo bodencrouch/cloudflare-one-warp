@@ -8,14 +8,14 @@ https://developers.cloudflare.com/warp-client/get-started/linux/
 
 | Artifact | Depends on | Notes |
 |----------|------------|-------|
-| `.deb` / `.rpm` / Arch `.pkg.tar.zst` | System `nodejs >= 20` | Built with [nfpm](https://nfpm.goreleaser.com/); recommends `python3-pyqt6` + WebEngine for tray |
-| `.AppImage` | Host `warp-cli` | Bundles Node 20; x86_64 |
+| `.deb` / `.rpm` / Arch `.pkg.tar.zst` | System `nodejs >= 24` | Built with [nfpm](https://nfpm.goreleaser.com/); recommends `python3-pyqt6` + WebEngine for tray |
+| `.AppImage` | Host `warp-cli` | Bundles Node 24; x86_64 |
 | `.flatpak` | Host `warp-cli`, host PyQt6 for tray | Bundles Node; `cloudflare-one-warp-tray` in app; tray needs host PyQt6 (Phase 2: bundle Qt) |
 | `.snap` (classic) | Host `warp-cli` | Classic confinement; stages `python3-pyqt6` for tray; polkit policy included |
 | `cloudflare-one-warp-*-src.tar.gz` + `PKGBUILD` | — | For AUR / manual builds |
 | `SHA256SUMS` | — | Published with releases |
 | **Docker (ghcr.io)** | Host `warp-cli` when running container | API server + CI builder images |
-| **Homebrew (macOS)** | `node@20`, host `warp-cli` | Tap branch `homebrew-tap` |
+| **Homebrew (macOS)** | `node@24`, host `warp-cli` | Dedicated `bodencrouch/homebrew-cloudflare-one-warp` tap |
 
 ## CI / manual runs
 
@@ -49,7 +49,7 @@ docker pull ghcr.io/bodencrouch/cloudflare-one-warp-ci:latest
 ## Homebrew (macOS)
 
 ```bash
-brew tap bodencrouch/cloudflare-one-warp homebrew-tap
+brew tap bodencrouch/cloudflare-one-warp
 brew install cloudflare-one-warp
 cloudflare-one-warp --no-open
 ```
@@ -120,7 +120,10 @@ The daemon runs with `ProtectSystem=strict`, so the whole filesystem is read-onl
 | `ConfigurationDirectory=cloudflare-one-warp` (mode `0700`) | `~/.config/cloudflare-one-warp` holds `config.json` and the local session credential |
 | `CacheDirectory=cloudflare-one-warp` (mode `0700`) | Update downloads and cached release metadata |
 | `ReadWritePaths=-%h/.config/autostart -%h/.local/share/applications` | Tray autostart entries and generated app shortcuts |
-| `ReadWritePaths=-%t -/run/cloudflare-warp` | Runtime dir plus the WARP service socket |
+| `RuntimeDirectory=cloudflare-one-warp` and `TMPDIR=%t/cloudflare-one-warp` | Private writable temporary directory shared with the authorized helper |
+| `StateDirectory=cloudflare-one-warp` | Persistent app state |
+| `ReadWritePaths=-%t/cloudflare-one-warp -/run/cloudflare-warp` | App runtime plus the WARP service socket |
+| Desktop integration write grants | App proxy launchers, user units, and config home; KDE atomic writes need a sibling temporary file |
 | `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK` | Loopback HTTP, the WARP socket, and interface lookups — nothing else |
 
 Every `ReadWritePaths` entry is `-` prefixed so a missing optional path does not stop the daemon from starting.
@@ -135,3 +138,9 @@ If you revisit these, verify the kill switch end to end (`POST /api/killswitch` 
 ## Signing
 
 CI publishes `SHA256SUMS` for every release. Optional GPG signing of `.deb`/`.rpm` can be enabled later via repository secrets and [`packaging/scripts/checksums.sh`](../packaging/scripts/checksums.sh).
+
+The daemon grants its config directory because KDE writes `kiosktarc` atomically through a sibling temporary file. It does not grant all of HOME, /home, or /tmp. The installer prepares desktop integration directories before starting the confined service. Native user namespace support is required to enforce these mount restrictions.
+
+The fixed `ExecStartPre=+/usr/bin/mkdir` creates optional integration directories before the main process receives its filesystem sandbox. In a user manager it runs as the same user, with no root elevation. The main process retains narrow data-directory grants. The packaged unit uses the normal `~/.local/share` data home; installations with a custom `XDG_DATA_HOME` should use the local installer-generated unit or a user override for its precreation and writable paths.
+
+Native deb/rpm/Arch packages accept supported Node 22 LTS or later; Node 24 LTS is recommended. AppImage, Flatpak, Snap, Docker and Homebrew use Node 24. CI covers both Linux Node 22 compatibility and Node 24 on Linux/macOS/Windows.

@@ -32,7 +32,8 @@ sed -e "s/^        tag: .*/        tag: ${TAG}/" \
 git -C "$WORKDIR/flathub" config user.email "221775936+bodencrouch@users.noreply.github.com"
 git -C "$WORKDIR/flathub" config user.name "bodencrouch"
 git -C "$WORKDIR/flathub" add "$MANIFEST_NAME"
-git -C "$WORKDIR/flathub" commit -m "Add Cloudflare One WARP ${VERSION}" || { echo "No Flathub manifest changes."; exit 0; }
+if git -C "$WORKDIR/flathub" diff --cached --quiet; then echo "No Flathub manifest changes."; exit 0; fi
+git -C "$WORKDIR/flathub" commit -m "Add Cloudflare One WARP ${VERSION}"
 git -C "$WORKDIR/flathub" push -f origin "$BRANCH"
 
 if command -v gh >/dev/null 2>&1; then

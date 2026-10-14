@@ -9,7 +9,7 @@ Cloudflare One WARP is an unofficial desktop client for [Cloudflare One / WARP](
 | Requirement | Why |
 |-------------|-----|
 | [Cloudflare WARP](https://developers.cloudflare.com/warp-client/get-started/linux/) with `warp-cli` on `PATH` | Cloudflare One WARP controls WARP; it does not bundle it |
-| **Node.js 20+** (host or bundled) | Runs the HTTP daemon. AppImage bundles Node; deb/rpm use system Node |
+| **Node.js 22+ (24 LTS recommended)** (host or bundled) | Runs the HTTP daemon. AppImage bundles Node; deb/rpm use system Node |
 | A browser (optional) | For the Web UI when enabled. Firefox is preferred on Linux |
 
 Check WARP:
@@ -32,7 +32,7 @@ Download an artifact from [GitHub Releases](https://github.com/bodencrouch/cloud
 | Format | Best for |
 |--------|----------|
 | **AppImage** | Portable Linux x86_64 — no system Node required |
-| **.deb / .rpm / Arch** | System package managers — uses host `nodejs >= 20` |
+| **.deb / .rpm / Arch** | System package managers — uses host `nodejs >= 24` |
 | **Flatpak / Snap** | Sandboxed Linux installs (classic Snap; Flatpak calls host `warp-cli`) |
 | **Homebrew** (macOS) | `brew tap` + `brew install` — see [PACKAGING.md](PACKAGING.md) |
 
@@ -348,7 +348,7 @@ cloudflare-one-warp --status
 cat ~/.cache/cloudflare-one-warp/server.log
 ```
 
-Ensure Node 20+ is available (`node --version`) unless you use AppImage.
+Ensure supported Node 22+ is available (24 LTS recommended) (`node --version`) unless you use AppImage.
 
 ### `warp-cli` not found
 

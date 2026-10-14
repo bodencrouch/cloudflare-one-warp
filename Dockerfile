@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 LABEL org.opencontainers.image.source="https://github.com/bodencrouch/cloudflare-one-warp"
 LABEL org.opencontainers.image.description="Cloudflare One WARP API server (requires host warp-cli)"

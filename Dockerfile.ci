@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM node:24-bookworm-slim
 
 LABEL org.opencontainers.image.source="https://github.com/bodencrouch/cloudflare-one-warp"
 LABEL org.opencontainers.image.description="CI builder image for Cloudflare One WARP packaging"
@@ -13,8 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   flatpak \
   flatpak-builder \
   libfuse2 \
-  nodejs \
-  npm \
   rpm \
   shellcheck \
   sudo \

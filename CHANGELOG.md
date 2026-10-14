@@ -1,3 +1,13 @@
+# 0.3.4 (2026-10-14)
+
+* Restrict the privileged firewall helper to trusted operations; redact credentials and reject malformed HTTP paths without stopping the daemon.
+* Serialize firewall transitions, preserve failed enrollment recovery, and respect current protection settings.
+* Fix daemon token ownership, saved ports, XDG paths, configuration persistence, status listener lifecycle, and platform CLI discovery.
+* Make readiness and desktop network/tray operations asynchronous and report actual service and firewall state.
+* Fix atomic AppImage replacement across filesystems, proxy launcher quoting, NetworkManager loading, and KDE proxy port synchronization.
+* Use one complete native package payload, grant necessary confined-service paths, and repair Homebrew/AUR publishing.
+* Upgrade bundled Node to 24.21.0 and refresh Playwright and documentation dependencies.
+
 # 0.3.3 (2026-10-10)
 
 * Declare a valid app-specific Flatpak runtime directory permission.

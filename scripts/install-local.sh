@@ -219,7 +219,9 @@ if [[ -x "${INSTALL_DIR}/scripts/cloudflare-one-warp-nm" ]] && command -v nmcli 
 fi
 
 if [[ "$WITH_SERVICE" -eq 1 ]]; then
-  mkdir -p "$SYSTEMD_USER_DIR"
+  CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
+  DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
+  mkdir -p "$SYSTEMD_USER_DIR" "$APPLICATIONS_DIR" "$CONFIG_HOME/autostart" "$DATA_HOME/cloudflare-one-warp/proxy-launchers"
   rm -f "${SYSTEMD_USER_DIR}/cloudflare-one-warp.service" "${SYSTEMD_USER_DIR}/cloudflare-one-gui.service"
 
   cat > "$SERVICE_FILE" <<SERVICE
@@ -231,9 +233,11 @@ After=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=${INSTALL_DIR}
-EnvironmentFile=-${HOME}/.config/cloudflare-one-warp/env
+EnvironmentFile=-${CONFIG_HOME}/cloudflare-one-warp/env
+Environment="XDG_CONFIG_HOME=${CONFIG_HOME}"
+Environment="XDG_DATA_HOME=${DATA_HOME}"
 Environment=CLOUDFLARE_ONE_WARP_WEBUI=0
-Environment=CLOUDFLARE_ONE_WARP_PORT=4173
+ExecStartPre=+/usr/bin/mkdir -p "${APPLICATIONS_DIR}" "${DATA_HOME}/cloudflare-one-warp/proxy-launchers" "${CONFIG_HOME}/autostart" "${SYSTEMD_USER_DIR}"
 ExecStart=/usr/bin/env node ${INSTALL_DIR}/server.js
 Restart=on-failure
 RestartSec=3
@@ -246,8 +250,16 @@ ConfigurationDirectory=cloudflare-one-warp
 ConfigurationDirectoryMode=0700
 CacheDirectory=cloudflare-one-warp
 CacheDirectoryMode=0700
-ReadWritePaths=-%h/.config/autostart -%h/.local/share/applications
-ReadWritePaths=-%t -/run/cloudflare-warp
+RuntimeDirectory=cloudflare-one-warp
+RuntimeDirectoryMode=0700
+StateDirectory=cloudflare-one-warp
+StateDirectoryMode=0700
+Environment=TMPDIR=%t/cloudflare-one-warp
+ReadWritePaths=-"${CONFIG_HOME}/autostart" -"${APPLICATIONS_DIR}"
+ReadWritePaths=-%t/cloudflare-one-warp -/run/cloudflare-warp
+ReadWritePaths=-"${DATA_HOME}/cloudflare-one-warp" -"${SYSTEMD_USER_DIR}"
+# KDE uses sibling temporary files for atomic replacement of kiosktarc.
+ReadWritePaths=-"${CONFIG_HOME}"
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 RestrictSUIDSGID=true
 RestrictNamespaces=true

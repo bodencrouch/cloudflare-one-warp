@@ -6,7 +6,7 @@ pkgdesc="Cloudflare One WARP — unofficial Cloudflare One client via warp-cli"
 arch=('any')
 url="https://github.com/bodencrouch/cloudflare-one-warp"
 license=('MIT')
-depends=('nodejs>=20')
+depends=('nodejs>=22')
 optdepends=(
   'python-pyqt6: KDE/Wayland native tray shell with embedded Web UI'
   'python-pyqt6-webengine: embedded Web UI for PyQt6 tray'
@@ -19,30 +19,5 @@ sha256sums=('SKIP')
 
 package() {
   cd "${srcdir}"
-
-  install -d "${pkgdir}/usr/lib/cloudflare-one-warp"
-  install -m 0644 server.js package.json "${pkgdir}/usr/lib/cloudflare-one-warp/"
-  cp -a public assets lib config "${pkgdir}/usr/lib/cloudflare-one-warp/"
-  install -d "${pkgdir}/usr/lib/cloudflare-one-warp/scripts" "${pkgdir}/usr/lib/cloudflare-one-warp/bin"
-  install -m 0755 scripts/health-check.mjs scripts/port-open.mjs scripts/cloudflare-one-warp-nft-apply \
-    scripts/tray-qt.py scripts/tray-sni.py scripts/tray_api.py scripts/tray-warp-action.py \
-    "${pkgdir}/usr/lib/cloudflare-one-warp/scripts/"
-  install -m 0755 bin/cloudflare-one-warp bin/cloudflare-one-warp-tray bin/cloudflare-one-warp-gui bin/cloudflare-one-warp-tray \
-    "${pkgdir}/usr/lib/cloudflare-one-warp/bin/"
-
-  install -Dm755 packaging/usr-bin-wrapper.sh "${pkgdir}/usr/bin/cloudflare-one-warp"
-  install -Dm755 packaging/usr-bin-alias-wrapper.sh "${pkgdir}/usr/bin/cloudflare-one-warp"
-  install -Dm755 packaging/usr-bin-tray-wrapper.sh "${pkgdir}/usr/bin/cloudflare-one-warp-tray"
-  install -Dm644 packaging/polkit/com.cloudflare.one.warp.policy \
-    "${pkgdir}/usr/share/polkit-1/actions/com.cloudflare.one.warp.policy"
-  install -Dm644 packaging/cloudflare-one-warp.desktop \
-    "${pkgdir}/usr/share/applications/cloudflare-one-warp.desktop"
-  install -Dm644 packaging/cloudflare-one-warp-tray.desktop \
-    "${pkgdir}/usr/share/applications/cloudflare-one-warp-tray.desktop"
-  install -Dm644 assets/cloudflare-one-warp.svg \
-    "${pkgdir}/usr/share/icons/hicolor/scalable/apps/cloudflare-one-warp.svg"
-  install -Dm644 packaging/cloudflare-one-warp.service \
-    "${pkgdir}/usr/lib/systemd/user/cloudflare-one-warp.service"
-  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
-  install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+  PAYLOAD_DIR="${pkgdir}" PACKAGE_VERSION="${pkgver}" bash packaging/scripts/stage-payload.sh
 }

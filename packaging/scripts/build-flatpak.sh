@@ -13,13 +13,13 @@ METAINFO="${ROOT}/packaging/flatpak/metainfo.xml"
 mkdir -p "$OUT" "$BUILD_DIR" "$REPO_DIR"
 
 if ! command -v flatpak-builder >/dev/null 2>&1; then
-  echo "flatpak-builder is required. Install flatpak-builder and the Freedesktop 24.08 SDK." >&2
+  echo "flatpak-builder is required. Install flatpak-builder and the Freedesktop 25.08 SDK." >&2
   exit 1
 fi
 
 # Ensure runtime/sdk are present (best-effort on CI).
 flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
-flatpak install -y --user flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+flatpak install -y --user flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08
 
 # Patch metainfo release version for this build.
 sed -i "s/<release version=\"[0-9.][0-9.]*\"/<release version=\"${VERSION}\"/" "$METAINFO"
