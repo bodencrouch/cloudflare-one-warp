@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { lookup } from "node:dns/promises";
 import { request } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,11 +76,11 @@ async function waitForHealth(timeoutMs = 20000) {
 }
 
 /** Raw POST with caller-supplied headers, for the cross-site guard tests. */
-function httpRaw(method, path, { headers = {}, body = "" } = {}) {
+function httpRaw(method, path, { headers = {}, body = "", chunked = false } = {}) {
   return new Promise((resolve, reject) => {
     const req = request(
       `${baseUrl}${path}`,
-      { method, headers: { "content-length": Buffer.byteLength(body), ...headers } },
+      { method, headers: { ...(chunked ? { "transfer-encoding": "chunked" } : { "content-length": Buffer.byteLength(body) }), ...headers } },
       (res) => {
         let text = "";
         res.on("data", (chunk) => {
@@ -656,4 +656,82 @@ test("same-origin and non-browser writes still pass the guard", async () => {
   // curl / the tray CLI send no browser headers at all.
   const cli = await httpJson("POST", "/api/action", { action: "disconnect" });
   assert.equal(cli.status, 200);
+});
+
+
+test("malformed static path returns 400 without stopping daemon", async () => {
+  assert.equal((await httpRaw("GET", "/%E0%A4%A")).status, 400);
+  assert.equal((await httpJson("GET", "/api/health")).status, 200);
+});
+
+test("credentials are redacted in action responses, logs and diagnostics", async () => {
+  for (const [name, secret] of [["applyLicense", "DUMMY-LICENSE-123456"], ["registrationToken", "com.cloudflare.warp://dummy?token=DUMMY-SECRET"], ["runCustom", "registration license CUSTOM-LICENSE-123456"]]) {
+    const res = await action(name, secret);
+    const credential = name === "runCustom" ? "CUSTOM-LICENSE-123456" : secret;
+    assert.equal(JSON.stringify(res.json).includes(credential), false);
+    const logs = await httpJson("GET", "/api/logs");
+    assert.equal(JSON.stringify(logs.json).includes(credential), false);
+    const diagnostics = await httpJson("GET", "/api/diagnostics");
+    assert.equal(JSON.stringify(diagnostics.json).includes(credential), false);
+  }
+});
+
+test("second daemon cannot overwrite the running daemon's session", async () => {
+  const tokenFile = join(configHome, ".config/cloudflare-one-warp", `session-${port}.token`);
+  const token = readFileSync(tokenFile, "utf8").trim();
+  const duplicate = spawn(process.execPath, ["server.js"], { cwd: root, env: {
+    ...process.env, HOME: configHome, XDG_CONFIG_HOME: join(configHome, ".config"), PORT: String(port),
+    WARP_CLI: mockWarp, MOCK_WARP_STATE: stateFile, CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0",
+    CLOUDFLARE_ONE_WARP_TRAY_LIVE: "0", CLOUDFLARE_ONE_WARP_TRAY_SKIP_SYSTEMD: "1"
+  }, stdio: "ignore" });
+  const code = await new Promise((resolve) => duplicate.on("exit", resolve));
+  assert.equal(code, 1);
+  assert.equal(readFileSync(tokenFile, "utf8").trim(), token);
+  const res = await httpRaw("POST", "/api/action", { headers: { "content-type": "application/json", "x-cloudflare-one-warp-session": token }, body: '{"action":"disconnect"}' });
+  assert.equal(res.status, 200);
+});
+
+test("oversized and invalid JSON are rejected without disrupting health", async () => {
+  const session = await httpJson("GET", "/api/session");
+  const headers = { "content-type": "application/json", "x-cloudflare-one-warp-session": session.json.session };
+  assert.equal((await httpRaw("POST", "/api/action", { headers, body: "x".repeat(65537) })).status, 413);
+  assert.equal((await httpRaw("POST", "/api/action", { headers, body: "x".repeat(65537), chunked: true })).status, 413);
+  assert.equal((await httpRaw("POST", "/api/action", { headers, body: "{" })).status, 400);
+  assert.equal((await httpJson("GET", "/api/health")).status, 200);
+});
+
+
+test("excessive CLI output fails safely and remains bounded", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cf-one-warp-output-"));
+  const fixture = join(dir, "flood.mjs");
+  writeFileSync(fixture, 'process.stdout.write("x".repeat(3 * 1024 * 1024));');
+  const floodPort = port + 1;
+  const daemon = spawn(process.execPath, ["server.js"], { cwd: root, env: {
+    ...process.env, HOME: dir, XDG_CONFIG_HOME: join(dir, ".config"), PORT: String(floodPort),
+    WARP_CLI: fixture, CLOUDFLARE_ONE_WARP_NOTIFICATIONS: "0", CLOUDFLARE_ONE_WARP_TRAY_LIVE: "0",
+    CLOUDFLARE_ONE_WARP_TRAY_SKIP_SYSTEMD: "1", CLOUDFLARE_ONE_WARP_NFT_NO_PKEXEC: "1"
+  }, stdio: "ignore" });
+  const client = createHttpJson(`http://127.0.0.1:${floodPort}`);
+  try {
+    let ready = false;
+    for (let attempt = 0; attempt < 50; attempt++) {
+      try { ready = (await client("GET", "/api/health")).status === 200; } catch { /* starting */ }
+      if (ready) break;
+      await sleep(100);
+    }
+    assert.equal(ready, true);
+    const res = await client("POST", "/api/action", { action: "disconnect" });
+    assert.equal(res.status, 502);
+    assert.equal(res.json.result.ok, false);
+    assert.match(res.json.result.stderr, /output exceeded/);
+    assert.ok(res.json.result.stdout.length <= 1024 * 1024);
+    const logs = await client("GET", "/api/logs");
+    assert.ok(JSON.stringify(logs.json).length < 2 * 1024 * 1024);
+    assert.equal((await client("GET", "/api/health")).status, 200);
+  } finally {
+    const exited = new Promise((resolve) => daemon.once("exit", resolve));
+    daemon.kill("SIGTERM");
+    await exited;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

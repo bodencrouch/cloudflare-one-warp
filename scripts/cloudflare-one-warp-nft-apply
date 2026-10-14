@@ -1,43 +1,46 @@
-#!/usr/bin/env bash
-# Privileged helper for Cloudflare One WARP kill-switch nft apply — invoked via pkexec only.
+#!/bin/bash
+# Privileged boundary: accept fixed options only; never read caller-provided nft code.
 set -euo pipefail
-
-subcmd="${1:-}"
-path="${2:-}"
-
-usage() {
-  echo "Usage: cloudflare-one-warp-nft-apply apply|remove <rules.nft>" >&2
-  exit 2
-}
-
-[[ "$subcmd" == "apply" || "$subcmd" == "remove" ]] || usage
-[[ -n "$path" && -f "$path" && -r "$path" ]] || {
-  echo "cloudflare-one-warp-nft-apply: missing or unreadable rules file" >&2
-  exit 2
-}
-
-content="$(cat "$path")"
-
-validate_script() {
-  local script="$1"
-  grep -q 'cloudflare_one_warp_killswitch' <<<"$script" || return 3
-  if grep -E 'table inet ' <<<"$script" | grep -vq 'table inet cloudflare_one_warp_killswitch'; then
-    return 4
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+NFT=/usr/sbin/nft
+[[ -x "$NFT" ]] || NFT=/usr/bin/nft
+usage() { echo 'Usage: cloudflare-one-warp-nft-apply enable|disable true|false destroy|delete' >&2; exit 2; }
+[[ $# == 3 ]] || usage
+[[ "$1" == enable || "$1" == disable ]] || usage
+[[ "$2" == true || "$2" == false ]] || usage
+[[ "$3" == destroy || "$3" == delete ]] || usage
+# Every emitted directive is fixed in this root-owned script.
+{
+  if [[ "$1" == disable ]]; then
+    echo '# Cloudflare One WARP kill switch — disable'
+  else
+    echo '# Cloudflare One WARP kill switch'
   fi
-  return 0
-}
+  if [[ "$3" == destroy ]]; then
+    echo 'destroy table inet cloudflare_one_warp_killswitch'
+  else
+    echo 'table inet cloudflare_one_warp_killswitch'
+    echo 'delete table inet cloudflare_one_warp_killswitch'
+  fi
+  if [[ "$1" == enable ]]; then
+    cat <<'RULES'
+table inet cloudflare_one_warp_killswitch {
+  chain output {
+    type filter hook output priority filter; policy drop;
 
-if ! validate_script "$content"; then
-  echo "cloudflare-one-warp-nft-apply: rejected script (not a Cloudflare One WARP kill switch ruleset)" >&2
-  exit 3
-fi
+    oifname "lo" accept
+    oifname "CloudflareWARP" accept
 
-if [[ "$subcmd" == "apply" ]]; then
-  exec nft -f "$path"
-fi
+    ip daddr { 162.159.192.0/24, 162.159.193.0/24, 162.159.197.0/24, 162.159.137.105, 162.159.138.105, 162.159.36.1, 162.159.46.1 } accept
+    ip6 daddr { 2606:4700:100::/48, 2606:4700:102::/48, 2606:4700:7::a29f:8969, 2606:4700:7::a29f:8a69, 2606:4700:4700::1111, 2606:4700:4700::1001 } accept
+RULES
+    if [[ "$2" == true ]]; then
+      cat <<'RULES'
 
-if grep -q '^destroy table inet cloudflare_one_warp_killswitch' <<<"$content"; then
-  exec nft -f "$path"
-fi
-
-exec nft delete table inet cloudflare_one_warp_killswitch
+    ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } accept
+    ip6 daddr { fc00::/7, fe80::/10 } accept
+RULES
+    fi
+    printf '  }\n}\n'
+  fi
+} | "$NFT" -f -
